@@ -1,5 +1,7 @@
 package main
 
+//go:generate cargo build --release --manifest-path=../formatter/Cargo.toml
+
 import (
 	"log/slog"
 	"os"

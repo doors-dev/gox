@@ -465,4 +465,22 @@ func initClientCalls(on func(h onCall, m ...method)) {
 		c.err(errors.New("folding range not supported for gox, rely on tree sitter"))
 	}, foldingRange)
 
+	on(func(c caller, j Json) {
+		doc, kind, err := jsonDoc.get(j)
+		if err != nil {
+			c.err(err)
+			return
+		}
+		if kind != walker.KindSource {
+			c.forward()
+			return
+		}
+		formatted, err := doc.Format(c.enc())
+		if err != nil {
+			c.err(err)
+			return
+		}
+		c.res(jsonGenerator.newTextEdits(formatted.Range, formatted.Text))
+	}, formatting)
+
 }

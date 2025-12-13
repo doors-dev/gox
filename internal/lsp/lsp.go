@@ -117,7 +117,6 @@ func (c *request) res(result Json) {
 }
 
 func (c *request) err(err error) {
-	slog.Error("handler error: " + err.Error())
 	if c.isCall() {
 		c.cb(Response{Err: err})
 	} else {

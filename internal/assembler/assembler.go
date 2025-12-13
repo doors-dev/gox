@@ -3,7 +3,6 @@ package assembler
 import (
 	"bytes"
 	"encoding/json"
-	"unicode"
 
 	"github.com/doors-dev/gox/internal/common"
 	"github.com/doors-dev/gox/internal/text"
@@ -20,7 +19,7 @@ func Assemble(source text.Text, root *tree_sitter.Node) (text.Text, translator.T
 		source:     source,
 	}
 	/*
-	importGox := needsGoxImport(source.Source(), root)
+		importGox := needsGoxImport(source.Source(), root)
 	*/
 	scanGoSource(a, root)
 	return target, translator
@@ -80,26 +79,11 @@ func (a *assembler) append(parts ...part) {
 			continue
 		}
 		node, ok = part.Str()
-		if ok {
-			s := node.Utf8Text(a.source.Source())
-			a.target.Append(stringLiteral(s))
-			continue
+		if !ok {
+			node, ok = part.Text()
 		}
-		node, ok = part.Text()
 		if ok {
 			s := node.Utf8Text(a.source.Source())
-			before, ok := a.source.Rune(int(node.StartByte() - 1))
-			if ok {
-				if unicode.IsSpace(before) {
-					s = " " + s
-				}
-			}
-			after, ok := a.source.Rune(int(node.EndByte()))
-			if ok {
-				if unicode.IsSpace(after) {
-					s = s + " "
-				}
-			}
 			a.target.Append(stringLiteral(s))
 		}
 	}

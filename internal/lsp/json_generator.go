@@ -37,6 +37,15 @@ func (r jsonGeneratorDriver) newNoSemanticTokens() Json {
 	return &node
 }
 
+func (r jsonGeneratorDriver) newTextEdits(rang common.Range, content string) Json {
+	newText := ast.NewPair("newText", ast.NewString(content))
+	ran := ast.NewPair("range", jsonPos.fromRange(rang))
+	arr := ast.NewArray([]ast.Node{ast.NewObject([]ast.Pair{newText, ran})})
+	d, _ := arr.MarshalJSON()
+	slog.Info("DD", "d", string(d))
+	return &arr
+}
+
 func (r jsonGeneratorDriver) newUpdateEdit(uri string, content string, message string) Json {
 	messageNode := ast.NewPair("label", ast.NewString(message))
 	rang := ast.NewPair("range", jsonPos.fromRange(common.NewRange(

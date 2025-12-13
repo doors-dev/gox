@@ -87,6 +87,12 @@ func (t *text) LastPos() common.Pos {
 	if len(t.lineOffsets) == 0 {
 		return common.NewPos(0, 0)
 	}
+	return common.NewPos(len(t.lineOffsets), 0)
+}
+func (t *text) lastPos() common.Pos {
+	if len(t.lineOffsets) == 0 {
+		return common.NewPos(0, 0)
+	}
 	line := len(t.lineOffsets) - 1
 	last := t.lineOffsets[line]
 	return common.NewPos(line, last.Len())
@@ -125,7 +131,7 @@ func (d Text) Update(content string) (tree_sitter.InputEdit, bool, error) {
 	if slices.Equal(b, d.source) {
 		return tree_sitter.InputEdit{}, false, nil
 	}
-	rang := common.Range{common.Pos{0, 0}, d.LastPos()}
+	rang := common.Range{common.Pos{0, 0}, d.lastPos()}
 	return d.Patch(rang, content)
 }
 

@@ -2,9 +2,28 @@ package workspace
 
 import (
 	"log/slog"
+	"math"
 
 	"github.com/doors-dev/gox/internal/common"
+	"github.com/doors-dev/gox/internal/formatter"
 )
+
+type Formatted struct {
+	Text  string
+	Range common.Range
+}
+
+func (d Doc) Format(enc common.Encoding) (Formatted, error) {
+	output, err := formatter.Format(d.source.Source())
+	if err != nil {
+		return Formatted{}, err
+	}
+	ran := common.NewRange(common.NewPos(0, 0), common.NewPos(math.MaxInt32, 0))
+	return Formatted{
+		Range: ran,
+		Text:  string(output),
+	}, nil
+}
 
 func (d Doc) SourceUpdate(content string) (bool, error) {
 	slog.Info("source update", "content", content)
@@ -26,7 +45,6 @@ func (d Doc) SourceUpdate(content string) (bool, error) {
 	d.Assemble()
 	return true, nil
 }
-
 
 func (d Doc) SourcePatch(enc common.Encoding, ran common.Range, content string) (bool, error) {
 	r := d.source.IntoRange(enc, ran)
