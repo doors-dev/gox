@@ -5,7 +5,6 @@ import (
 
 	"github.com/bytedance/sonic/ast"
 	"github.com/doors-dev/gox/internal/common"
-	"github.com/doors-dev/gox/internal/walker"
 	"github.com/doors-dev/gox/internal/workspace"
 )
 
@@ -137,15 +136,15 @@ func (r jsonPosDriver) convertLocations(end common.Encoding, origin workspace.Do
 		}
 	}
 	var doc workspace.Doc
-	var kind walker.FileKind
+	var kind workspace.FileKind
 	doc, kind, err = jsonDoc.get(j)
 	if err != nil {
 		return
 	}
-	if kind == walker.KindUnknown {
+	if kind == workspace.KindUnknown {
 		return
 	}
-	if kind == walker.KindSource {
+	if kind == workspace.KindSource {
 		err = errors.New("source can't be referenced by the server")
 	}
 	err = doc.Lock()
@@ -179,15 +178,15 @@ func (r jsonPosDriver) convertCalls(enc common.Encoding, j Json) (err error) {
 			return false
 		}
 		var doc workspace.Doc
-		var kind walker.FileKind
+		var kind workspace.FileKind
 		doc, kind, err = jsonDoc.get(node)
 		if err != nil {
 			return false
 		}
-		if kind == walker.KindUnknown {
+		if kind == workspace.KindUnknown {
 			return true
 		}
-		if kind == walker.KindSource {
+		if kind == workspace.KindSource {
 			err = errors.New("source file is not expected")
 			return false
 		}
@@ -269,11 +268,11 @@ func (r jsonPosDriver) convertDiagnostics(enc common.Encoding, doc workspace.Doc
 		}
 		uri := *path.Key
 		doc, kind := man.Doc(uri)
-		if kind == walker.KindUnknown {
+		if kind == workspace.KindUnknown {
 			newRelated.Set(uri, *node)
 			return true
 		}
-		if kind == walker.KindSource {
+		if kind == workspace.KindSource {
 			err = errors.New("diagnostics is not expected for source file")
 			return false
 		}

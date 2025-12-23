@@ -26,15 +26,11 @@ func (d Doc) Format(enc common.Encoding) (Formatted, error) {
 }
 
 func (d Doc) SourceUpdate(content string) (bool, error) {
-	slog.Info("source update", "content", content)
-	slog.Info("source update", "source", d.source.String())
-
 	edit, upd, err := d.source.Update(content)
 	if err != nil {
 		slog.Error("patch error: " + err.Error())
 		return false, err
 	}
-	slog.Info("source update", "eq", !upd)
 	if !upd {
 		return false, nil
 	}

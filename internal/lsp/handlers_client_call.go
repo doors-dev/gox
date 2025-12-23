@@ -5,15 +5,19 @@ import (
 	"log/slog"
 
 	jsonrpc2 "github.com/doors-dev/gox/internal/jsonrpc"
-	"github.com/doors-dev/gox/internal/walker"
 	"github.com/doors-dev/gox/internal/workspace"
 )
 
 func initClientCalls(on func(h onCall, m ...method)) {
 
 	on(func(c caller, j Json) {
+		err := jsonInit.setEncodings(j)
+		if err != nil {
+			c.err(err)
+			return
+		}
 		d, _ := j.MarshalJSON()
-		slog.Info("initialize", "res", string(d))
+		slog.Info("initialize", "req", string(d))
 		folders := j.Get("workspaceFolders")
 		if folders == nil {
 			slog.Error("no workspace folders")
@@ -39,8 +43,15 @@ func initClientCalls(on func(h onCall, m ...method)) {
 			man.AddWorkspace(uriStr)
 		}
 		c.proxy(j, func(res Json) {
+			enc, err := jsonInit.readEncoding(j)
+			if err != nil {
+				slog.Error("read encoding error: " + err.Error())
+				c.err(err)
+				return
+			}
 			d, _ := res.MarshalJSON()
 			slog.Info("initialize", "res", string(d))
+			c.session().setEnc(enc)
 			c.res(res)
 		})
 	}, initialize)
@@ -51,7 +62,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 			c.err(err)
 			return
 		}
-		if kind != walker.KindSource {
+		if kind != workspace.KindSource {
 			c.forward()
 			return
 		}
@@ -105,7 +116,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 			c.err(err)
 			return
 		}
-		if kind != walker.KindSource {
+		if kind != workspace.KindSource {
 			c.forward()
 			return
 		}
@@ -143,7 +154,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 			c.err(err)
 			return
 		}
-		if kind != walker.KindSource {
+		if kind != workspace.KindSource {
 			c.forward()
 			return
 		}
@@ -156,7 +167,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 			c.err(err)
 			return
 		}
-		if kind != walker.KindSource {
+		if kind != workspace.KindSource {
 			c.forward()
 			return
 		}
@@ -186,7 +197,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 
 	on(func(c caller, j Json) {
 		doc, kind, err := jsonDoc.get(j)
-		if kind == walker.KindSource {
+		if kind == workspace.KindSource {
 			err = doc.Lock()
 			if err != nil {
 				c.err(doc.Err())
@@ -201,6 +212,8 @@ func initClientCalls(on func(h onCall, m ...method)) {
 			}
 		}
 		c.proxy(j, func(res Json) {
+			d, _ := res.MarshalJSON()
+			slog.Info("rename", "res", string(d))
 			err := jsonChanges.convertEdit(c.enc(), res)
 			if err != nil {
 				c.err(err)
@@ -212,7 +225,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 
 	on(func(c caller, j Json) {
 		doc, kind, err := jsonDoc.get(j)
-		if kind == walker.KindSource {
+		if kind == workspace.KindSource {
 			err = doc.Lock()
 			if err != nil {
 				c.err(doc.Err())
@@ -246,7 +259,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 			c.err(err)
 			return
 		}
-		if kind == walker.KindSource {
+		if kind == workspace.KindSource {
 			err = doc.Lock()
 			if err != nil {
 				c.err(doc.Err())
@@ -271,7 +284,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 			jsonDoc.setAsTarget(j, doc)
 		}
 		c.proxy(j, func(res Json) {
-			if kind != walker.KindSource {
+			if kind != workspace.KindSource {
 				doc = nil
 			}
 			err := jsonChanges.convertCodeActions(c.enc(), doc, res)
@@ -302,7 +315,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 			c.err(err)
 			return
 		}
-		if kind != walker.KindSource {
+		if kind != workspace.KindSource {
 			c.forward()
 			return
 		}
@@ -331,7 +344,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 			c.err(err)
 			return
 		}
-		if kind == walker.KindSource {
+		if kind == workspace.KindSource {
 			err := doc.Lock()
 			if err != nil {
 				c.err(err)
@@ -358,7 +371,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 			c.err(err)
 			return
 		}
-		if kind != walker.KindSource {
+		if kind != workspace.KindSource {
 			c.forward()
 			return
 		}
@@ -396,7 +409,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 			c.err(err)
 			return
 		}
-		if kind != walker.KindSource {
+		if kind != workspace.KindSource {
 			c.forward()
 			return
 		}
@@ -417,7 +430,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 			c.err(err)
 			return
 		}
-		if kind != walker.KindSource {
+		if kind != workspace.KindSource {
 			c.forward()
 			return
 		}
@@ -438,7 +451,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 			c.err(err)
 			return
 		}
-		if kind != walker.KindSource {
+		if kind != workspace.KindSource {
 			c.forward()
 			return
 		}
@@ -458,7 +471,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 			c.err(err)
 			return
 		}
-		if kind != walker.KindSource {
+		if kind != workspace.KindSource {
 			c.forward()
 			return
 		}
@@ -471,7 +484,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 			c.err(err)
 			return
 		}
-		if kind != walker.KindSource {
+		if kind != workspace.KindSource {
 			c.forward()
 			return
 		}

@@ -9,15 +9,22 @@ import (
 const maxTokenSize = 1 << 24
 
 func NewText() Text {
-	return &text{}
+	t := &text{}
+	t.ensureLineOffsets()
+	return t
 }
 
 type Text = *text
 
+type indent struct {
+	prefix []byte
+	fake   bool
+}
+
 type text struct {
 	source      []byte
 	lineOffsets []offset
-	indents     [][]byte
+	indents     []indent
 }
 
 func (t Text) Clone() Text {
@@ -39,7 +46,7 @@ func (t Text) Cursor() common.Pos {
 
 func (t *text) lastIdent() []byte {
 	if len(t.indents) == 0 {
-		return nil
+		return []byte{}
 	}
-	return t.indents[len(t.indents)-1]
+	return t.indents[len(t.indents)-1].prefix
 }

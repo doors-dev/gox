@@ -1,4 +1,4 @@
-package walker
+package workspace
 
 import (
 	"io"
@@ -132,4 +132,11 @@ func (f File) Hash() ([32]byte, bool) {
 	}
 	copy(arr[:], hash.Sum(nil))
 	return arr, true
+}
+
+func (f File) remove() {
+	err := os.Remove(f.Path())
+	if err != nil {
+		slog.Error("file remove error: " + err.Error())
+	}
 }

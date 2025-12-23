@@ -20,11 +20,11 @@ func scanTilde(coll collector, root *tree_sitter.Node) {
 	case GOX_TILDE_FOR:
 		scanFor(coll, body)
 	case GOX_TILDE_VALUE, GOX_FUNC:
-		coll.append(r("__E = __C.WriteAny(ctx, "))
+		coll.append(r("__e = __c.WriteAny(ctx, "))
 		scanValue(coll, body)
 		coll.append(r("); " + ERR_CHECK))
 	case GOX_TILDE_LITERAL_VALUE:
-		coll.append(r("__E = __C.WriteText(ctx, "), s(body), r("); "+ERR_CHECK))
+		coll.append(r("__e = __c.WriteText(ctx, "), s(body), r("); "+ERR_CHECK))
 	case GOX_TIDE_BLOCK:
 		body = body.ChildByFieldName("body")
 		if body != nil {

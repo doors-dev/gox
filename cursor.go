@@ -181,10 +181,7 @@ func (c Cursor) WriteElem(ctx context.Context, elem Elem) error {
 	if err := c.stack.Opened(); err != nil {
 		return err
 	}
-	return c.printer.Send(JobElem{
-		Elem: elem,
-		Ctx:  ctx,
-	})
+	return c.printer.Send(newJobElem(ctx, elem))
 }
 
 func (c Cursor) WriteComp(ctx context.Context, comp Comp) error {
@@ -194,10 +191,7 @@ func (c Cursor) WriteComp(ctx context.Context, comp Comp) error {
 	if elem, ok := comp.(Elem); ok {
 		return c.WriteElem(ctx, elem)
 	}
-	return c.printer.Send(JobComp{
-		Comp: comp,
-		Ctx:  ctx,
-	})
+	return c.printer.Send(newJobComp(ctx, comp))
 }
 
 func (c Cursor) WriteText(ctx context.Context, text string) error {
@@ -211,43 +205,31 @@ func (c Cursor) WriteRaw(ctx context.Context, text string) error {
 	if err := c.stack.Opened(); err != nil {
 		return err
 	}
-	return c.printer.Send(JobRaw{
-		Ctx:  ctx,
-		Text: text,
-	})
+	return c.printer.Send(NewJobRaw(ctx, text))
 }
 
 func (c Cursor) WriteFunc(ctx context.Context, f func(w io.Writer) error) error {
 	if err := c.stack.Opened(); err != nil {
 		return err
 	}
-	return c.printer.Send(JobFunc{
-		Ctx:  ctx,
-		Func: f,
-	})
+	return c.printer.Send(newJobFunc(ctx, f))
 }
 
 func (c Cursor) WriteTempl(ctx context.Context, templ Templ) error {
 	if err := c.stack.Opened(); err != nil {
 		return err
 	}
-	return c.printer.Send(JobTempl{
-		Ctx:   ctx,
-		Templ: templ,
-	})
+	return c.printer.Send(newJobTempl(ctx, templ))
 }
 
 func (c Cursor) WriteFprint(ctx context.Context, any any) error {
 	if err := c.stack.Opened(); err != nil {
 		return err
 	}
-	return c.printer.Send(JobFprint{
-		Ctx: ctx,
-		Any: any,
-	})
+	return c.printer.Send(newJobFprint(ctx, any))
 }
 
-func (c Cursor) WriteJob(ctx context.Context, job Job) error {
+func (c Cursor) WriteJob(job Job) error {
 	if err := c.stack.Opened(); err != nil {
 		return err
 	}
@@ -261,14 +243,42 @@ func (c Cursor) WriteAny(ctx context.Context, any any) error {
 	switch v := any.(type) {
 	case string:
 		return c.WriteText(ctx, v)
+	case []string:
+		for _, v := range v {
+			if err := c.WriteText(ctx, v); err != nil {
+				return err
+			}
+		}
+	    return nil
 	case Elem:
 		return c.WriteElem(ctx, v)
+	case []Elem:
+		for _, v := range v {
+			if err := c.WriteElem(ctx, v); err != nil {
+				return err
+			}
+		}
+	    return nil
 	case Comp:
 		return c.WriteComp(ctx, v)
+	case []Comp:
+		for _, v := range v {
+			if err := c.WriteComp(ctx, v); err != nil {
+				return err
+			}
+		}
+	    return nil
 	case func(w io.Writer) error:
 		return c.WriteFunc(ctx, v)
 	case Job:
-		return c.WriteJob(ctx, v)
+		return c.WriteJob(v)
+	case []Job:
+		for _, v := range v {
+			if err := c.WriteJob(v); err != nil {
+				return err
+			}
+		}
+		return nil
 	case Templ:
 		return c.WriteTempl(ctx, v)
 	default:
@@ -276,10 +286,6 @@ func (c Cursor) WriteAny(ctx context.Context, any any) error {
 	}
 }
 
-func (c Cursor) WriteAnyFunc(ctx context.Context, f func() any) error {
-	v := f()
-	return c.WriteAny(ctx, v)
-}
 
 func (c Cursor) AttrSetAny(name string, value any) error {
 	attrs, err := c.stack.Attrs()
@@ -349,7 +355,7 @@ func (c Cursor) AttrSetObject(name string, value any) error {
 }
 
 
-func (c Cursor) AttrMut(mut ...AttrMut) error {
+func (c Cursor) AttrMod(mut ...AttrMut) error {
 	attrs, err := c.stack.Attrs()
 	if err != nil {
 		return err

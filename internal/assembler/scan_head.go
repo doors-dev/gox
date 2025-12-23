@@ -4,7 +4,7 @@ import (
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-const ERR_CHECK = "if __E != nil { return }"
+const ERR_CHECK = "if __e != nil { return }"
 
 func scanContent(coll collector, root *tree_sitter.Node) {
 	if root == nil {
@@ -57,23 +57,23 @@ func scanRawHead(coll collector, root *tree_sitter.Node) {
 
 func scanPlain(coll collector, root *tree_sitter.Node) {
 	coll.cr()
-	coll.append(r("__E = __C.WriteText(ctx, "), t(root), r("); "+ERR_CHECK))
+	coll.append(r("__e = __c.WriteText(ctx, "), t(root), r("); "+ERR_CHECK))
 }
 
 func scanRaw(coll collector, root *tree_sitter.Node) {
 	coll.cr()
-	coll.append(r("__E = __C.WriteRaw(ctx, "), s(root), r("); "+ERR_CHECK))
+	coll.append(r("__e = __c.WriteRaw(ctx, "), s(root), r("); "+ERR_CHECK))
 }
 
 func scanVoidHead(coll collector, root *tree_sitter.Node) {
 	coll.cr()
 	name := root.ChildByFieldName("name")
-	coll.append(r("__E = __C.HeadInitVoid(ctx, "), s(name), r("); "+ERR_CHECK))
+	coll.append(r("__e = __c.HeadInitVoid(ctx, "), s(name), r("); "+ERR_CHECK))
 	coll.indentFake()
 	scanAttributes(coll, root)
 	coll.indentEnd()
 	coll.cr()
-	coll.append(r("__E = __C.HeadSubmit(ctx); " + ERR_CHECK))
+	coll.append(r("__e = __c.HeadSubmit(ctx); " + ERR_CHECK))
 }
 
 func scanSelfClosingHead(coll collector, root *tree_sitter.Node) {
@@ -82,14 +82,14 @@ func scanSelfClosingHead(coll collector, root *tree_sitter.Node) {
 		return
 	}
 	coll.cr()
-	coll.append(r("__E = __C.HeadInit(ctx, "), s(name), r("); "+ERR_CHECK))
+	coll.append(r("__e = __c.HeadInit(ctx, "), s(name), r("); "+ERR_CHECK))
 	coll.indentFake()
 	scanAttributes(coll, root)
 	coll.cr()
-	coll.append(r("__E = __C.HeadSubmit(ctx); " + ERR_CHECK))
+	coll.append(r("__e = __c.HeadSubmit(ctx); " + ERR_CHECK))
 	coll.indentEnd()
 	coll.cr()
-	coll.append(r("__E = __C.HeadClose(ctx); " + ERR_CHECK))
+	coll.append(r("__e = __c.HeadClose(ctx); " + ERR_CHECK))
 }
 
 func scanHead(coll collector, root *tree_sitter.Node) {
@@ -102,15 +102,15 @@ func scanHead(coll collector, root *tree_sitter.Node) {
 		return
 	}
 	coll.cr()
-	coll.append(r("__E = __C.HeadInit(ctx, "), s(name), r("); "+ERR_CHECK))
+	coll.append(r("__e = __c.HeadInit(ctx, "), s(name), r("); "+ERR_CHECK))
 	coll.indentFake()
 	scanAttributes(coll, open)
 	coll.cr()
-	coll.append(r("__E = __C.HeadSubmit(ctx); " + ERR_CHECK))
+	coll.append(r("__e = __c.HeadSubmit(ctx); " + ERR_CHECK))
 	scanContent(coll, root)
 	coll.indentEnd()
 	coll.cr()
-	coll.append(r("__E = __C.HeadClose(ctx); " + ERR_CHECK))
+	coll.append(r("__e = __c.HeadClose(ctx); " + ERR_CHECK))
 }
 
 func scanAttributes(coll collector, root *tree_sitter.Node) {
@@ -127,30 +127,30 @@ func scanAttributes(coll collector, root *tree_sitter.Node) {
 			coll.append(p(&child))
 		case GOX_ATTR:
 			coll.cr()
-			coll.append(r("__E = __C.AttrSetAny("), s(name), r(", "))
+			coll.append(r("__e = __c.AttrSetAny("), s(name), r(", "))
 			scanValue(coll, value)
 			coll.append(r("); "), r(ERR_CHECK))
 		case GOX_LITERAL_ATTR:
 			coll.cr()
-			coll.append(r("__E = __C.AttrSet("), s(name), r(", "), s(value), r("); "), r(ERR_CHECK))
+			coll.append(r("__e = __c.AttrSet("), s(name), r(", "), s(value), r("); "), r(ERR_CHECK))
 		case GOX_CLASS_ATTR:
 			coll.cr()
-			coll.append(r("__E = __C.AttrAppend("), s(name), r(", "), s(value))
+			coll.append(r("__e = __c.AttrAppend("), s(name), r(", "), s(value))
 			scanValue(coll, value)
 			coll.append(r("); "), r(ERR_CHECK))
 		case GOX_CLASS_LITERAL_ATTR:
 			coll.cr()
-			coll.append(r("__E = __C.AttrAppend(\"class\", "), s(value), r("); "), r(ERR_CHECK))
+			coll.append(r("__e = __c.AttrAppend(\"class\", "), s(value), r("); "), r(ERR_CHECK))
 		case GOX_BOOL_ATTR:
 			coll.cr()
 			if value == nil {
-				coll.append(r("__E = __C.AttrSetBool("), s(name), r(", true);"), r(ERR_CHECK))
+				coll.append(r("__e = __c.AttrSetBool("), s(name), r(", true);"), r(ERR_CHECK))
 			} else {
-				coll.append(r("__E = __C.AttrSetBool("), s(name), r(", "), p(value), r("); "), r(ERR_CHECK))
+				coll.append(r("__e = __c.AttrSetBool("), s(name), r(", "), p(value), r("); "), r(ERR_CHECK))
 			}
 		case GOX_ATTR_MOD:
 			coll.cr()
-			coll.append(r("__E = __C.AttrMod"))
+			coll.append(r("__e = __c.AttrMod"))
 			scanGoSnippet(coll, &child)
 			coll.cr()
 			coll.append(r("; "), r(ERR_CHECK))

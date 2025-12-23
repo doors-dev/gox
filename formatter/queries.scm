@@ -449,12 +449,19 @@ _
  .
 )
 
+(gox_element
+  .
+ open: (_) @append_empty_softline
+ close: (_) @prepend_empty_softline
+ .
+)
 
 (gox_space_filler) @delete
 
 (_
   [
    (gox_head) 
+   (gox_element)
    (gox_void_head)
    (gox_plain_text)
    (gox_space_filler)
@@ -468,6 +475,7 @@ _
   .
   [
    (gox_head) 
+   (gox_element)
    (gox_void_head)
    (gox_plain_text)
    (gox_space_filler)
@@ -483,6 +491,7 @@ _
 (_
   [
    (gox_head) 
+   (gox_element)
    (gox_void_head)
    (gox_plain_text)
    (gox_space_filler)
@@ -508,6 +517,7 @@ _
   .
   [
    (gox_head) 
+   (gox_element)
    (gox_void_head)
    (gox_plain_text)
    (gox_space_filler)

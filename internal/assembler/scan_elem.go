@@ -5,13 +5,13 @@ import tree_sitter "github.com/tree-sitter/go-tree-sitter"
 func scanElement(coll collector, root *tree_sitter.Node, inCode bool) {
 	if inCode {
 		coll.append(
-			r("gox.Elem(func(ctx gox.Context, __C gox.Cursor) (__E error) {"),
+			r("gox.Elem(func(ctx gox.Context, __c gox.Cursor) (__e error) {"),
 		)
 		coll.indentRef(root.StartPosition())
 	} else {
 		coll.cr()
 		coll.append(
-			r("__E = __C.WriteElem(ctx, gox.Elem(func(ctx gox.Context, __C gox.Cursor) (__E error) {"),
+			r("__e = __c.WriteElem(ctx, gox.Elem(func(ctx gox.Context, __c gox.Cursor) (__e error) {"),
 		)
 	}
 	coll.indentBeg()
@@ -57,7 +57,7 @@ func scanElemDec(coll collector, root *tree_sitter.Node) {
 	coll.append(r(" {"))
 	coll.indentBeg()
 	coll.cr()
-	coll.append(r("return "), r("gox.Elem(func(ctx gox.Context, __C gox.Cursor) (__E error) {"))
+	coll.append(r("return "), r("gox.Elem(func(ctx gox.Context, __c gox.Cursor) (__e error) {"))
 	coll.indentBeg()
 	scanContent(coll, body)
 	coll.indentEnd()
@@ -78,7 +78,7 @@ func scanElemLit(coll collector, root *tree_sitter.Node) {
 	coll.append(r("func"), p(params), r(" gox.Elem {"))
 	coll.indentBeg()
 	coll.cr()
-	coll.append(r("return "), r("gox.Elem(func(ctx gox.Context, __C gox.Cursor) (__E error) {"))
+	coll.append(r("return "), r("gox.Elem(func(ctx gox.Context, __c gox.Cursor) (__e error) {"))
 	coll.indentBeg()
 	scanContent(coll, body)
 	coll.indentEnd()

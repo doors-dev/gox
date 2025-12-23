@@ -3,7 +3,7 @@ package lsp
 import (
 	"log/slog"
 
-	"github.com/doors-dev/gox/internal/walker"
+	"github.com/doors-dev/gox/internal/workspace"
 )
 
 func initClientNotifs(on func(on onNotif, m ...method)) {
@@ -14,7 +14,7 @@ func initClientNotifs(on func(on onNotif, m ...method)) {
 			n.err(err)
 			return
 		}
-		if kind == walker.KindUnknown {
+		if kind == workspace.KindUnknown {
 			n.forward()
 			return
 		}
@@ -35,7 +35,7 @@ func initClientNotifs(on func(on onNotif, m ...method)) {
 		}
 		defer doc.Unlock()
 		switch kind {
-		case walker.KindSource:
+		case workspace.KindSource:
 			doc.SourceOpen(int32(version))
 			upd, _ := doc.SourceUpdate(text)
 			if upd && doc.TargetIsOpened() {
@@ -50,7 +50,7 @@ func initClientNotifs(on func(on onNotif, m ...method)) {
 			}
 			jsonDoc.setAsTarget(j, doc)
 			n.notify(j)
-		case walker.KindTarget:
+		case workspace.KindTarget:
 			doc.TargetOpen(int32(version))
 			if !doc.SourceIsOpened() {
 				jsonDoc.setVersion(j, 0)
@@ -72,7 +72,7 @@ func initClientNotifs(on func(on onNotif, m ...method)) {
 			n.err(err)
 			return
 		}
-		if kind == walker.KindUnknown {
+		if kind == workspace.KindUnknown {
 			n.forward()
 			return
 		}
@@ -83,7 +83,7 @@ func initClientNotifs(on func(on onNotif, m ...method)) {
 		}
 		defer doc.Unlock()
 		switch kind {
-		case walker.KindSource:
+		case workspace.KindSource:
 			changes, err := jsonChanges.getChanges(j)
 			if err != nil {
 				n.err(err)
@@ -112,7 +112,7 @@ func initClientNotifs(on func(on onNotif, m ...method)) {
 					jsonGenerator.newUpdateEdit(doc.TargetFile().URI(), doc.TargetContent(), ""),
 				)
 			}
-		case walker.KindTarget:
+		case workspace.KindTarget:
 			changes, err := jsonChanges.getChanges(j)
 			if err != nil {
 				n.err(err)
@@ -141,11 +141,11 @@ func initClientNotifs(on func(on onNotif, m ...method)) {
 			n.err(err)
 			return
 		}
-		if kind == walker.KindUnknown {
+		if kind == workspace.KindUnknown {
 			n.forward()
 			return
 		}
-		if kind == walker.KindTarget {
+		if kind == workspace.KindTarget {
 			return
 		}
 		err = doc.Lock()
@@ -169,7 +169,7 @@ func initClientNotifs(on func(on onNotif, m ...method)) {
 			n.err(err)
 			return
 		}
-		if kind == walker.KindUnknown {
+		if kind == workspace.KindUnknown {
 			n.forward()
 			return
 		}
@@ -180,7 +180,7 @@ func initClientNotifs(on func(on onNotif, m ...method)) {
 		}
 		defer doc.Unlock()
 		switch kind {
-		case walker.KindSource:
+		case workspace.KindSource:
 			slog.Info("source file closed: " + doc.SourceFile().Path())
 			doc.SourceClose()
 			if doc.TargetIsOpened() {
@@ -188,7 +188,7 @@ func initClientNotifs(on func(on onNotif, m ...method)) {
 			}
 			jsonDoc.setAsTarget(j, doc)
 			n.notify(j)
-		case walker.KindTarget:
+		case workspace.KindTarget:
 			doc.TargetClose()
 			if doc.SourceIsOpened() {
 				return

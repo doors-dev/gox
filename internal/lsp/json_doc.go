@@ -3,7 +3,6 @@ package lsp
 import (
 	"errors"
 	"log/slog"
-	"github.com/doors-dev/gox/internal/walker"
 	"github.com/doors-dev/gox/internal/workspace"
 )
 
@@ -28,7 +27,7 @@ func (r jsonDocDriver) getText(j Json) (string, error) {
 	return str, nil
 }
 
-func (r jsonDocDriver) get(j Json) (workspace.Doc, walker.FileKind, error) {
+func (r jsonDocDriver) get(j Json) (workspace.Doc, workspace.FileKind, error) {
 	uri := func() Json {
 		uri := j.Get("uri")
 		if uri.Exists() {
@@ -63,11 +62,11 @@ func (r jsonDocDriver) get(j Json) (workspace.Doc, walker.FileKind, error) {
 		return nil
 	}()
 	if uri == nil {
-		return nil, walker.KindUnknown, errors.New("uri field not found")
+		return nil, workspace.KindUnknown, errors.New("uri field not found")
 	}
 	uriStr, err := uri.String()
 	if err != nil {
-		return nil, walker.KindUnknown, errors.New("uri field not valid")
+		return nil, workspace.KindUnknown, errors.New("uri field not valid")
 	}
 	doc, kind := man.Doc(uriStr)
 	return doc, kind, nil
@@ -102,19 +101,19 @@ func (r jsonDocDriver) getVersion(j Json) (int, error) {
 }
 
 func (r jsonDocDriver) setAsSource(j Json, doc workspace.Doc) {
-	r.setAs(j, doc, walker.KindSource)
+	r.setAs(j, doc, workspace.KindSource)
 }
 
 func (r jsonDocDriver) setAsTarget(j Json, doc workspace.Doc) {
-	r.setAs(j, doc, walker.KindTarget)
+	r.setAs(j, doc, workspace.KindTarget)
 }
 
-func (r jsonDocDriver) setAs(j Json, doc workspace.Doc, kind walker.FileKind) {
-	var file walker.File
+func (r jsonDocDriver) setAs(j Json, doc workspace.Doc, kind workspace.FileKind) {
+	var file workspace.File
 	switch kind {
-	case walker.KindSource:
+	case workspace.KindSource:
 		file = doc.SourceFile()
-	case walker.KindTarget:
+	case workspace.KindTarget:
 		file = doc.TargetFile()
 	default:
 		panic("invalid kind")
@@ -165,7 +164,7 @@ func (r jsonDocDriver) setAs(j Json, doc workspace.Doc, kind walker.FileKind) {
 	if err != nil {
 		panic("uri set error " + err.Error())
 	}
-	if kind != walker.KindTarget {
+	if kind != workspace.KindTarget {
 		return
 	}
 	if textDoc.Get("languageId").Exists() {

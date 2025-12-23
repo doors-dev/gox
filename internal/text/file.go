@@ -38,7 +38,15 @@ func (l Text) Save(path string) error {
 	return err
 }
 
+func (t Text) ensureLineOffsets() {
+	if len(t.lineOffsets) != 0 {
+		return
+	}
+	t.lineOffsets = append(t.lineOffsets, newOffset(0, 0))
+}
+
 func (t Text) Load(path string) error {
+	defer t.ensureLineOffsets()
 	file, err := os.Open(path)
 	if err != nil {
 		return err

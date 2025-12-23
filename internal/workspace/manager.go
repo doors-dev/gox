@@ -4,24 +4,17 @@ import (
 	"log/slog"
 	"net/url"
 	"strings"
-
-	"github.com/doors-dev/gox/internal/walker"
 )
 
 type Manager = *manager
 
 func NewManager() Manager {
-	return &manager{
-		workspaces: make(map[string]Workspace),
-		virtual:    NewWorkspace(),
-	}
+	return &manager{}
 }
 
 type manager struct {
-	workspaces map[string]Workspace
-	virtual    Workspace
+	workspaces []*workspace
 }
-
 
 func (m *manager) AddWorkspace(uri string) {
 	url, err := url.Parse(uri)
@@ -29,22 +22,26 @@ func (m *manager) AddWorkspace(uri string) {
 		slog.Error("parse error: " + err.Error())
 		return
 	}
-	ws := NewWorkspace()
-	m.workspaces[url.Path] = ws
-	ws.Scan(url.Path)
+	for _, ws := range m.workspaces {
+		if ws.Root() == url.Path {
+			return
+		}
+	}
+	ws := newWs(url.Path)
+	m.workspaces = append(m.workspaces, ws)
 }
 
-func (m *manager) Doc(uri string) (Doc, walker.FileKind) {
-	file, ok := walker.NewFileFromURI(uri)
+func (m *manager) Doc(uri string) (Doc, FileKind) {
+	file, ok := NewFileFromURI(uri)
 	if !ok {
-		return nil, walker.KindUnknown
+		return nil, KindUnknown
 	}
-	for rootPath, ws := range m.workspaces {
-		if strings.HasPrefix(file.Path(), rootPath) {
+	for _, ws := range m.workspaces {
+		if strings.HasPrefix(file.Path(), ws.Root()) {
 			doc := ws.Load(file)
 			return doc, file.Kind()
 		}
 	}
-	doc := m.virtual.Load(file)
+	doc := NewDoc(file, dummyWs{})
 	return doc, file.Kind()
 }

@@ -9,20 +9,25 @@ import (
 	"github.com/doors-dev/gox/internal/assembler"
 	"github.com/doors-dev/gox/internal/text"
 	"github.com/doors-dev/gox/internal/translator"
-	"github.com/doors-dev/gox/internal/walker"
 	tree_sitter_gox "github.com/doors-dev/tree-sitter-gox/bindings/go"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
 type Doc = *doc
 
-type ws interface {
+type ows interface {
 	lock()
 	unlock()
 }
 
-func NewDoc(file walker.File, ws ws) Doc {
-	if file.Kind() != walker.KindSource {
+type dummyWs struct{}
+
+func (d dummyWs) lock() {}
+
+func (d dummyWs) unlock() {}
+
+func NewDoc(file File, ws ows) Doc {
+	if file.Kind() != KindSource {
 		file = file.Reverse()
 	}
 	lang := tree_sitter.NewLanguage(tree_sitter_gox.Language())
@@ -31,10 +36,9 @@ func NewDoc(file walker.File, ws ws) Doc {
 	if err != nil {
 		panic(err)
 	}
-
 	return &doc{
 		ws:            ws,
-		file:          file,
+		sourceFile:    file,
 		parser:        parser,
 		sourceVersion: -1,
 		targetVersion: -1,
@@ -42,9 +46,9 @@ func NewDoc(file walker.File, ws ws) Doc {
 }
 
 type doc struct {
-	ws            ws
+	ws            ows
 	parser        *tree_sitter.Parser
-	file          walker.File
+	sourceFile    File
 	tree          *tree_sitter.Tree
 	source        text.Text
 	target        text.Text
@@ -56,6 +60,9 @@ type doc struct {
 }
 
 func (d Doc) Lock() error {
+	if d == nil {
+		return errors.New("file not exists")
+	}
 	d.ws.lock()
 	if d.Err() != nil {
 		d.ws.unlock()
@@ -73,6 +80,9 @@ func (d Doc) PrintTarget() {
 }
 
 func (d Doc) Err() error {
+	if d == nil {
+		return errors.New("file not exists")
+	}
 	return d.err
 }
 
@@ -86,20 +96,20 @@ func (d Doc) resetDraft() {
 
 func (d Doc) SubmitTargetDraft() bool {
 	/*
-	slog.Info("submit draft", "target", d.target.Source())
-	slog.Info("submit draft", "draft", d.draft.Source())
+		slog.Info("submit draft", "target", d.target.Source())
+		slog.Info("submit draft", "draft", d.draft.Source())
 	*/
 	return slices.Equal(d.target.Source(), d.draft.Source())
 }
 
 func (d Doc) Init() {
-	if !d.file.Exists() {
+	if !d.sourceFile.Exists() {
 		d.targetRemove()
 		d.err = errors.New("file not exists")
 		return
 	}
 	d.source = text.NewText()
-	err := d.source.Load(d.file.Path())
+	err := d.source.Load(d.sourceFile.Path())
 	if err != nil {
 		d.err = err
 		return
@@ -134,19 +144,19 @@ func (d Doc) targetWrite() error {
 }
 
 func (d Doc) Name() string {
-	return d.file.Name()
+	return d.sourceFile.Name()
 }
 
-func (d Doc) SourceFile() walker.File {
-	return d.file
+func (d Doc) SourceFile() File {
+	return d.sourceFile
 }
 
 func (d Doc) TargetContent() string {
 	return d.target.String()
 }
 
-func (d Doc) TargetFile() walker.File {
-	return d.file.Reverse()
+func (d Doc) TargetFile() File {
+	return d.sourceFile.Reverse()
 }
 
 func (d Doc) Delete() {

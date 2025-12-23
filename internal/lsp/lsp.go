@@ -169,6 +169,7 @@ type onNotif func(n notifier, j Json)
 type onCall func(c caller, j Json)
 
 func (r Router) Notification(role Role, n Request) {
+	slog.Info("Notification", "role", role, "method", n.Method)
 	m := method(n.Method)
 	switch role {
 	case Client:
@@ -208,6 +209,7 @@ func (r Router) Notification(role Role, n Request) {
 }
 
 func (r Router) Call(role Role, call Request, cb Callback) {
+	slog.Info("Call", "role", role, "method", call.Method)
 	m := method(call.Method)
 	switch role {
 	case Client:

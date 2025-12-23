@@ -66,21 +66,40 @@ func (t *text) IndentRef(line []byte) {
 	for unicode.IsSpace(rune(line[i])) && i < len(line) {
 		i += 1
 	}
-	t.indents = append(t.indents, slices.Clone(line[:i]))
+	indent := indent{
+		prefix: slices.Clone(line[:i]),
+		fake:   false,
+	}
+	t.indents = append(t.indents, indent)
 }
 
 func (t *text) IndentBeg() {
 	prefix := append(t.lastIdent(), '\t')
-	t.indents = append(t.indents, prefix)
+	indent := indent{
+		prefix: prefix,
+		fake:   false,
+	}
+	t.indents = append(t.indents, indent)
 }
 
 func (t *text) IndentFake() {
-	prefix := append(t.lastIdent(), "/**/ "...)
-	t.indents = append(t.indents, prefix)
+	t.CR()
+	t.AppendString("{")
+	prefix := append(t.lastIdent(), '\t')
+	indent := indent{
+		prefix: prefix,
+		fake:   true,
+	}
+	t.indents = append(t.indents, indent)
 }
 
 func (t *text) IndentEnd() {
+	last := t.indents[len(t.indents)-1]
 	t.indents = t.indents[:len(t.indents)-1]
+	if last.fake {
+		t.CR()
+		t.AppendString("}")
+	}
 }
 
 func (t *text) LastPos() common.Pos {
@@ -89,6 +108,7 @@ func (t *text) LastPos() common.Pos {
 	}
 	return common.NewPos(len(t.lineOffsets), 0)
 }
+
 func (t *text) lastPos() common.Pos {
 	if len(t.lineOffsets) == 0 {
 		return common.NewPos(0, 0)
@@ -98,30 +118,6 @@ func (t *text) lastPos() common.Pos {
 	return common.NewPos(line, last.Len())
 }
 
-/*
-func (d Text) DryUpdate(content string) (bool, error) {
-	rang := common.Range{common.Pos{0, 0}, d.lastPos()}
-	return d.DryPatch(rang, content)
-}
-
-func (d Text) DryPatch(rang common.Range, content string) (bool, error) {
-	startOffset := d.offset(rang.Beg())
-	oldEndOffset := d.offset(rang.End())
-	slog.Info("getting slice", "ran", rang, "beg", startOffset, "end", oldEndOffset, "total", len(d.source), "lines", len(d.lineOffsets))
-	slog.Info("patch", "cont", content)
-	if oldEndOffset == -1 { // means replace all
-		oldEndOffset = len(d.source)
-		rang = common.NewRange(rang.Beg(), d.lastPos())
-	}
-	if startOffset == -1 {
-		return false, errors.New("invalid range")
-	}
-	patch, err := d.preparePatch(rang, startOffset, oldEndOffset, content)
-	if err != nil {
-		return false, err
-	}
-	return patch != nil, nil
-} */
 
 func (d Text) Update(content string) (tree_sitter.InputEdit, bool, error) {
 	b := common.Bytes(content)
@@ -136,6 +132,7 @@ func (d Text) Update(content string) (tree_sitter.InputEdit, bool, error) {
 }
 
 func (d Text) Patch(ran common.Range, content string) (tree_sitter.InputEdit, bool, error) {
+	defer d.ensureLineOffsets()
 	// slog.Info("patch", "rang", ran, "content", content)
 	patch, err := d.preparePatch(ran, content)
 	if err != nil {

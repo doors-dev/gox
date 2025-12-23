@@ -5,7 +5,6 @@ import (
 
 	"github.com/bytedance/sonic/ast"
 	"github.com/doors-dev/gox/internal/common"
-	"github.com/doors-dev/gox/internal/walker"
 	"github.com/doors-dev/gox/internal/workspace"
 )
 
@@ -80,11 +79,11 @@ func (r jsonChangesDriver) convertEdit(enc common.Encoding, j Json) (err error) 
 			}
 			uri := *path.Key
 			doc, kind := man.Doc(uri)
-			if kind == walker.KindUnknown {
+			if kind == workspace.KindUnknown {
 				newChanges.Set(uri, *node)
 				return true
 			}
-			if kind == walker.KindSource {
+			if kind == workspace.KindSource {
 				err = errors.New("source can't be edited by the server")
 				return false
 			}
@@ -118,16 +117,16 @@ func (r jsonChangesDriver) convertEdit(enc common.Encoding, j Json) (err error) 
 		textDoc := node.Get("textDocument")
 		if textDoc.Exists() {
 			var doc workspace.Doc
-			var kind walker.FileKind
+			var kind workspace.FileKind
 			doc, kind, err = jsonDoc.get(&node)
 			if err != nil {
 				return
 			}
-			if kind == walker.KindUnknown {
+			if kind == workspace.KindUnknown {
 				newChanges = append(newChanges, node)
 				continue
 			}
-			if kind == walker.KindSource {
+			if kind == workspace.KindSource {
 				err = errors.New("source can't be edited by the server")
 				return
 			}

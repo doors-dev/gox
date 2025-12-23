@@ -93,13 +93,6 @@ func (b *bridge) incomingCall(role lsp.Role, id jsonrpc2.ID, method string, para
 		if errors.Is(resp.Err, context.Canceled) {
 			return
 		}
-		if resp.Err != nil {
-			_, ok := resp.Err.(*jsonrpc2.WireError)
-			if !ok {
-				slog.Error("unknown error " + resp.Err.Error())
-				return
-			}
-		}
 		b.write(role, &jsonrpc2.Response{
 			Result: resp.Result,
 			Error:  resp.Err,

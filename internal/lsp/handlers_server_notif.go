@@ -1,7 +1,7 @@
 package lsp
 
 import (
-	"github.com/doors-dev/gox/internal/walker"
+	"github.com/doors-dev/gox/internal/workspace"
 )
 
 func initServerNotifs(on func(on onNotif, m ...method)) {
@@ -11,11 +11,11 @@ func initServerNotifs(on func(on onNotif, m ...method)) {
 			n.err(err)
 			return
 		}
-		if kind == walker.KindUnknown {
+		if kind == workspace.KindUnknown {
 			n.forward()
 			return
 		}
-		if kind == walker.KindSource {
+		if kind == workspace.KindSource {
 			panic("source file diagnostics is not expected")
 		}
 		jsonDoc.setAsSource(j, doc)

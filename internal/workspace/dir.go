@@ -1,65 +1,50 @@
 package workspace
 
-import (
-	"github.com/doors-dev/gox/internal/walker"
-)
-
-func newDir(path string, ws ws) *dir {
-	return &dir{
-		ws:   ws,
-		path: path,
-		docs: make(map[string]Doc),
-		hp:   make(map[string]int),
-	}
-}
 
 type dir struct {
-	ws   ws
 	path string
 	docs map[string]Doc
-	hp   map[string]int
+	sus  map[string]struct{}
+	ws   *workspace
 }
 
-const defaultHP = 10
-
-func (d *dir) tick() {
-	for name, doc := range d.docs {
-		if doc.SourceFile().Exists() {
-			d.hp[name] = defaultHP
-			continue
-		}
-		d.hp[name] -= 1
-		if d.hp[name] == 0 {
-			doc.Delete()
-			delete(d.docs, name)
-			delete(d.hp, name)
-		}
-	}
+func (d *dir) IsEmpty() bool {
+	return len(d.docs) == 0
 }
 
-func (dr *dir) isEmpty() bool {
-	return len(dr.docs) == 0
-}
-
-func (dr *dir) load(file walker.File) Doc {
+func (dr *dir) load(file File) Doc {
 	d, found := dr.docs[file.Name()]
 	if !found {
 		d = NewDoc(file, dr.ws)
 		d.Init()
 		if d.Err() == nil {
 			dr.docs[d.Name()] = d
-			dr.hp[d.Name()] = defaultHP
 		}
 	}
 	return d
 }
 
-func (dr *dir) scan() {
-	ch := walker.Walk(dr.path, false)
-	for file := range ch {
-		if !file.IsValid() {
+func (d *dir) ScanDeletions() {
+	for name, doc := range d.docs {
+		if !doc.SourceFile().Exists() {
+			_, ok := d.sus[name]
+			if !ok {
+				d.sus[name] = struct{}{}
+				continue
+			}
+			delete(d.sus, name)
+			delete(d.docs, name)
+			doc.targetRemove()
 			continue
 		}
-		_ = dr.load(file)
+		delete(d.sus, name)
+		if !doc.TargetFile().Exists() {
+			doc.Save()
+		}
 	}
 }
+
+func (d *dir) Path() string {
+	return d.path
+}
+

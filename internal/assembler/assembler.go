@@ -3,6 +3,7 @@ package assembler
 import (
 	"bytes"
 	"encoding/json"
+	"regexp"
 
 	"github.com/doors-dev/gox/internal/common"
 	"github.com/doors-dev/gox/internal/text"
@@ -18,9 +19,6 @@ func Assemble(source text.Text, root *tree_sitter.Node) (text.Text, translator.T
 		translator: translator,
 		source:     source,
 	}
-	/*
-		importGox := needsGoxImport(source.Source(), root)
-	*/
 	scanGoSource(a, root)
 	return target, translator
 }
@@ -66,6 +64,8 @@ func (a *assembler) cr() {
 	a.target.CR()
 }
 
+var ws = regexp.MustCompile(`\s+`)
+
 func (a *assembler) append(parts ...part) {
 	for _, part := range parts {
 		node, ok := part.Portal()
@@ -79,12 +79,17 @@ func (a *assembler) append(parts ...part) {
 			continue
 		}
 		node, ok = part.Str()
-		if !ok {
-			node, ok = part.Text()
-		}
 		if ok {
 			s := node.Utf8Text(a.source.Source())
 			a.target.Append(stringLiteral(s))
+			continue
+		}
+		node, ok = part.Text()
+		if ok {
+			s := node.Utf8Text(a.source.Source())
+			s = ws.ReplaceAllString(s, " ")
+			a.target.Append(stringLiteral(s))
+			continue
 		}
 	}
 }
