@@ -42,6 +42,5 @@ func (m *manager) Doc(uri string) (Doc, FileKind) {
 			return doc, file.Kind()
 		}
 	}
-	doc := NewDoc(file, dummyWs{})
-	return doc, file.Kind()
+	return nil, file.Kind()
 }

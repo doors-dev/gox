@@ -13,6 +13,16 @@ var jsonGenerator jsonGeneratorDriver
 
 type jsonGeneratorDriver struct{}
 
+func (r jsonGeneratorDriver) newEmptyArray() Json {
+	node := ast.NewArray(nil)
+	return &node
+}
+
+func (r jsonGeneratorDriver) newNull() Json {
+	node := ast.NewNull()
+	return &node
+}
+
 func (r jsonGeneratorDriver) newSymbols(symbols []workspace.Symbol) Json {
 	arr := make([]ast.Node, 0, len(symbols))
 	for _, s := range symbols {
@@ -27,7 +37,7 @@ func (r jsonGeneratorDriver) newSymbols(symbols []workspace.Symbol) Json {
 		}
 		arr = append(arr, sym)
 	}
-	node := ast.NewArray(arr)	
+	node := ast.NewArray(arr)
 	return &node
 }
 
@@ -72,5 +82,23 @@ func (r jsonGeneratorDriver) newHover(ran common.Range, message string) Json {
 	return &node
 }
 
-
-
+func (r jsonGeneratorDriver) newCompletions(completions []workspace.Completion, complete bool) Json {
+	inComplete := ast.NewPair("isIncomplete", ast.NewBool(!complete))
+	var itemNodes = make([]ast.Node, 0, len(completions))
+	for _, completion := range completions {
+		rang := ast.NewPair("range", jsonPos.fromRange(completion.Range))
+		label := ast.NewPair("label", ast.NewString(completion.Label))
+		newText := ast.NewPair("newText", ast.NewString(completion.Text))
+		kind := ast.NewPair("kind", ast.NewAny(completion.Kind()))
+		editNode := ast.NewObject([]ast.Pair{rang, newText})
+		textEdit := ast.NewPair("textEdit", editNode)
+		itemNode := ast.NewObject([]ast.Pair{label, textEdit, kind})
+		itemNodes = append(itemNodes, itemNode)
+	}
+	insertTextFormat := ast.NewPair("insertTextFormat", ast.NewAny(2))
+	insertTextMode := ast.NewPair("insertTextMode", ast.NewAny(2))
+	itemDefaults := ast.NewPair("itemDefaults", ast.NewObject([]ast.Pair{insertTextFormat, insertTextMode}))
+	items := ast.NewPair("items", ast.NewArray(itemNodes))
+	node := ast.NewObject([]ast.Pair{inComplete, itemDefaults, items})
+	return &node
+}

@@ -61,6 +61,7 @@ func (w *workspace) ticker() {
 			w.mu.Lock()
 			d.ScanDeletions()
 			if d.IsEmpty() {
+				slog.Info("removing dir: " + name)
 				delete(w.dirs, name)
 			}
 			w.mu.Unlock()
@@ -91,7 +92,6 @@ func (w *workspace) scan(path string) {
 	}
 	entries, err := os.ReadDir(path)
 	if err != nil {
-		slog.Error("Dir read error: " + err.Error())
 		return
 	}
 	files := make(map[string]File)

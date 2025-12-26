@@ -1,54 +1,9 @@
-use std::fmt;
+use std::fs::OpenOptions;
 use std::io::Write;
+use std::{fmt, io};
 
 use super::init;
 use tree_sitter::Node;
-/*
-#[cfg(test)]
-#[test]
-
-fn test_simple() {
-    let test = r#"
-    func main() {
-        return <div>
-			<style>
-				/* format-test.css */
-:root{--gap:8px;--primary:#09f}
-.container{display:flex;gap:var(--gap);padding:calc(var(--gap)*2)}
-.container > .item{flex:1 1 auto;border:1px solid #0003;padding:4px  6px}
-.container>.item:hover,.container>.item:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
-
-@media (max-width: 600px){
-  .container{flex-direction:column}
-  .item{font-size:clamp(14px, 2vw ,18px)}
-}
-
-@supports (display: grid){
-  .container{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
-}
-
-@keyframes wiggle{
-  0%,100%{transform:translateX(0)}
-  50%{transform:translateX(3px)}
-}
-
-.button{
-  background:linear-gradient(90deg,var(--primary), #f0c);
-  color:#fff;
-  border:none;
-  padding:8px 12px;
-  animation:wiggle .6s ease-in-out infinite;
-}
-
-			</style>
-
-        </div>
-    }
-    "#;
-    let mut out = Vec::new();
-    format(test, &mut out).unwrap();
-    println!("{}", std::str::from_utf8(&out).unwrap());
-} */
 
 struct Replace {
     code: String,
@@ -99,7 +54,7 @@ impl Replace {
                 let open = node.child_by_field_name("open");
                 let close = node.child_by_field_name("close");
                 if open.is_none() || close.is_none() {
-                    continue
+                    continue;
                 }
                 let beg = open.unwrap().end_byte();
                 let end = close.unwrap().start_byte();
@@ -116,8 +71,30 @@ impl Replace {
         }
     }
 }
+fn dump(content: &[u8]) -> io::Result<()> {
+    let mut f = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open("/tmp/topiary.log")?;
+    f.write_all(content)?;
+    Ok(())
+}
 
-pub fn format(input: &str, output: &mut Vec<u8>) -> Result<(), topiary_core::FormatterError> {
+
+pub fn format(input: &[u8], output: &mut Vec<u8>) -> Result<(), topiary_core::FormatterError> {
+    let mut parser = init::new_parser();
+    let tree = parser.parse(input, None)?;
+    if tree.is_none() {
+        return Ok(());
+    }
+    let tree = tree.unwrap();
+    let root = tree.root_node();
+    let cured = cure_tags(input, &root);
+    let input = if let Some(cured) = cured.as_ref() {
+        std::str::from_utf8(cured).unwrap()
+    } else {
+        std::str::from_utf8(input).unwrap()
+    };
     let mut formatted_gox = Vec::new();
     topiary_core::formatter_str(
         input,
@@ -128,7 +105,6 @@ pub fn format(input: &str, output: &mut Vec<u8>) -> Result<(), topiary_core::For
             tolerate_parsing_errors: false,
         },
     )?;
-    let mut parser = init::new_parser();
     let tree = parser.parse(formatted_gox.as_slice(), None)?;
     if tree.is_none() {
         return Ok(());
@@ -163,6 +139,46 @@ pub fn format(input: &str, output: &mut Vec<u8>) -> Result<(), topiary_core::For
     Ok(())
 }
 
+fn cure_tags(input: &[u8], root: &topiary_tree_sitter_facade::Node) -> Option<Vec<u8>> {
+    let mut implicid_close = init::query().implicid_close(root, input);
+    let impl_close_count = implicid_close.len();
+    let mut err_close = init::query().err_close(root, input);
+    implicid_close.reserve(err_close.len());
+    implicid_close.append(&mut err_close);
+    implicid_close.sort_by_key(|close| close.start_byte());
+    let close_nodes = implicid_close;
+    if close_nodes.len() == 0 {
+        return None;
+    }
+    let mut buf = Vec::new();
+    let mut insert_end = 0;
+    for i in 0..close_nodes.len() {
+        let node = close_nodes[i];
+        let chunk = &input[insert_end..node.start_byte()];
+        if i < impl_close_count {
+            let name: Option<String> = (|| {
+                let head = node.parent()?; 
+                let open = head.child_by_field_name("open")?;
+                let name_node = open.child_by_field_name("name")?;
+                name_node.utf8_text(input).ok().map(|s| s.to_owned())
+            })();
+            if name.is_none() {
+                continue;
+            }
+            buf.extend_from_slice(chunk);
+            buf.extend_from_slice("</".as_bytes());
+            buf.extend_from_slice(name.unwrap().as_bytes());
+            buf.extend_from_slice(">".as_bytes());
+            insert_end = node.end_byte();
+            continue;
+        }
+        buf.extend_from_slice(chunk);
+        insert_end = node.end_byte();
+    }
+    buf.extend_from_slice(&input[insert_end..]);
+    Some(buf)
+}
+
 fn format_js(code: &str) -> Result<String, Box<dyn std::error::Error>> {
     let source_type = biome_js_syntax::JsFileSource::js_script();
     let parsed = biome_js_parser::parse(
@@ -181,10 +197,7 @@ fn format_js(code: &str) -> Result<String, Box<dyn std::error::Error>> {
 
 fn format_css(code: &str) -> Result<String, Box<dyn std::error::Error>> {
     let source_type = biome_css_syntax::CssFileSource::css();
-    let parsed = biome_css_parser::parse_css(
-        code,
-        biome_css_parser::CssParserOptions::default(),
-    );
+    let parsed = biome_css_parser::parse_css(code, biome_css_parser::CssParserOptions::default());
     let root = parsed.syntax();
     let mut options = biome_css_formatter::context::CssFormatOptions::new(source_type);
     init::indent().apply_css(&mut options);

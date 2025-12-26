@@ -1,6 +1,9 @@
 package assembler
 
-import tree_sitter "github.com/tree-sitter/go-tree-sitter"
+import (
+	"github.com/doors-dev/gox/internal/catalog/grammer"
+	tree_sitter "github.com/tree-sitter/go-tree-sitter"
+)
 
 type collector interface {
 	portal(beg tree_sitter.Point, end tree_sitter.Point)
@@ -63,8 +66,14 @@ func t(node *tree_sitter.Node) part {
 }
 
 func s(node *tree_sitter.Node) part {
+	if node == nil {
+		return part{
+			kind:  nonePart,
+			value: nil,
+		}
+	}
 	switch node.Kind() {
-	case RAW_STRING_LITERAL, INTERPETED_STRING_LITERAL:
+	case grammer.RAW_STRING_LITERAL, grammer.INTERPETED_STRING_LITERAL:
 		return part{
 			kind:  portalPart,
 			value: node,

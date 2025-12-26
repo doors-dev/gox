@@ -1,4 +1,4 @@
-package assembler
+package grammer
 
 const (
 	// generic
@@ -19,7 +19,6 @@ const (
 	INTERFACE_TYPE     = "interface_type"
 	FIELD_IDENT        = "field_identifier"
 
-
 	//
 	GOX_ELEM_FUNC_DEC  = "gox_elem_function_declaration"
 	GOX_ELEM_METH_DEC  = "gox_elem_method_declaration"
@@ -27,24 +26,29 @@ const (
 	GOX_ELEM_FUNC_LIT  = "gox_elem_func_literal"
 
 	// content
-	GOX_ELEMENT              = "gox_element"
-	GOX_HEAD                 = "gox_head"
-	GOX_RAW_HEAD             = "gox_raw_head"
-	GOX_SCRIPT_HEAD          = "gox_script_head"
-	GOX_STYLE_HEAD           = "gox_style_head"
-	GOX_VOID_HEAD            = "gox_void_head"
-	GOX_SELF_CLOSING_HEAD    = "gox_self_closing_head"
-	GOX_ERRONEOUS_CLOSE_HEAD = "gox_erroneous_close_head"
-	GOX_DOCTYPE              = "gox_doctype"
-	GOX_TILDE                = "gox_tilde"
-	GOX_TILDE_PROXY          = "gox_tilde_proxy"
-	GOX_TILDE_COMMENT        = "gox_tilde_comment"
-	GOX_COMMENT              = "gox_comment"
-	GOX_PLAIN_TEXT           = "gox_plain_text"
-	GOX_RAW_TEXT             = "gox_raw_text"
+	GOX_ELEMENT                   = "gox_element"
+	GOX_HEAD                      = "gox_head"
+	GOX_RAW_HEAD                  = "gox_raw_head"
+	GOX_SCRIPT_HEAD               = "gox_script_head"
+	GOX_STYLE_HEAD                = "gox_style_head"
+	GOX_VOID_HEAD                 = "gox_void_head"
+	GOX_SELF_CLOSING_HEAD         = "gox_self_closing_head"
+	GOX_ERRONEOUS_CLOSE_HEAD      = "gox_erroneous_close_head"
+	GOX_ERRONEOUS_CLOSE_HEAD_NAME = "gox_erroneous_close_head_name"
+	GOX_DOCTYPE                   = "gox_doctype"
+	GOX_TILDE                     = "gox_tilde"
+	GOX_TILDE_PROXY               = "gox_tilde_proxy"
+	GOX_TILDE_COMMENT             = "gox_tilde_comment"
+	GOX_COMMENT                   = "gox_comment"
+	GOX_PLAIN_TEXT                = "gox_plain_text"
+	GOX_RAW_TEXT                  = "gox_raw_text"
+	GOX_HEAD_NAME                 = "gox_head_name"
+	GOX_CLOSE_HEAD                = "gox_close_head"
+	GOX_OPEN_HEAD                 = "gox_open_head"
 
 	// gox.Attr
 	GOX_ATTR               = "gox_attr"
+	GOX_ATTR_NAME          = "gox_attr_name"
 	GOX_LITERAL_ATTR       = "gox_literal_attr"
 	GOX_CLASS_ATTR         = "gox_class_attr"
 	GOX_CLASS_LITERAL_ATTR = "gox_class_literal_attr"
@@ -52,8 +56,11 @@ const (
 	GOX_ATTR_MOD           = "gox_attr_mod"
 
 	// MISC
-	GOX_FUNC  = "gox_func"
-	GOX_BLOCK = "gox_block"
+	GOX_FUNC                  = "gox_func"
+	GOX_BLOCK                 = "gox_block"
+	GOX_IMPLICID_CLOSE        = "gox_implicit_close_head"
+	GOX_HEAD_END              = "gox_head_end"
+	GOX_SELF_CLOSING_HEAD_END = "gox_self_closing_head_end"
 
 	// GOX_TILDE
 	GOX_TILDE_IF            = "gox_tilde_if"
@@ -61,4 +68,5 @@ const (
 	GOX_TILDE_VALUE         = "gox_tilde_value"
 	GOX_TILDE_LITERAL_VALUE = "gox_tilde_literal_value"
 	GOX_TIDE_BLOCK          = "gox_tilde_block"
+	GOX_TILDE_MARKER        = "gox_tilde_marker"
 )

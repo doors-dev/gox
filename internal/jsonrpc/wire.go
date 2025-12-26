@@ -66,7 +66,7 @@ type WireError struct {
 // The standard codes are made available from this package, this function should
 // only be used to build errors for application specific codes as allowed by the
 // specification.
-func NewError(code int64, message string) error {
+func NewError(code int64, message string) *WireError {
 	return &WireError{
 		Code:    code,
 		Message: message,

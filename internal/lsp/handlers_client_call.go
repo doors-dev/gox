@@ -1,9 +1,10 @@
 package lsp
 
 import (
-	"errors"
 	"log/slog"
 
+	"github.com/doors-dev/gox/internal/common"
+	"github.com/doors-dev/gox/internal/jsonrpc"
 	jsonrpc2 "github.com/doors-dev/gox/internal/jsonrpc"
 	"github.com/doors-dev/gox/internal/workspace"
 )
@@ -13,45 +14,32 @@ func initClientCalls(on func(h onCall, m ...method)) {
 	on(func(c caller, j Json) {
 		err := jsonInit.setEncodings(j)
 		if err != nil {
-			c.err(err)
+			c.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
 		}
-		d, _ := j.MarshalJSON()
-		slog.Info("initialize", "req", string(d))
-		folders := j.Get("workspaceFolders")
-		if folders == nil {
-			slog.Error("no workspace folders")
-			return
-		}
-		a, err := folders.ArrayUseNode()
-		if err != nil {
-			slog.Error("get workspace folders error: " + err.Error())
-			return
-		}
-		for _, folder := range a {
-			uri := folder.Get("uri")
-			if uri == nil {
-				slog.Error("no uri")
-				continue
-			}
-			uriStr, err := uri.String()
-			if err != nil {
-				slog.Error("get uri error: " + err.Error())
-				continue
-			}
-			slog.Info("adding workspace: " + uriStr)
-			man.AddWorkspace(uriStr)
+		/*
+			d, _ := j.MarshalJSON()
+			slog.Info("initialize", "req", string(d))
+		*/
+		uris, err := jsonInit.getWorkspaceDirs(j)
+		for _, uri := range uris {
+			man.AddWorkspace(uri)
 		}
 		c.proxy(j, func(res Json) {
-			enc, err := jsonInit.readEncoding(j)
+			enc, err := jsonInit.readEncoding(res)
 			if err != nil {
 				slog.Error("read encoding error: " + err.Error())
-				c.err(err)
+				c.err(common.FromErr(jsonrpc2.ErrInternal, err))
+				return
+			}
+			c.session().setEnc(enc)
+			err = jsonInit.insertCompletionTriggers(res)
+			if err != nil {
+				c.err(common.FromErr(jsonrpc2.ErrInternal, err))
 				return
 			}
 			d, _ := res.MarshalJSON()
 			slog.Info("initialize", "res", string(d))
-			c.session().setEnc(enc)
 			c.res(res)
 		})
 	}, initialize)
@@ -59,7 +47,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 	on(func(c caller, j Json) {
 		doc, kind, err := jsonDoc.get(j)
 		if err != nil {
-			c.err(err)
+			c.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
 		}
 		if kind != workspace.KindSource {
@@ -68,12 +56,12 @@ func initClientCalls(on func(h onCall, m ...method)) {
 		}
 		pos, err := jsonPos.getPos(j)
 		if err != nil {
-			c.err(err)
+			c.res(jsonGenerator.newNull())
 			return
 		}
 		err = doc.Lock()
 		if err != nil {
-			c.err(doc.Err())
+			c.err(common.FromErr(jsonrpc2.ErrUnknown, err))
 			return
 		}
 		defer doc.Unlock()
@@ -113,7 +101,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 	on(func(c caller, j Json) {
 		doc, kind, err := jsonDoc.get(j)
 		if err != nil {
-			c.err(err)
+			c.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
 		}
 		if kind != workspace.KindSource {
@@ -122,26 +110,32 @@ func initClientCalls(on func(h onCall, m ...method)) {
 		}
 		err = doc.Lock()
 		if err != nil {
-			c.err(doc.Err())
+			c.err(common.FromErr(jsonrpc2.ErrUnknown, err))
 			return
 		}
 		defer doc.Unlock()
+		err = jsonPos.convertPosToTarget(c.enc(), doc, j, workspace.Edge)
+		if err != nil {
+			pos, err := jsonPos.getPos(j)
+			if err != nil {
+				c.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
+				return
+			}
+			cop, complete  := doc.Completions(c.enc(), pos)
+			c.res(jsonGenerator.newCompletions(cop, complete))
+			return
+		}
 		err = jsonPos.convertRangeToTarget(c.enc(), doc, j, workspace.Strict)
 		if err != nil {
 			jsonPos.unsetRange(j)
 		}
 		jsonDoc.setAsTarget(j, doc)
-		err = jsonPos.convertPosToTarget(c.enc(), doc, j, workspace.Edge)
-		if err != nil {
-			c.err(jsonrpc2.ErrInvalidParams)
-			return
-		}
 		c.proxy(j, func(res Json) {
 			doc.Lock()
 			defer doc.Unlock()
 			err := jsonPos.convertAllToSource(c.enc(), doc, res, workspace.Strict)
 			if err != nil {
-				c.err(err)
+				c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert completion response to source"))
 				return
 			}
 			c.res(res)
@@ -151,7 +145,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 	on(func(c caller, j Json) {
 		_, kind, err := jsonDoc.get(j)
 		if err != nil {
-			c.err(err)
+			c.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
 		}
 		if kind != workspace.KindSource {
@@ -164,7 +158,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 	on(func(c caller, j Json) {
 		doc, kind, err := jsonDoc.get(j)
 		if err != nil {
-			c.err(err)
+			c.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
 		}
 		if kind != workspace.KindSource {
@@ -173,14 +167,14 @@ func initClientCalls(on func(h onCall, m ...method)) {
 		}
 		err = doc.Lock()
 		if err != nil {
-			c.err(doc.Err())
+			c.err(common.FromErr(jsonrpc2.ErrUnknown, err))
 			return
 		}
 		defer doc.Unlock()
 		jsonDoc.setAsTarget(j, doc)
 		err = jsonPos.convertPosToTarget(c.enc(), doc, j, workspace.Strict)
 		if err != nil {
-			c.err(jsonrpc2.ErrInvalidParams)
+			c.err(common.NewErr(jsonrpc2.ErrInvalidParams, "nothing to rename"))
 			return
 		}
 		c.proxy(j, func(res Json) {
@@ -188,7 +182,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 			defer doc.Unlock()
 			err := jsonPos.convertRangeToSource(c.enc(), doc, res, workspace.Strict)
 			if err != nil {
-				c.err(err)
+				c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert rename response to source"))
 				return
 			}
 			c.res(res)
@@ -200,14 +194,14 @@ func initClientCalls(on func(h onCall, m ...method)) {
 		if kind == workspace.KindSource {
 			err = doc.Lock()
 			if err != nil {
-				c.err(doc.Err())
+				c.err(common.FromErr(jsonrpc2.ErrUnknown, err))
 				return
 			}
 			defer doc.Unlock()
 			jsonDoc.setAsTarget(j, doc)
 			err = jsonPos.convertPosToTarget(c.enc(), doc, j, workspace.Strict)
 			if err != nil {
-				c.err(jsonrpc2.ErrInvalidParams)
+				c.err(common.NewErr(jsonrpc2.ErrInvalidParams, "Nothing to rename"))
 				return
 			}
 		}
@@ -216,7 +210,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 			slog.Info("rename", "res", string(d))
 			err := jsonChanges.convertEdit(c.enc(), res)
 			if err != nil {
-				c.err(err)
+				c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert edit response"))
 				return
 			}
 			c.res(res)
@@ -228,13 +222,13 @@ func initClientCalls(on func(h onCall, m ...method)) {
 		if kind == workspace.KindSource {
 			err = doc.Lock()
 			if err != nil {
-				c.err(doc.Err())
+				c.err(common.FromErr(jsonrpc2.ErrUnknown, err))
 				return
 			}
 			defer doc.Unlock()
 			err := jsonPos.convertPosToTarget(c.enc(), doc, j, workspace.Strict)
 			if err != nil {
-				c.err(err)
+				c.res(jsonGenerator.newNull())
 				return
 			}
 			err = jsonPos.convertRangeToTarget(c.enc(), doc, j, workspace.Strict)
@@ -246,7 +240,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 		c.proxy(j, func(res Json) {
 			err = jsonPos.convertLocations(c.enc(), doc, res)
 			if err != nil {
-				c.err(err)
+				c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert locations response"))
 				return
 			}
 			c.res(res)
@@ -256,23 +250,23 @@ func initClientCalls(on func(h onCall, m ...method)) {
 	on(func(c caller, j Json) {
 		doc, kind, err := jsonDoc.get(j)
 		if err != nil {
-			c.err(err)
+			c.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
 		}
 		if kind == workspace.KindSource {
 			err = doc.Lock()
 			if err != nil {
-				c.err(doc.Err())
+				c.err(common.FromErr(jsonrpc2.ErrUnknown, err))
 				return
 			}
 			ran, err := jsonPos.getRange(j)
 			if err != nil {
-				c.err(err)
+				c.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 				return
 			}
 			newRan, ok := doc.TargetRange(c.enc(), ran, workspace.Approximate)
 			if !ok {
-				c.err(jsonrpc2.ErrInvalidParams)
+				c.res(jsonGenerator.newEmptyArray())
 				return
 			}
 			jsonPos.setRange(j, newRan)
@@ -289,7 +283,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 			}
 			err := jsonChanges.convertCodeActions(c.enc(), doc, res)
 			if err != nil {
-				c.err(err)
+				c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert code actions response"))
 				return
 			}
 			c.res(res)
@@ -302,7 +296,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 		c.proxy(j, func(res Json) {
 			err := jsonChanges.convertCodeAction(c.enc(), nil, res)
 			if err != nil {
-				c.err(err)
+				c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert code action response"))
 				return
 			}
 			c.res(res)
@@ -312,7 +306,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 	on(func(c caller, j Json) {
 		doc, kind, err := jsonDoc.get(j)
 		if err != nil {
-			c.err(err)
+			c.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
 		}
 		if kind != workspace.KindSource {
@@ -321,7 +315,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 		}
 		err = doc.Lock()
 		if err != nil {
-			c.err(doc.Err())
+			c.err(common.FromErr(jsonrpc2.ErrUnknown, err))
 			return
 		}
 		defer doc.Unlock()
@@ -329,7 +323,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 		c.proxy(j, func(res Json) {
 			err := doc.Lock()
 			if err != nil {
-				c.err(doc.Err())
+				c.err(common.FromErr(jsonrpc2.ErrUnknown, err))
 				return
 			}
 			defer doc.Unlock()
@@ -341,13 +335,13 @@ func initClientCalls(on func(h onCall, m ...method)) {
 	on(func(c caller, j Json) {
 		doc, kind, err := jsonDoc.get(j)
 		if err != nil {
-			c.err(err)
+			c.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
 		}
 		if kind == workspace.KindSource {
-			err := doc.Lock()
+			err = doc.Lock()
 			if err != nil {
-				c.err(err)
+				c.err(common.FromErr(jsonrpc2.ErrUnknown, err))
 				return
 			}
 			defer doc.Unlock()
@@ -358,7 +352,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 			err := jsonPos.convertCalls(c.enc(), res)
 			if err != nil {
 				slog.Error("convert calls error: " + err.Error())
-				c.err(err)
+				c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert calls response"))
 				return
 			}
 			c.res(res)
@@ -368,7 +362,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 	on(func(c caller, j Json) {
 		doc, kind, err := jsonDoc.get(j)
 		if err != nil {
-			c.err(err)
+			c.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
 		}
 		if kind != workspace.KindSource {
@@ -377,26 +371,26 @@ func initClientCalls(on func(h onCall, m ...method)) {
 		}
 		err = doc.Lock()
 		if err != nil {
-			c.err(doc.Err())
+			c.err(common.FromErr(jsonrpc2.ErrUnknown, err))
 			return
 		}
 		defer doc.Unlock()
 		err = jsonPos.convertAllToTarget(c.enc(), doc, j, workspace.Edge)
 		if err != nil {
-			c.err(err)
+			c.res(jsonGenerator.newEmptyArray())
 			return
 		}
 		jsonDoc.setAsTarget(j, doc)
 		c.proxy(j, func(res Json) {
-			err := doc.Lock()
+			err = doc.Lock()
 			if err != nil {
-				c.err(err)
+				c.err(common.FromErr(jsonrpc2.ErrUnknown, err))
 				return
 			}
 			defer doc.Unlock()
-			err = jsonPos.convertAllToSource(c.enc(), doc, res, workspace.Approximate)
-			if err != nil {
-				c.err(err)
+			jerr := jsonPos.convertAllToSource(c.enc(), doc, res, workspace.Approximate)
+			if jerr != nil {
+				c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert document highlight response"))
 				return
 			}
 			c.res(res)
@@ -406,7 +400,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 	on(func(c caller, j Json) {
 		doc, kind, err := jsonDoc.get(j)
 		if err != nil {
-			c.err(err)
+			c.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
 		}
 		if kind != workspace.KindSource {
@@ -417,7 +411,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 		c.proxy(j, func(res Json) {
 			err := jsonPos.convertDiagnosticsToSource(c.enc(), doc, j)
 			if err != nil {
-				c.err(err)
+				c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert diagnostics response"))
 				return
 			}
 			c.res(res)
@@ -427,7 +421,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 	on(func(c caller, j Json) {
 		doc, kind, err := jsonDoc.get(j)
 		if err != nil {
-			c.err(err)
+			c.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
 		}
 		if kind != workspace.KindSource {
@@ -438,7 +432,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 		c.proxy(j, func(res Json) {
 			err := jsonPos.convertLocations(c.enc(), doc, j)
 			if err != nil {
-				c.err(err)
+				c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert document link response"))
 				return
 			}
 			c.res(res)
@@ -448,7 +442,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 	on(func(c caller, j Json) {
 		doc, kind, err := jsonDoc.get(j)
 		if err != nil {
-			c.err(err)
+			c.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
 		}
 		if kind != workspace.KindSource {
@@ -457,7 +451,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 		}
 		err = doc.Lock()
 		if err != nil {
-			c.err(err)
+			c.err(common.FromErr(jsonrpc2.ErrInternal, err))
 			return
 		}
 		defer doc.Unlock()
@@ -468,20 +462,20 @@ func initClientCalls(on func(h onCall, m ...method)) {
 	on(func(c caller, j Json) {
 		_, kind, err := jsonDoc.get(j)
 		if err != nil {
-			c.err(err)
+			c.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
 		}
 		if kind != workspace.KindSource {
 			c.forward()
 			return
 		}
-		c.err(errors.New("folding range not supported for gox, rely on tree sitter"))
+		c.err(common.NewErr(jsonrpc.ErrUnknown, "folding range not supported for gox, rely on tree sitter"))
 	}, foldingRange)
 
 	on(func(c caller, j Json) {
 		doc, kind, err := jsonDoc.get(j)
 		if err != nil {
-			c.err(err)
+			c.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
 		}
 		if kind != workspace.KindSource {
@@ -490,7 +484,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 		}
 		formatted, err := doc.Format(c.enc())
 		if err != nil {
-			c.err(err)
+			c.err(common.FromErr(jsonrpc2.ErrUnknown, err))
 			return
 		}
 		c.res(jsonGenerator.newTextEdits(formatted.Range, formatted.Text))

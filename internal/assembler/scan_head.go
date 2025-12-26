@@ -1,6 +1,7 @@
 package assembler
 
 import (
+	"github.com/doors-dev/gox/internal/catalog/grammer"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -16,32 +17,32 @@ func scanContent(coll collector, root *tree_sitter.Node) {
 	for _, child := range children {
 		name := child.Kind()
 		switch name {
-		case GOX_ELEMENT:
+		case grammer.GOX_ELEMENT:
 			scanElement(coll, &child, false)
-		case GOX_HEAD:
+		case grammer.GOX_HEAD:
 			scanHead(coll, &child)
-		case GOX_RAW_HEAD:
+		case grammer.GOX_RAW_HEAD:
 			scanRawHead(coll, &child)
-		case GOX_SCRIPT_HEAD:
+		case grammer.GOX_SCRIPT_HEAD:
 			scanHead(coll, &child)
-		case GOX_STYLE_HEAD:
+		case grammer.GOX_STYLE_HEAD:
 			scanHead(coll, &child)
-		case GOX_VOID_HEAD:
+		case grammer.GOX_VOID_HEAD:
 			scanVoidHead(coll, &child)
-		case GOX_SELF_CLOSING_HEAD:
+		case grammer.GOX_SELF_CLOSING_HEAD:
 			scanSelfClosingHead(coll, &child)
-		case GOX_ERRONEOUS_CLOSE_HEAD:
-		case GOX_DOCTYPE:
+		case grammer.GOX_ERRONEOUS_CLOSE_HEAD:
+		case grammer.GOX_DOCTYPE:
 			scanRaw(coll, &child)
-		case GOX_COMMENT:
+		case grammer.GOX_COMMENT:
 			scanRaw(coll, &child)
-		case GOX_PLAIN_TEXT:
+		case grammer.GOX_PLAIN_TEXT:
 			scanPlain(coll, &child)
-		case GOX_RAW_TEXT:
+		case grammer.GOX_RAW_TEXT:
 			scanRaw(coll, &child)
-		case GOX_TILDE:
+		case grammer.GOX_TILDE:
 			scanTilde(coll, &child)
-		case GOX_TILDE_COMMENT:
+		case grammer.GOX_TILDE_COMMENT:
 			scanComment(coll, &child) 
 		} 
 	}
@@ -122,33 +123,33 @@ func scanAttributes(coll collector, root *tree_sitter.Node) {
 		name := child.ChildByFieldName("name")
 		value := child.ChildByFieldName("value")
 		switch kind {
-		case COMMENT:
+		case grammer.COMMENT:
 			coll.cr()
 			coll.append(p(&child))
-		case GOX_ATTR:
+		case grammer.GOX_ATTR:
 			coll.cr()
 			coll.append(r("__e = __c.AttrSetAny("), s(name), r(", "))
-			scanValue(coll, value)
+			scanValue(coll, value, false)
 			coll.append(r("); "), r(ERR_CHECK))
-		case GOX_LITERAL_ATTR:
+		case grammer.GOX_LITERAL_ATTR:
 			coll.cr()
 			coll.append(r("__e = __c.AttrSet("), s(name), r(", "), s(value), r("); "), r(ERR_CHECK))
-		case GOX_CLASS_ATTR:
+		case grammer.GOX_CLASS_ATTR:
 			coll.cr()
-			coll.append(r("__e = __c.AttrAppend("), s(name), r(", "), s(value))
-			scanValue(coll, value)
+			coll.append(r("__e = __c.AttrAppend(\"class\", "))
+			scanValue(coll, value, true)
 			coll.append(r("); "), r(ERR_CHECK))
-		case GOX_CLASS_LITERAL_ATTR:
+		case grammer.GOX_CLASS_LITERAL_ATTR:
 			coll.cr()
 			coll.append(r("__e = __c.AttrAppend(\"class\", "), s(value), r("); "), r(ERR_CHECK))
-		case GOX_BOOL_ATTR:
+		case grammer.GOX_BOOL_ATTR:
 			coll.cr()
 			if value == nil {
 				coll.append(r("__e = __c.AttrSetBool("), s(name), r(", true);"), r(ERR_CHECK))
 			} else {
 				coll.append(r("__e = __c.AttrSetBool("), s(name), r(", "), p(value), r("); "), r(ERR_CHECK))
 			}
-		case GOX_ATTR_MOD:
+		case grammer.GOX_ATTR_MOD:
 			coll.cr()
 			coll.append(r("__e = __c.AttrMod"))
 			scanGoSnippet(coll, &child)
@@ -158,11 +159,15 @@ func scanAttributes(coll collector, root *tree_sitter.Node) {
 	}
 }
 
-func scanValue(coll collector, root *tree_sitter.Node) {
+func scanValue(coll collector, root *tree_sitter.Node, string bool) {
 	kind := root.Kind()
-	if kind == GOX_FUNC {
+	if kind == grammer.GOX_FUNC {
 		body := root.ChildByFieldName("body")
-		coll.append(r("func() any "))
+		if string {
+			coll.append(r("func() string "))
+		} else {
+			coll.append(r("func() any "))
+		}
 		scanGoSnippet(coll, body)
 		coll.append(r("()"))
 		return

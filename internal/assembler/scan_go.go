@@ -1,6 +1,7 @@
 package assembler
 
 import (
+	"github.com/doors-dev/gox/internal/catalog/grammer"
 	"github.com/doors-dev/gox/internal/common"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -54,7 +55,7 @@ func (g *goScanner) process() bool {
 	node := g.cursor.Node()
 	kind := node.Kind()
 	switch kind {
-	case PACKAGE:
+	case grammer.PACKAGE:
 		if !g.importGox {
 			return false
 		}
@@ -66,19 +67,19 @@ func (g *goScanner) process() bool {
 			g.coll.append(r(`import "github.com/doors-dev/gox"`))
 		}
 		return true
-	case GOX_ELEMENT:
+	case grammer.GOX_ELEMENT:
 		g.portal(node)
 		scanElement(g.coll, node, true)
-	case GOX_ELEM_FUNC_DEC:
+	case grammer.GOX_ELEM_FUNC_DEC:
 		g.portal(node)
 		scanElemDec(g.coll, node)
-	case GOX_ELEM_METH_DEC:
+	case grammer.GOX_ELEM_METH_DEC:
 		g.portal(node)
 		scanElemDec(g.coll, node)
-	case GOX_ELEM_FUNC_TYPE:
+	case grammer.GOX_ELEM_FUNC_TYPE:
 		g.portal(node)
 		scanElemType(g.coll, node)
-	case GOX_ELEM_FUNC_LIT:
+	case grammer.GOX_ELEM_FUNC_LIT:
 		g.portal(node)
 		scanElemLit(g.coll, node)
 	default:

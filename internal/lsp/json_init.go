@@ -11,6 +11,30 @@ var jsonInit jsonInitDriver
 
 type jsonInitDriver struct{}
 
+func (r jsonInitDriver) getWorkspaceDirs(j Json) ([]string, error) {
+	folders := j.Get("workspaceFolders")
+	if !folders.Exists() {
+		return nil, errors.New("Can't get workspace folders from the intialize request")
+	}
+	a, err := folders.ArrayUseNode()
+	if err != nil {
+		return nil, errors.New("Can't get workspace folders from the intialize request")
+	}
+	uris := make([]string, 0, len(a))
+	for _, folder := range a {
+		uri := folder.Get("uri")
+		if uri == nil {
+			return nil, errors.New("Can't read workspace folder URI from the intialize request")
+		}
+		uriStr, err := uri.String()
+		if err != nil {
+			return nil, errors.New("Can't read workspace folder URI from the intialize request")
+		}
+		uris = append(uris, uriStr)
+	}
+	return uris, nil
+}
+
 func (r jsonInitDriver) readEncoding(j Json) (common.Encoding, error) {
 	cap := j.Get("capabilities")
 	if !cap.Exists() {
@@ -73,5 +97,24 @@ func (r jsonInitDriver) setEncodings(j Json) error {
 		return errors.New("no utf-16 encoding")
 	}
 	general.Set("positionEncoding", ast.NewArray([]ast.Node{ast.NewString("utf-16")}))
+	return nil
+}
+
+func (d jsonInitDriver) insertCompletionTriggers(j Json) error {
+	cap := j.Get("capabilities")
+	if !cap.Exists() {
+		return errors.New("no capabilities")
+	}
+	completion := cap.Get("completionProvider")
+	if !completion.Exists() {
+		return errors.New("no completion provider")
+	}
+	triggers := completion.Get("triggerCharacters")
+	if !triggers.Exists() {
+		return errors.New("no completion triggers")
+	}
+	triggers.Add(ast.NewString("<"))
+	triggers.Add(ast.NewString("/"))
+	triggers.Add(ast.NewString("~"))
 	return nil
 }

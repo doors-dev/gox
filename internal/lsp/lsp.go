@@ -65,7 +65,7 @@ type caller interface {
 	session() *session
 	proxy(params Json, handler func(res Json))
 	res(result Json)
-	err(err error)
+	err(err *common.Err)
 }
 
 type notifier interface {
@@ -74,7 +74,7 @@ type notifier interface {
 	method() method
 	notify(params Json)
 	session() *session
-	err(err error)
+	err(err *common.Err)
 }
 
 type request struct {
@@ -116,9 +116,10 @@ func (c *request) res(result Json) {
 	c.cb(Response{Result: data})
 }
 
-func (c *request) err(err error) {
+func (c *request) err(err *common.Err) {
 	if c.isCall() {
-		c.cb(Response{Err: err})
+		c.cb(Response{Err: err.Wire})
+		c.sess.error(err.Error())
 	} else {
 		c.sess.error(err.Error())
 	}

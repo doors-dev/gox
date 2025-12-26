@@ -4,13 +4,14 @@ import (
 	"log/slog"
 
 	"github.com/doors-dev/gox/internal/assembler"
+	"github.com/doors-dev/gox/internal/catalog/grammer"
 	"github.com/doors-dev/gox/internal/catalog/symbol"
 	"github.com/doors-dev/gox/internal/common"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
 type Symbol struct {
-	Kind    symbol.SymbolKind
+	Kind    symbol.Kind
 	Name    string
 	Range   common.Range
 	Symbols []Symbol
@@ -23,7 +24,7 @@ func (d Doc) Symbols(enc common.Encoding) []Symbol {
 	ss := make([]Symbol, 0)
 	for _, n := range root.Children(cursor) {
 		switch n.Kind() {
-		case assembler.TYPE_DECLARATION:
+		case grammer.TYPE_DECLARATION:
 			spec := n.Child(1)
 			if spec == nil {
 				slog.Info("type declaration not found")
@@ -45,7 +46,7 @@ func (d Doc) Symbols(enc common.Encoding) []Symbol {
 				Range: ran,
 			}
 			switch typ.Kind() {
-			case assembler.STRUCT_TYPE:
+			case grammer.STRUCT_TYPE:
 				s.Kind = symbol.Struct
 				assembler.QueryFields.IterateCapture(d.source.Source(), spec, "name", func(node *tree_sitter.Node) bool {
 					name := node.Utf8Text(d.source.Source())
@@ -57,7 +58,7 @@ func (d Doc) Symbols(enc common.Encoding) []Symbol {
 					})
 					return false
 				})
-			case assembler.INTERFACE_TYPE:
+			case grammer.INTERFACE_TYPE:
 				s.Kind = symbol.Interface
 				assembler.QueryInterfaceMethods.IterateCapture(d.source.Source(), spec, "name", func(node *tree_sitter.Node) bool {
 					name := node.Utf8Text(d.source.Source())
@@ -73,12 +74,12 @@ func (d Doc) Symbols(enc common.Encoding) []Symbol {
 				s.Kind = symbol.Class
 			}
 			ss = append(ss, s)
-		case assembler.CONST_DECLARATION,
-			assembler.VAR_DECLARATION,
-			assembler.FUNC_DECLARATION,
-			assembler.METHOD_DECLARATION,
-			assembler.GOX_ELEM_FUNC_DEC,
-			assembler.GOX_ELEM_METH_DEC:
+		case grammer.CONST_DECLARATION,
+			grammer.VAR_DECLARATION,
+			grammer.FUNC_DECLARATION,
+			grammer.METHOD_DECLARATION,
+			grammer.GOX_ELEM_FUNC_DEC,
+			grammer.GOX_ELEM_METH_DEC:
 			nameNode := n.ChildByFieldName("name")
 			if nameNode == nil {
 				continue
@@ -90,17 +91,17 @@ func (d Doc) Symbols(enc common.Encoding) []Symbol {
 				Range: ran,
 			}
 			switch n.Kind() {
-			case assembler.CONST_DECLARATION:
+			case grammer.CONST_DECLARATION:
 				s.Kind = symbol.Constant
-			case assembler.VAR_DECLARATION:
+			case grammer.VAR_DECLARATION:
 				s.Kind = symbol.Variable
-			case assembler.FUNC_DECLARATION:
+			case grammer.FUNC_DECLARATION:
 				s.Kind = symbol.Function
-			case assembler.METHOD_DECLARATION:
+			case grammer.METHOD_DECLARATION:
 				s.Kind = symbol.Method
-			case assembler.GOX_ELEM_FUNC_DEC:
+			case grammer.GOX_ELEM_FUNC_DEC:
 				s.Kind = symbol.Function
-			case assembler.GOX_ELEM_METH_DEC:
+			case grammer.GOX_ELEM_METH_DEC:
 				s.Kind = symbol.Method
 			}
 			ss = append(ss, s)

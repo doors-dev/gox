@@ -470,7 +470,6 @@ _
    (gox_raw_head)
    (gox_tilde)
    (gox_comment)
-   (gox_erroneous_close_head)
   ] 
   .
   [
@@ -484,7 +483,6 @@ _
    (gox_raw_head)
    (gox_tilde)
    (gox_comment)
-   (gox_erroneous_close_head)
   ] @prepend_input_softline @prepend_antispace @allow_blank_line_before
 )
 
@@ -500,7 +498,6 @@ _
    (gox_raw_head)
    (gox_tilde)
    (gox_comment)
-   (gox_erroneous_close_head)
   ] 
   .
   [
@@ -526,7 +523,6 @@ _
    (gox_raw_head)
    (gox_tilde)
    (gox_comment)
-   (gox_erroneous_close_head)
   ] @allow_blank_line_before
 )
 

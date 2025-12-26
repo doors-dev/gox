@@ -61,7 +61,7 @@ type doc struct {
 
 func (d Doc) Lock() error {
 	if d == nil {
-		return errors.New("file not exists")
+		return errors.New("File is not a part of the workspace")
 	}
 	d.ws.lock()
 	if d.Err() != nil {
@@ -81,7 +81,7 @@ func (d Doc) PrintTarget() {
 
 func (d Doc) Err() error {
 	if d == nil {
-		return errors.New("file not exists")
+		return errors.New("File is not a part of the workspace")
 	}
 	return d.err
 }
@@ -105,13 +105,13 @@ func (d Doc) SubmitTargetDraft() bool {
 func (d Doc) Init() {
 	if !d.sourceFile.Exists() {
 		d.targetRemove()
-		d.err = errors.New("file not exists")
+		d.err = errors.New("Source file not exists")
 		return
 	}
 	d.source = text.NewText()
 	err := d.source.Load(d.sourceFile.Path())
 	if err != nil {
-		d.err = err
+		d.err = errors.New("Source reading error: " + err.Error())
 		return
 	}
 	if d.tree != nil {
@@ -122,7 +122,7 @@ func (d Doc) Init() {
 	d.resetDraft()
 	err = d.targetWrite()
 	if err != nil {
-		d.err = err
+		d.err = errors.New("Target writing error: " + err.Error())
 		return
 	}
 }
@@ -132,7 +132,10 @@ func (d Doc) Save() error {
 	if err != nil && !d.TargetIsOpened() {
 		d.resetDraft()
 	}
-	return err
+	if err != nil {
+		return errors.New("Target writing error: " + err.Error())
+	}
+	return nil
 }
 
 func (d Doc) targetWrite() error {

@@ -3,6 +3,8 @@ package lsp
 import (
 	"log/slog"
 
+	"github.com/doors-dev/gox/internal/common"
+	jsonrpc2 "github.com/doors-dev/gox/internal/jsonrpc"
 	"github.com/doors-dev/gox/internal/workspace"
 )
 
@@ -11,7 +13,7 @@ func initClientNotifs(on func(on onNotif, m ...method)) {
 	on(func(n notifier, j Json) {
 		doc, kind, err := jsonDoc.get(j)
 		if err != nil {
-			n.err(err)
+			n.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
 		}
 		if kind == workspace.KindUnknown {
@@ -20,17 +22,17 @@ func initClientNotifs(on func(on onNotif, m ...method)) {
 		}
 		version, err := jsonDoc.getVersion(j)
 		if err != nil {
-			n.err(err)
+			n.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
 		}
 		text, err := jsonDoc.getText(j)
 		if err != nil {
-			n.err(err)
+			n.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
 		}
 		err = doc.Lock()
-		if err != nil {
-			n.err(doc.Err())
+		if err != nil { 
+			n.err(common.FromErr(jsonrpc2.ErrUnknown, err))
 			return
 		}
 		defer doc.Unlock()
@@ -69,7 +71,7 @@ func initClientNotifs(on func(on onNotif, m ...method)) {
 	on(func(n notifier, j Json) {
 		doc, kind, err := jsonDoc.get(j)
 		if err != nil {
-			n.err(err)
+			n.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
 		}
 		if kind == workspace.KindUnknown {
@@ -77,8 +79,8 @@ func initClientNotifs(on func(on onNotif, m ...method)) {
 			return
 		}
 		err = doc.Lock()
-		if err != nil {
-			n.err(doc.Err())
+		if err != nil { 
+			n.err(common.FromErr(jsonrpc2.ErrUnknown, err))
 			return
 		}
 		defer doc.Unlock()
@@ -86,7 +88,7 @@ func initClientNotifs(on func(on onNotif, m ...method)) {
 		case workspace.KindSource:
 			changes, err := jsonChanges.getChanges(j)
 			if err != nil {
-				n.err(err)
+				n.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 				return
 			}
 			updated := false
@@ -115,7 +117,7 @@ func initClientNotifs(on func(on onNotif, m ...method)) {
 		case workspace.KindTarget:
 			changes, err := jsonChanges.getChanges(j)
 			if err != nil {
-				n.err(err)
+				n.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 				return
 			}
 			for _, change := range changes {
@@ -138,7 +140,7 @@ func initClientNotifs(on func(on onNotif, m ...method)) {
 	on(func(n notifier, j Json) {
 		doc, kind, err := jsonDoc.get(j)
 		if err != nil {
-			n.err(err)
+			n.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
 		}
 		if kind == workspace.KindUnknown {
@@ -149,14 +151,14 @@ func initClientNotifs(on func(on onNotif, m ...method)) {
 			return
 		}
 		err = doc.Lock()
-		if err != nil {
-			n.err(doc.Err())
+		if err != nil { 
+			n.err(common.FromErr(jsonrpc2.ErrUnknown, err))
 			return
 		}
 		defer doc.Unlock()
 		err = doc.Save()
 		if err != nil {
-			n.err(err)
+			n.err(common.FromErr(jsonrpc2.ErrInternal, err))
 			return
 		}
 		jsonDoc.setAsTarget(j, doc)
@@ -166,7 +168,7 @@ func initClientNotifs(on func(on onNotif, m ...method)) {
 	on(func(n notifier, j Json) {
 		doc, kind, err := jsonDoc.get(j)
 		if err != nil {
-			n.err(err)
+			n.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
 		}
 		if kind == workspace.KindUnknown {
@@ -174,8 +176,8 @@ func initClientNotifs(on func(on onNotif, m ...method)) {
 			return
 		}
 		err = doc.Lock()
-		if err != nil {
-			n.err(doc.Err())
+		if err != nil { 
+			n.err(common.FromErr(jsonrpc2.ErrUnknown, err))
 			return
 		}
 		defer doc.Unlock()

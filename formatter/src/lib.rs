@@ -34,15 +34,6 @@ pub struct Buf {
     pub cap: usize,
     pub err: i32, // 0 ok, 1 input error, 2 format error
 }
-/*
-fn append_to_log(line: &str) -> io::Result<()> {
-    let mut f = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open("/tmp/topiary.log")?;
-    writeln!(f, "{line}")?;
-    Ok(())
-} */
 
 
 
@@ -57,19 +48,8 @@ pub extern "C" fn format(ptr_in: *const u8, len_in: usize) -> Buf {
         };
     }
     let bytes = unsafe { std::slice::from_raw_parts(ptr_in, len_in) };
-    let input = match std::str::from_utf8(bytes) {
-        Ok(s) => s,
-        Err(_) => {
-            return Buf {
-                ptr: ptr::null_mut(),
-                len: 0,
-                cap: 0,
-                err: 1,
-            };
-        }
-    };
     let mut output = Vec::new();
-    let res = formatter::format(input, &mut output);
+    let res = formatter::format(bytes, &mut output);
     if let Err(err) = res {
         let reason = match err {
             topiary_core::FormatterError::Idempotence => 2,

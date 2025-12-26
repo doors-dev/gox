@@ -1,6 +1,7 @@
 package workspace
 
 import (
+	"errors"
 	"log/slog"
 	"math"
 
@@ -16,7 +17,7 @@ type Formatted struct {
 func (d Doc) Format(enc common.Encoding) (Formatted, error) {
 	output, err := formatter.Format(d.source.Source())
 	if err != nil {
-		return Formatted{}, err
+		return Formatted{}, errors.New("Formatting failed, please esure that the file is valid.")
 	}
 	ran := common.NewRange(common.NewPos(0, 0), common.NewPos(math.MaxInt32, 0))
 	return Formatted{

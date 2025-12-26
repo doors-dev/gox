@@ -1,33 +1,33 @@
 package symbol
 
-type SymbolKind int
+type Kind int
 
 const (
-	None          SymbolKind = -1
-	File          SymbolKind = 1
-	Module        SymbolKind = 2
-	Namespace     SymbolKind = 3
-	Package       SymbolKind = 4
-	Class         SymbolKind = 5
-	Method        SymbolKind = 6
-	Property      SymbolKind = 7
-	Field         SymbolKind = 8
-	Constructor   SymbolKind = 9
-	Enum          SymbolKind = 10
-	Interface     SymbolKind = 11
-	Function      SymbolKind = 12
-	Variable      SymbolKind = 13
-	Constant      SymbolKind = 14
-	String        SymbolKind = 15
-	Number        SymbolKind = 16
-	Boolean       SymbolKind = 17
-	Array         SymbolKind = 18
-	Object        SymbolKind = 19
-	Key           SymbolKind = 20
-	Null          SymbolKind = 21
-	EnumMember    SymbolKind = 22
-	Struct        SymbolKind = 23
-	Event         SymbolKind = 24
-	Operator      SymbolKind = 25
-	TypeParameter SymbolKind = 26
+	None          Kind = -1
+	File          Kind = 1
+	Module        Kind = 2
+	Namespace     Kind = 3
+	Package       Kind = 4
+	Class         Kind = 5
+	Method        Kind = 6
+	Property      Kind = 7
+	Field         Kind = 8
+	Constructor   Kind = 9
+	Enum          Kind = 10
+	Interface     Kind = 11
+	Function      Kind = 12
+	Variable      Kind = 13
+	Constant      Kind = 14
+	String        Kind = 15
+	Number        Kind = 16
+	Boolean       Kind = 17
+	Array         Kind = 18
+	Object        Kind = 19
+	Key           Kind = 20
+	Null          Kind = 21
+	EnumMember    Kind = 22
+	Struct        Kind = 23
+	Event         Kind = 24
+	Operator      Kind = 25
+	TypeParameter Kind = 26
 )

@@ -1,6 +1,7 @@
 package assembler
 
 import (
+	"github.com/doors-dev/gox/internal/catalog/grammer"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -15,17 +16,17 @@ func scanTilde(coll collector, root *tree_sitter.Node) {
 	kind := body.Kind()
 	coll.cr()
 	switch kind {
-	case GOX_TILDE_IF:
+	case grammer.GOX_TILDE_IF:
 		scanIf(coll, body)
-	case GOX_TILDE_FOR:
+	case grammer.GOX_TILDE_FOR:
 		scanFor(coll, body)
-	case GOX_TILDE_VALUE, GOX_FUNC:
+	case grammer.GOX_TILDE_VALUE, grammer.GOX_FUNC:
 		coll.append(r("__e = __c.WriteAny(ctx, "))
-		scanValue(coll, body)
+		scanValue(coll, body, false)
 		coll.append(r("); " + ERR_CHECK))
-	case GOX_TILDE_LITERAL_VALUE:
+	case grammer.GOX_TILDE_LITERAL_VALUE:
 		coll.append(r("__e = __c.WriteText(ctx, "), s(body), r("); "+ERR_CHECK))
-	case GOX_TIDE_BLOCK:
+	case grammer.GOX_TIDE_BLOCK:
 		body = body.ChildByFieldName("body")
 		if body != nil {
 			scanGoSnippet(coll, body)
@@ -68,7 +69,7 @@ func scanIf(coll collector, root *tree_sitter.Node) {
 		return
 	}
 	coll.append(r(" else "))
-	if alternative.Kind() == GOX_TILDE_IF {
+	if alternative.Kind() == grammer.GOX_TILDE_IF {
 		scanIf(coll, alternative)
 		return
 	}

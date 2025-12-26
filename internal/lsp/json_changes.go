@@ -39,7 +39,7 @@ func (r jsonChangesDriver) convertCodeAction(enc common.Encoding, doc workspace.
 func (r jsonChangesDriver) convertCodeActions(enc common.Encoding, doc workspace.Doc, j Json) error {
 	arr, err := j.ArrayUseNode()
 	if err != nil {
-		return errors.New("code actions not found")
+		return errors.New("code actions not found or invalid")
 	}
 	var newActions = make([]ast.Node, 0, len(arr))
 	for _, node := range arr {
@@ -70,11 +70,11 @@ func (r jsonChangesDriver) convertEdit(enc common.Encoding, j Json) (err error) 
 		newChanges := ast.NewObject(nil)
 		changes.ForEach(func(path ast.Sequence, node *ast.Node) bool {
 			if path.Index == -1 {
-				err = errors.New("wrong format")
+				err = errors.New( "Can't read workspace edit")
 				return false
 			}
 			if path.Key == nil {
-				err = errors.New("wrong format")
+				err = errors.New( "Can't read workspace edit")
 				return false
 			}
 			uri := *path.Key
@@ -84,7 +84,7 @@ func (r jsonChangesDriver) convertEdit(enc common.Encoding, j Json) (err error) 
 				return true
 			}
 			if kind == workspace.KindSource {
-				err = errors.New("source can't be edited by the server")
+				err = errors.New( "Source can't be edited by the server")
 				return false
 			}
 			err = doc.Lock()
@@ -99,8 +99,9 @@ func (r jsonChangesDriver) convertEdit(enc common.Encoding, j Json) (err error) 
 			newChanges.Set(doc.SourceFile().URI(), *node)
 			return true
 		})
-		_, err = j.Set("changes", newChanges)
-		if err != nil {
+		_, jerr := j.Set("changes", newChanges)
+		if jerr != nil {
+			err = errors.New( "Can't set changes")
 			return
 		}
 	}
@@ -108,8 +109,9 @@ func (r jsonChangesDriver) convertEdit(enc common.Encoding, j Json) (err error) 
 	if !changes.Exists() {
 		return
 	}
-	changesArr, err := changes.ArrayUseNode()
-	if err != nil {
+	changesArr, jerr := changes.ArrayUseNode()
+	if jerr != nil {
+		err = errors.New( "Can't read document changes")
 		return
 	}
 	newChanges := make([]ast.Node, 0, len(changesArr))
@@ -127,7 +129,7 @@ func (r jsonChangesDriver) convertEdit(enc common.Encoding, j Json) (err error) 
 				continue
 			}
 			if kind == workspace.KindSource {
-				err = errors.New("source can't be edited by the server")
+				err = errors.New( "Source can't be edited by the server")
 				return
 			}
 			edits := node.Get("edits")
@@ -146,8 +148,9 @@ func (r jsonChangesDriver) convertEdit(enc common.Encoding, j Json) (err error) 
 		}
 		kindNode := node.Get("kind")
 		var kind string
-		kind, err = kindNode.String()
+		kind, jerr = kindNode.String()
 		if err != nil {
+			err = errors.New( "Can't read workspace edit")
 			return
 		}
 		switch kind {
@@ -158,7 +161,7 @@ func (r jsonChangesDriver) convertEdit(enc common.Encoding, j Json) (err error) 
 		case "delete":
 			newChanges = append(newChanges, node)
 		default:
-			err = errors.New("unknown document change kind")
+			err = errors.New( "Unknown document change kind")
 			return
 		}
 	}
@@ -169,7 +172,7 @@ func (r jsonChangesDriver) convertEdit(enc common.Encoding, j Json) (err error) 
 func (r jsonChangesDriver) getChanges(j Json) ([]ContentChange, error) {
 	node := j.Get("contentChanges")
 	if !node.Exists() {
-		return nil, errors.New("contentChanges field not found")
+		return nil, errors.New( "Can't read content changes")
 	}
 	arr, _ := node.ArrayUseNode()
 	changes := make([]ContentChange, 0, len(arr))
