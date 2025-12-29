@@ -19,10 +19,13 @@ func (e HeadError) Error() string {
 type HeadKind int
 
 const (
-	Container HeadKind = iota
-	Regular
-	Void
+	KindRegular HeadKind = iota
+	KindVoid
 )
+
+func (k HeadKind) IsVoid() bool {
+	return k == KindVoid
+}
 
 type head struct {
 	id   uint64
@@ -61,7 +64,7 @@ func (s *stack) Opened() error {
 	if last.id == 0 {
 		return nil
 	}
-	if !s.initiated() && last.kind != Void {
+	if !s.initiated() && last.kind != KindVoid {
 		return nil
 	}
 	return HeadError("head is not in the opened state")
@@ -73,7 +76,7 @@ func (s *stack) Submit(p *proxyManager, ctx context.Context) error {
 	}
 	last := s.last()
 	err := p.Send(NewJobHeadOpen(last.id, last.kind, last.tag, ctx, s.attrs))
-	if last.kind == Void {
+	if last.kind == KindVoid {
 		s.heads = s.heads[:len(s.heads)-1]
 	}
 	s.ctx = nil
@@ -96,7 +99,7 @@ func (s *stack) Init(ctx context.Context, name string) error {
 	}
 	s.ctx = ctx
 	s.heads = append(s.heads, head{
-		kind: Regular,
+		kind: KindRegular,
 		id:   s.headId(),
 		tag:  name,
 	})
@@ -109,22 +112,11 @@ func (s *stack) InitVoid(ctx context.Context, name string) error {
 	}
 	s.ctx = ctx
 	s.heads = append(s.heads, head{
-		kind: Void,
+		kind: KindVoid,
 		id:   s.headId(),
 		tag:  name,
 	})
 	return nil
-}
-
-func (s *stack) InitContainer(p *proxyManager, ctx context.Context) error {
-	if err := s.Opened(); err != nil {
-		return err
-	}
-	head := head{
-		kind: Void,
-	}
-	s.heads = append(s.heads, head)
-	return p.Send(NewJobHeadOpen(head.id, head.kind, head.tag, s.ctx, nil))
 }
 
 func (s *stack) Attrs() (*attrs, error) {
@@ -163,10 +155,6 @@ func (c Cursor) HeadInit(ctx context.Context, tag string) error {
 
 func (c Cursor) HeadInitVoid(ctx context.Context, tag string) error {
 	return c.stack.InitVoid(ctx, tag)
-}
-
-func (c Cursor) HeadInitCont(ctx context.Context) error {
-	return c.stack.InitContainer(c.printer, ctx)
 }
 
 func (c Cursor) HeadSubmit(ctx context.Context) error {
@@ -249,7 +237,7 @@ func (c Cursor) WriteAny(ctx context.Context, any any) error {
 				return err
 			}
 		}
-	    return nil
+		return nil
 	case Elem:
 		return c.WriteElem(ctx, v)
 	case []Elem:
@@ -258,7 +246,7 @@ func (c Cursor) WriteAny(ctx context.Context, any any) error {
 				return err
 			}
 		}
-	    return nil
+		return nil
 	case Comp:
 		return c.WriteComp(ctx, v)
 	case []Comp:
@@ -267,7 +255,7 @@ func (c Cursor) WriteAny(ctx context.Context, any any) error {
 				return err
 			}
 		}
-	    return nil
+		return nil
 	case func(w io.Writer) error:
 		return c.WriteFunc(ctx, v)
 	case Job:
@@ -285,7 +273,6 @@ func (c Cursor) WriteAny(ctx context.Context, any any) error {
 		return c.WriteFprint(ctx, any)
 	}
 }
-
 
 func (c Cursor) AttrSetAny(name string, value any) error {
 	attrs, err := c.stack.Attrs()
@@ -353,7 +340,6 @@ func (c Cursor) AttrSetObject(name string, value any) error {
 	attr.SetObject(value)
 	return nil
 }
-
 
 func (c Cursor) AttrMod(mut ...AttrMut) error {
 	attrs, err := c.stack.Attrs()

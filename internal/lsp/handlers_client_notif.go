@@ -191,4 +191,19 @@ func initClientNotifs(on func(on onNotif, m ...method)) {
 		}
 	}, didClose)
 
+	on(func(n notifier, j Json) {
+		added, removed, err := jsonInit.getWorkspaceChanges(j)
+		if err != nil {
+			n.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
+			return
+		}
+		for _, uri := range added {
+			n.session().addWorkspace(uri)
+		}
+		for _, uri := range removed {
+			n.session().removeWorkspace(uri)
+		}
+		n.forward()
+	}, didChangeWorkspaceFolders)
+
 }

@@ -3,6 +3,7 @@ package lsp
 import (
 	"encoding/json"
 	"log/slog"
+	"slices"
 
 	"github.com/bytedance/sonic"
 	"github.com/bytedance/sonic/ast"
@@ -343,8 +344,41 @@ func (b *builder) serverCall(on onCall, m ...method) {
 }
 
 type session struct {
-	bridge   Bridge
-	encoding common.Encoding
+	bridge     Bridge
+	encoding   common.Encoding
+	workspaces []string
+}
+
+func (s session) ensureWorkspaces(uris []string) {
+	toRemove := make([]string, 0)
+	for _, existingUri := range s.workspaces {
+		if !slices.Contains(uris, existingUri) {
+			toRemove = append(toRemove, existingUri)
+		}
+	}
+	for _, uri := range toRemove {
+		s.removeWorkspace(uri)
+	}
+	for _, uri := range uris {
+		s.addWorkspace(uri)
+	}
+}
+
+func (s session) addWorkspace(uri string) {
+	if slices.Contains(s.workspaces, uri) {
+		return
+	}
+	s.workspaces = append(s.workspaces, uri)
+	man.AddWorkspace(uri)
+}
+
+func (s session) removeWorkspace(uri string) {
+	index := slices.Index(s.workspaces, uri)
+	if index == -1 {
+		return
+	}
+	s.workspaces = slices.Delete(s.workspaces, index, index+1)
+	man.RemoveWorkspace(uri)
 }
 
 func (s session) enc() common.Encoding {
@@ -409,5 +443,5 @@ func (s session) show(msg string, typ int) {
 	message := ast.NewPair("message", ast.NewString(msg))
 	typNode := ast.NewPair("type", ast.NewAny(typ))
 	node := ast.NewObject([]ast.Pair{message, typNode})
-	s.notifClient(windowShowMessage, &node)
+	s.notifClient(showMessage, &node)
 }

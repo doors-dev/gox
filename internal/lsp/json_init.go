@@ -11,28 +11,32 @@ var jsonInit jsonInitDriver
 
 type jsonInitDriver struct{}
 
-func (r jsonInitDriver) getWorkspaceDirs(j Json) ([]string, error) {
-	folders := j.Get("workspaceFolders")
-	if !folders.Exists() {
-		return nil, errors.New("Can't get workspace folders from the intialize request")
-	}
-	a, err := folders.ArrayUseNode()
+func (r jsonInitDriver) getWorkspaceDirsFromArray(j Json) ([]string, error) {
+	a, err := j.ArrayUseNode()
 	if err != nil {
-		return nil, errors.New("Can't get workspace folders from the intialize request")
+		return nil, errors.New("Expecting array for workspace folders")
 	}
 	uris := make([]string, 0, len(a))
 	for _, folder := range a {
 		uri := folder.Get("uri")
 		if uri == nil {
-			return nil, errors.New("Can't read workspace folder URI from the intialize request")
+			return nil, errors.New("Can't read workspace folder URI")
 		}
 		uriStr, err := uri.String()
 		if err != nil {
-			return nil, errors.New("Can't read workspace folder URI from the intialize request")
+			return nil, errors.New("Can't read workspace folder URI")
 		}
 		uris = append(uris, uriStr)
 	}
 	return uris, nil
+}
+
+func (r jsonInitDriver) getWorkspaceDirs(j Json) ([]string, error) {
+	folders := j.Get("workspaceFolders")
+	if !folders.Exists() {
+		return nil, errors.New("Can't get workspace folders from the intialize request")
+	}
+	return r.getWorkspaceDirsFromArray(folders)
 }
 
 func (r jsonInitDriver) readEncoding(j Json) (common.Encoding, error) {
@@ -117,4 +121,40 @@ func (d jsonInitDriver) insertCompletionTriggers(j Json) error {
 	triggers.Add(ast.NewString("/"))
 	triggers.Add(ast.NewString("~"))
 	return nil
+}
+
+func (r jsonInitDriver) getWorkspaceChanges(j Json) (added []string, removed []string, err error) {
+	event := j.Get("event")
+	if !event.Exists() {
+		return nil, nil, errors.New("no event")
+	}
+	addedNodes := event.Get("added")
+	if addedNodes.Exists() {
+		a, err := addedNodes.ArrayUseNode()
+		if err == nil {
+			for _, node := range a {
+				uri := *node.Get("uri")
+				str, err := uri.String()
+				if err != nil {
+					return nil, nil, errors.New("added uri is not string")
+				}
+				added = append(added, str)
+			}
+		}
+	}
+	removedNodes := event.Get("removed")
+	if removedNodes.Exists() {
+		a, err := removedNodes.ArrayUseNode()
+		if err == nil {
+			for _, node := range a {
+				uri := *node.Get("uri")
+				str, err := uri.String()
+				if err != nil {
+					return nil, nil, errors.New("removed uri is not string")
+				}
+				removed = append(removed, str)
+			}
+		}
+	}
+	return
 }

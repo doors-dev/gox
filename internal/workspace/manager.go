@@ -3,6 +3,7 @@ package workspace
 import (
 	"log/slog"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 )
@@ -17,7 +18,7 @@ func NewManager() Manager {
 }
 
 type manager struct {
-	mu       *sync.Mutex
+	mu         *sync.Mutex
 	workspaces []*workspace
 }
 
@@ -29,6 +30,24 @@ func (m *manager) Unlock() {
 	m.mu.Unlock()
 }
 
+func (m *manager) RemoveWorkspace(uri string) {
+	url, err := url.Parse(uri)
+	if err != nil {
+		slog.Error("parse error: " + err.Error())
+		return
+	}
+	for i, ws := range m.workspaces {
+		if ws.Root() != url.Path {
+			continue
+		}
+		ws.hit()
+		if !ws.isAlive() {
+			m.workspaces = slices.Delete(m.workspaces, i, i+1)
+		}
+		return
+	}
+}
+
 func (m *manager) AddWorkspace(uri string) {
 	url, err := url.Parse(uri)
 	if err != nil {
@@ -37,6 +56,7 @@ func (m *manager) AddWorkspace(uri string) {
 	}
 	for _, ws := range m.workspaces {
 		if ws.Root() == url.Path {
+			ws.heal()
 			return
 		}
 	}

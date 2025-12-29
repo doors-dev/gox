@@ -2,13 +2,17 @@ package lsp
 
 type method string
 
-// notfif client -> gopls
+// notifs client -> gopls
 
 const (
-	didOpen   method = "textDocument/didOpen"   // +
-	didChange method = "textDocument/didChange" // +
-	didSave   method = "textDocument/didSave"   // +
-	didClose  method = "textDocument/didClose"  // +
+	didOpen                   method = "textDocument/didOpen"                // +
+	didChange                 method = "textDocument/didChange"              // +
+	didSave                   method = "textDocument/didSave"                // +
+	didClose                  method = "textDocument/didClose"               // +
+	didChangeConfiguration    method = "workspace/didChangeConfiguration"    // skip
+	didChangeWatchedFiles     method = "workspace/didChangeWatchedFiles"     //  add support?
+	didChangeWorkspaceFolders method = "workspace/didChangeWorkspaceFolders" // +
+	didCreateFiles            method = "workspace/didCreateFiles"            // add support?
 )
 
 // calls client -> gopls
@@ -18,17 +22,17 @@ const (
 	outgoingCalls        method = "callHierarchy/outgoingCalls"       // +
 	resolveCodeAction    method = "codeAction/resolve"                // +
 
-	exit        method = "exit"        // -
-	initialize  method = "initialize"  // + TODO: try to force utf-8, handle encoding in responce
-	initialized method = "initialized" // -
-	shutdown    method = "shutdown"    // -
+	exit        method = "exit"        // skip
+	initialize  method = "initialize"  // +
+	initialized method = "initialized" // skip
+	shutdown    method = "shutdown"    // skip
 
 	codeAction           method = "textDocument/codeAction"           // +
 	codeLens             method = "textDocument/codeLens"             // +
 	completion           method = "textDocument/completion"           // +
 	definition           method = "textDocument/definition"           // +
 	diagnostic           method = "textDocument/diagnostic"           // + TODO: unchecked
-	documentHighlight    method = "textDocument/documentHighlight"    // + TODO: gox highlight?
+	documentHighlight    method = "textDocument/documentHighlight"    // + TODO: add gox?
 	documentLink         method = "textDocument/documentLink"         // + TODO: unchecked
 	documentSymbol       method = "textDocument/documentSymbol"       // +
 	foldingRange         method = "textDocument/foldingRange"         // + TODO: gox
@@ -40,23 +44,18 @@ const (
 	prepareTypeHierarchy method = "textDocument/prepareTypeHierarchy" // + TODO: unchecked
 	references           method = "textDocument/references"           // +
 	rename               method = "textDocument/rename"               // +
-	selectionRange       method = "textDocument/selectionRange"
+	selectionRange       method = "textDocument/selectionRange"       // TODO: unchecked, add gox?
 	semanticTokensFull   method = "textDocument/semanticTokens/full"  // + TODO: gox
 	semanticTokensRange  method = "textDocument/semanticTokens/range" // + TODO: gox
-	signatureHelp        method = "textDocument/signatureHelp"
-	typeDefinition       method = "textDocument/typeDefinition" // + TODO: unchecked
+	signatureHelp        method = "textDocument/signatureHelp"        // + TODO: unchecked
+	typeDefinition       method = "textDocument/typeDefinition"       // + TODO: unchecked
+	subtypes             method = "typeHierarchy/subtypes"            // + TODO: unchecked
+	supertypes           method = "typeHierarchy/supertypes"          // + TODO: unchecked
+	executeCommand       method = "workspace/executeCommand"          // skip
+	symbol               method = "workspace/symbol"                  // + TODO: unchecked
 
-	subtypes   method = "typeHierarchy/subtypes"
-	supertypes method = "typeHierarchy/supertypes"
+	workDoneProgressCancel method = "window/workDoneProgress/cancel" // skip
 
-	workDoneProgressCancel method = "window/workDoneProgress/cancel" // -
-
-	didChangeConfiguration    method = "workspace/didChangeConfiguration"
-	didChangeWatchedFiles     method = "workspace/didChangeWatchedFiles"
-	didChangeWorkspaceFolders method = "workspace/didChangeWorkspaceFolders"
-	didCreateFiles            method = "workspace/didCreateFiles"
-	executeCommand            method = "workspace/executeCommand"
-	symbol                    method = "workspace/symbol"
 )
 
 /* not implemented by gopls: */
@@ -108,15 +107,31 @@ const (
 	textDocumentContent method = "workspace/textDocumentContent"
 */
 
-// calls gopls -> client
-
+// notifs gopls -> client
 const (
-	applyEdit method = "workspace/applyEdit"
+	logTrace               method = "$/logTrace"                       // skip
+	progress               method = "$/progress"                       // skip
+	registerCapability     method = "client/registerCapability"        // skip
+	unregisterCapability   method = "client/unregisterCapability"      // skip
+	event                  method = "telemetry/event"                  // skip
+	publishDiagnostics     method = "textDocument/publishDiagnostics"  // + TODO: add gox
+	logMessage             method = "window/logMessage"                // skip
+	showMessage            method = "window/showMessage"               // skip
+	workDoneProgressCreate method = "window/workDoneProgress/create"   // skip
+	codeLensRefresh        method = "workspace/codeLens/refresh"       // skip
+	diagnosticRefresh      method = "workspace/diagnostic/refresh"     // skip
+	foldingRangeRefresh    method = "workspace/foldingRange/refresh"   //	skip
+	inlayHintRefresh       method = "workspace/inlayHint/refresh"      // skip
+	inlineValueRefresh     method = "workspace/inlineValue/refresh"    // skip
+	semanticTokensRefresh  method = "workspace/semanticTokens/refresh" // skip
+	textDocumentContentRefresh method = "workspace/textDocumentContent/refresh" //skip
 )
 
-// notfif gopls -> client
-
+// calls gopls -> client
 const (
-	windowShowMessage  method = "window/showMessage"
-	publishDiagnostics method = "textDocument/publishDiagnostics"
+	showDocument               method = "window/showDocument" // skip
+	showMessageRequest         method = "window/showMessageRequest" // skip
+	applyEdit                  method = "workspace/applyEdit" // +
+	configuration              method = "workspace/configuration" // skip 
+	workspaceFolders           method = "workspace/workspaceFolders" // +
 )

@@ -23,6 +23,7 @@ func newWs(root string, lock sync.Locker) *workspace {
 		dirs:   make(map[string]*dir),
 		root:   root,
 		lock:   lock,
+		hp:     1,
 	}
 	w.scan(root)
 	go w.ticker()
@@ -34,6 +35,19 @@ type workspace struct {
 	dirs   map[string]*dir
 	root   string
 	lock   sync.Locker
+	hp     int
+}
+
+func (w *workspace) heal() {
+	w.hp += 1
+}
+
+func (w *workspace) isAlive() bool {
+	return w.hp > 0
+}
+
+func (w *workspace) hit() {
+	w.hp -= 1
 }
 
 func (w *workspace) Load(file File) Doc {

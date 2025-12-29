@@ -2,7 +2,6 @@ package lsp
 
 import (
 	"errors"
-	"log/slog"
 
 	"github.com/bytedance/sonic/ast"
 	"github.com/doors-dev/gox/internal/common"
@@ -114,10 +113,10 @@ const (
 	convertToTarget
 )
 
-func (r jsonPosDriver) convertLocations(end common.Encoding, origin workspace.Doc, j Json) (err error) {
+func (r jsonPosDriver) convertLocations(enc common.Encoding, origin workspace.Doc, j Json) (err error) {
 	if j.TypeSafe() == ast.V_ARRAY {
 		j.ForEach(func(path ast.Sequence, node *ast.Node) bool {
-			err = jsonPos.convertLocations(end, origin, node)
+			err = jsonPos.convertLocations(enc, origin, node)
 			if err != nil {
 				return false
 			}
@@ -133,7 +132,7 @@ func (r jsonPosDriver) convertLocations(end common.Encoding, origin workspace.Do
 			if err != nil {
 				return
 			}
-			newRange, ok := origin.SourceRange(end, ran, workspace.Approximate)
+			newRange, ok := origin.SourceRange(enc, ran, workspace.Approximate)
 			if !ok {
 				return errors.New("range not found")
 			}
@@ -141,6 +140,13 @@ func (r jsonPosDriver) convertLocations(end common.Encoding, origin workspace.Do
 			if err != nil {
 				return
 			}
+		}
+	}
+	location := j.Get("location")
+	if location.Exists() {
+		err = r.convertLocations(enc, origin, location)
+		if err != nil {
+			return
 		}
 	}
 	var doc workspace.Doc
@@ -160,7 +166,7 @@ func (r jsonPosDriver) convertLocations(end common.Encoding, origin workspace.Do
 		return
 	}
 	jsonDoc.setAsSource(j, doc)
-	for _, key := range []string{"range", "targetRange", "targetSelectionRange"} {
+	for _, key := range []string{"range", "targetRange", "targetSelectionRange", "selectionRange"} {
 		node := j.Get(key)
 		if !node.Exists() {
 			continue
@@ -170,7 +176,7 @@ func (r jsonPosDriver) convertLocations(end common.Encoding, origin workspace.Do
 		if err != nil {
 			return
 		}
-		newRange, ok := doc.SourceRange(end, ran, workspace.Approximate)
+		newRange, ok := doc.SourceRange(enc, ran, workspace.Approximate)
 		if !ok {
 			return errors.New("range not found")
 		}
@@ -322,6 +328,22 @@ func (r jsonPosDriver) convertRange(enc common.Encoding, doc workspace.Doc, j Js
 	}
 	jsonPos.setRange(j, newRan)
 	return nil
+}
+
+func (r jsonPosDriver) convertPositionsToTarget(enc common.Encoding, doc workspace.Doc, j Json, mode workspace.ConvMode) (err error) {
+	poss := j.Get("positions")
+	if !poss.Exists() {
+		return errors.New("positions not found")
+	}
+	poss.ForEach(func(path ast.Sequence, node *ast.Node) bool {
+		if path.Index == -1 || path.Key != nil {
+			err = errors.New("positions is not array")
+			return false
+		}
+		err = jsonPos.convertPosToTarget(enc, doc, node, mode)
+		return err == nil
+	})
+	return 
 }
 
 func (r jsonPosDriver) convertPosToSource(enc common.Encoding, doc workspace.Doc, j Json, mode workspace.ConvMode) error {

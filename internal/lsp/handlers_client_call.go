@@ -23,7 +23,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 		*/
 		uris, err := jsonInit.getWorkspaceDirs(j)
 		for _, uri := range uris {
-			man.AddWorkspace(uri)
+			c.session().addWorkspace(uri)
 		}
 		c.proxy(j, func(res Json) {
 			enc, err := jsonInit.readEncoding(res)
@@ -462,5 +462,72 @@ func initClientCalls(on func(h onCall, m ...method)) {
 			c.res(res)
 		})
 	}, inlayHint)
+
+	on(func(c caller, j Json) {
+		doc, kind, err := jsonDoc.get(j)
+		if err != nil {
+			c.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
+			return
+		}
+		if kind != workspace.KindSource {
+			c.forward()
+			return
+		}
+		if doc.Err() != nil {
+			c.err(common.FromErr(jsonrpc2.ErrUnknown, doc.Err()))
+			return
+		}
+		err = jsonPos.convertPositionsToTarget(c.enc(), doc, j, workspace.Strict)
+		if err != nil {
+			c.res(jsonGenerator.newEmptyArray())
+			return
+		}
+		jsonDoc.setAsTarget(j, doc)
+		c.proxy(j, func(res Json) {
+			err := jsonPos.convertAllToSource(c.enc(), doc, res, workspace.Approximate)
+			if err != nil {
+				c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert selection response"))
+				return
+			}
+			c.res(res)
+		})
+	}, selectionRange)
+
+	on(func(c caller, j Json) {
+		doc, kind, err := jsonDoc.get(j)
+		if err != nil {
+			c.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
+			return
+		}
+		if kind != workspace.KindSource {
+			c.forward()
+			return
+		}
+		if doc.Err() != nil {
+			c.err(common.FromErr(jsonrpc2.ErrUnknown, doc.Err()))
+			return
+		}
+		err = jsonPos.convertPosTryRangeToTarget(c.enc(), doc, j, workspace.Strict)
+		if err != nil {
+			c.res(jsonGenerator.newEmptyArray())
+			return
+		}
+		jsonDoc.setAsTarget(j, doc)
+		c.proxy(j, func(res Json) {
+			c.res(res)
+		})
+	}, signatureHelp)
+
+	on(func(c caller, j Json) {
+		c.proxy(j, func(res Json) {
+			err := jsonPos.convertLocations(c.enc(), nil, res)
+			if err != nil {
+				c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert locations response"))
+				return
+			}
+			c.res(res)
+		})
+	}, subtypes, supertypes, symbol)
+
 
 }
