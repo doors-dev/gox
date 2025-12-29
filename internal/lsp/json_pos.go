@@ -2,6 +2,7 @@ package lsp
 
 import (
 	"errors"
+	"log/slog"
 
 	"github.com/bytedance/sonic/ast"
 	"github.com/doors-dev/gox/internal/common"
@@ -11,6 +12,18 @@ import (
 var jsonPos jsonPosDriver
 
 type jsonPosDriver struct{}
+
+func (r jsonPosDriver) convertPosTryRangeToTarget(enc common.Encoding, doc workspace.Doc, j Json, mode workspace.ConvMode) error {
+	err := r.convertPosToTarget(enc, doc, j, mode)
+	if err != nil {
+		return err
+	}
+	err = r.convertRangeToTarget(enc, doc, j, mode)
+	if err != nil {
+		r.unsetRange(j)
+	}
+	return nil
+}
 
 func (r jsonPosDriver) setRange(j Json, ran common.Range) {
 	_, err := j.Set("range", r.fromRange(ran))
@@ -120,12 +133,7 @@ func (r jsonPosDriver) convertLocations(end common.Encoding, origin workspace.Do
 			if err != nil {
 				return
 			}
-			err = origin.Lock()
-			if err != nil {
-				return
-			}
 			newRange, ok := origin.SourceRange(end, ran, workspace.Approximate)
-			origin.Unlock()
 			if !ok {
 				return errors.New("range not found")
 			}
@@ -147,11 +155,10 @@ func (r jsonPosDriver) convertLocations(end common.Encoding, origin workspace.Do
 	if kind == workspace.KindSource {
 		err = errors.New("source can't be referenced by the server")
 	}
-	err = doc.Lock()
+	err = doc.Err()
 	if err != nil {
 		return
 	}
-	defer doc.Unlock()
 	jsonDoc.setAsSource(j, doc)
 	for _, key := range []string{"range", "targetRange", "targetSelectionRange"} {
 		node := j.Get(key)
@@ -190,11 +197,10 @@ func (r jsonPosDriver) convertCalls(enc common.Encoding, j Json) (err error) {
 			err = errors.New("source file is not expected")
 			return false
 		}
-		err = doc.Lock()
+		err = doc.Err()
 		if err != nil {
 			return false
 		}
-		defer doc.Unlock()
 		err = jsonPos.convertAllToSource(enc, doc, node, workspace.Approximate)
 		jsonDoc.setAsSource(node, doc)
 		return true
@@ -223,10 +229,6 @@ func (r jsonPosDriver) convertDiagnostics(enc common.Encoding, doc workspace.Doc
 			return errors.New("diagnostics is not array")
 		}
 		newDiag := make([]ast.Node, 0, len(diag))
-		err = doc.Lock()
-		if err != nil {
-			return err
-		}
 		for _, node := range diag {
 			ran, err := jsonPos.getRange(&node)
 			if err != nil {
@@ -249,7 +251,6 @@ func (r jsonPosDriver) convertDiagnostics(enc common.Encoding, doc workspace.Doc
 			jsonPos.setRange(&node, newRan)
 			newDiag = append(newDiag, node)
 		}
-		doc.Unlock()
 		j.Set(key, ast.NewArray(newDiag))
 	}
 	related := j.Get("relatedDocuments")

@@ -152,6 +152,8 @@ func (c *request) proxy(params Json, handler func(res Json)) {
 		Method: string(c.m),
 		Params: data,
 	}, func(r Response) {
+		man.Lock()
+		defer man.Unlock()
 		if r.Err != nil {
 			c.cb(r)
 			return
@@ -170,6 +172,8 @@ type onNotif func(n notifier, j Json)
 type onCall func(c caller, j Json)
 
 func (r Router) Notification(role Role, n Request) {
+	man.Lock()
+	defer man.Unlock()
 	slog.Info("Notification", "role", role, "method", n.Method)
 	m := method(n.Method)
 	switch role {
@@ -210,6 +214,8 @@ func (r Router) Notification(role Role, n Request) {
 }
 
 func (r Router) Call(role Role, call Request, cb Callback) {
+	man.Lock()
+	defer man.Unlock()
 	slog.Info("Call", "role", role, "method", call.Method)
 	m := method(call.Method)
 	switch role {

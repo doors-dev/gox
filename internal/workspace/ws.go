@@ -12,7 +12,7 @@ import (
 	"github.com/go-git/go-git/v6/plumbing/format/gitignore"
 )
 
-func newWs(root string) *workspace {
+func newWs(root string, lock sync.Locker) *workspace {
 	fs := osfs.New(root)
 	pats, err := gitignore.ReadPatterns(fs, nil)
 	if err != nil {
@@ -22,6 +22,7 @@ func newWs(root string) *workspace {
 		ignore: gitignore.NewMatcher(pats),
 		dirs:   make(map[string]*dir),
 		root:   root,
+		lock:   lock,
 	}
 	w.scan(root)
 	go w.ticker()
@@ -32,12 +33,10 @@ type workspace struct {
 	ignore gitignore.Matcher
 	dirs   map[string]*dir
 	root   string
-	mu     sync.Mutex
+	lock   sync.Locker
 }
 
 func (w *workspace) Load(file File) Doc {
-	w.mu.Lock()
-	defer w.mu.Unlock()
 	return w.load(file)
 }
 
@@ -58,31 +57,19 @@ func (w *workspace) ticker() {
 	for {
 		<-time.After(250 * time.Millisecond)
 		for name, d := range w.dirs {
-			w.mu.Lock()
-			d.ScanDeletions()
+			w.lock.Lock()
+			d.ProcessFileRemovals()
 			if d.IsEmpty() {
 				slog.Info("removing dir: " + name)
 				delete(w.dirs, name)
 			}
-			w.mu.Unlock()
+			w.lock.Unlock()
 		}
 	}
 }
 
-func (w *workspace) lock() {
-	w.mu.Lock()
-}
-
-func (w *workspace) unlock() {
-	w.mu.Unlock()
-}
-
 func (w *workspace) Root() string {
 	return w.root
-}
-
-func (w *workspace) Ignore() gitignore.Matcher {
-	return w.ignore
 }
 
 func (w *workspace) scan(path string) {

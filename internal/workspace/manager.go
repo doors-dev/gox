@@ -4,16 +4,29 @@ import (
 	"log/slog"
 	"net/url"
 	"strings"
+	"sync"
 )
 
 type Manager = *manager
 
 func NewManager() Manager {
-	return &manager{}
+	return &manager{
+		mu: &sync.Mutex{},
+	}
+
 }
 
 type manager struct {
+	mu       *sync.Mutex
 	workspaces []*workspace
+}
+
+func (m *manager) Lock() {
+	m.mu.Lock()
+}
+
+func (m *manager) Unlock() {
+	m.mu.Unlock()
 }
 
 func (m *manager) AddWorkspace(uri string) {
@@ -27,7 +40,7 @@ func (m *manager) AddWorkspace(uri string) {
 			return
 		}
 	}
-	ws := newWs(url.Path)
+	ws := newWs(url.Path, m.mu)
 	m.workspaces = append(m.workspaces, ws)
 }
 

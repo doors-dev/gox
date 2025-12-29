@@ -2,40 +2,13 @@ use std::ptr;
 mod formatter;
 mod init;
 
-/*
-#[cfg(test)]
-#[test]
-fn test_simple() {
-    let input = r#"
-function weirdSum (a,b , c=1) {  // spacing + default
-if(a==null||b==null){return 0}
-const obj={x:1,y:{z:[3,2,1].map(n=>({n, sq:n*n}))}}
-const msg=`sum=${a+b+c}`
-
-for (const {n,sq} of obj.y.z) { if (sq%2===0) console.log(n , sq) }
-
-try { JSON.parse("{bad}") } catch(e){ console.log("caught", e?.message) }
-
-return {  a,b,c, obj , msg }
-}
-
-export  const  result=weirdSum(1,2)
-console.log(result)
-"#;
-    let res = format_js_in_process(input).unwrap();
-    println!("{res}");
-} */
-
-
 #[repr(C)]
 pub struct Buf {
     pub ptr: *mut u8,
     pub len: usize,
     pub cap: usize,
-    pub err: i32, // 0 ok, 1 input error, 2 format error
+    pub err: i32, 
 }
-
-
 
 #[unsafe(no_mangle)]
 pub extern "C" fn format(ptr_in: *const u8, len_in: usize) -> Buf {

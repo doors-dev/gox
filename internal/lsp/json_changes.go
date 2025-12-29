@@ -17,6 +17,36 @@ type ContentChange struct {
 	Text  string
 }
 
+func (r jsonChangesDriver) convertInlayHints(enc common.Encoding, doc workspace.Doc, j Json) (err error) {
+	j.ForEach(func(path ast.Sequence, node *ast.Node) bool {
+		if path.Index == -1 || path.Key != nil {
+			err = errors.New("inlay hints gopls reponse format error")
+			return false
+		}
+		if err != nil {
+			return false
+		}
+		err = jsonPos.convertPosToTarget(enc, doc, node, workspace.Edge)
+		if err != nil {
+			return false
+		}
+		textEdits := node.Get("textEdits")
+		if !textEdits.Exists() {
+			return true
+		}
+		textEdits.ForEach(func(path ast.Sequence, node *ast.Node) bool {
+			if path.Index == -1 || path.Key != nil {
+				err = errors.New("inlay hints gopls reponse format error")
+				return false
+			}
+			err = jsonPos.convertRangeToTarget(enc, doc, node, workspace.Strict)
+			return err == nil
+		})
+		return err == nil
+	})
+	return
+}
+
 func (r jsonChangesDriver) convertCodeAction(enc common.Encoding, doc workspace.Doc, j Json) (err error) {
 	if doc != nil && j.Get("diagnostics").Exists() {
 		jsonPos.convertDiagnosticsToSource(enc, doc, j)
@@ -70,11 +100,11 @@ func (r jsonChangesDriver) convertEdit(enc common.Encoding, j Json) (err error) 
 		newChanges := ast.NewObject(nil)
 		changes.ForEach(func(path ast.Sequence, node *ast.Node) bool {
 			if path.Index == -1 {
-				err = errors.New( "Can't read workspace edit")
+				err = errors.New("Can't read workspace edit")
 				return false
 			}
 			if path.Key == nil {
-				err = errors.New( "Can't read workspace edit")
+				err = errors.New("Can't read workspace edit")
 				return false
 			}
 			uri := *path.Key
@@ -84,15 +114,14 @@ func (r jsonChangesDriver) convertEdit(enc common.Encoding, j Json) (err error) 
 				return true
 			}
 			if kind == workspace.KindSource {
-				err = errors.New( "Source can't be edited by the server")
+				err = errors.New("Source can't be edited by the server")
 				return false
 			}
-			err = doc.Lock()
+			err = doc.Err()
 			if err != nil {
 				return false
 			}
 			err = jsonPos.convertRangeToSource(enc, doc, node, workspace.Strict)
-			doc.Unlock()
 			if err != nil {
 				return false
 			}
@@ -101,7 +130,7 @@ func (r jsonChangesDriver) convertEdit(enc common.Encoding, j Json) (err error) 
 		})
 		_, jerr := j.Set("changes", newChanges)
 		if jerr != nil {
-			err = errors.New( "Can't set changes")
+			err = errors.New("Can't set changes")
 			return
 		}
 	}
@@ -111,7 +140,7 @@ func (r jsonChangesDriver) convertEdit(enc common.Encoding, j Json) (err error) 
 	}
 	changesArr, jerr := changes.ArrayUseNode()
 	if jerr != nil {
-		err = errors.New( "Can't read document changes")
+		err = errors.New("Can't read document changes")
 		return
 	}
 	newChanges := make([]ast.Node, 0, len(changesArr))
@@ -129,16 +158,15 @@ func (r jsonChangesDriver) convertEdit(enc common.Encoding, j Json) (err error) 
 				continue
 			}
 			if kind == workspace.KindSource {
-				err = errors.New( "Source can't be edited by the server")
+				err = errors.New("Source can't be edited by the server")
 				return
 			}
 			edits := node.Get("edits")
-			err = doc.Lock()
+			err = doc.Err()
 			if err != nil {
-				return
+				return 
 			}
 			err = jsonPos.convertAllToSource(enc, doc, edits, workspace.Strict)
-			doc.Unlock()
 			if err != nil {
 				return
 			}
@@ -150,7 +178,7 @@ func (r jsonChangesDriver) convertEdit(enc common.Encoding, j Json) (err error) 
 		var kind string
 		kind, jerr = kindNode.String()
 		if err != nil {
-			err = errors.New( "Can't read workspace edit")
+			err = errors.New("Can't read workspace edit")
 			return
 		}
 		switch kind {
@@ -161,7 +189,7 @@ func (r jsonChangesDriver) convertEdit(enc common.Encoding, j Json) (err error) 
 		case "delete":
 			newChanges = append(newChanges, node)
 		default:
-			err = errors.New( "Unknown document change kind")
+			err = errors.New("Unknown document change kind")
 			return
 		}
 	}
@@ -172,7 +200,7 @@ func (r jsonChangesDriver) convertEdit(enc common.Encoding, j Json) (err error) 
 func (r jsonChangesDriver) getChanges(j Json) ([]ContentChange, error) {
 	node := j.Get("contentChanges")
 	if !node.Exists() {
-		return nil, errors.New( "Can't read content changes")
+		return nil, errors.New("Can't read content changes")
 	}
 	arr, _ := node.ArrayUseNode()
 	changes := make([]ContentChange, 0, len(arr))

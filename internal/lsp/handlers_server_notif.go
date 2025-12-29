@@ -17,12 +17,10 @@ func initServerNotifs(on func(on onNotif, m ...method)) {
 		if kind == workspace.KindSource {
 			panic("source file diagnostics is not expected")
 		}
-		err = doc.Lock()
-		if err != nil {
+		if doc.Err() != nil {
 			return
 		}
 		jsonDoc.setAsSource(j, doc)
-		doc.Unlock()
 		jsonPos.convertDiagnosticsToSource(n.enc(), doc, j)
 		n.notify(j)
 	}, publishDiagnostics)

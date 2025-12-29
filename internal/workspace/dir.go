@@ -15,7 +15,7 @@ func (d *dir) IsEmpty() bool {
 func (dr *dir) load(file File) Doc {
 	d, found := dr.docs[file.Name()]
 	if !found {
-		d = NewDoc(file, dr.ws)
+		d = NewDoc(file)
 		d.Init()
 		if d.Err() == nil {
 			dr.docs[d.Name()] = d
@@ -24,7 +24,7 @@ func (dr *dir) load(file File) Doc {
 	return d
 }
 
-func (d *dir) ScanDeletions() {
+func (d *dir) ProcessFileRemovals() {
 	for name, doc := range d.docs {
 		if !doc.SourceFile().Exists() {
 			_, ok := d.sus[name]

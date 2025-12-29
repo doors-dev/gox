@@ -71,6 +71,8 @@ impl Replace {
         }
     }
 }
+
+/*
 fn dump(content: &[u8]) -> io::Result<()> {
     let mut f = OpenOptions::new()
         .create(true)
@@ -78,7 +80,7 @@ fn dump(content: &[u8]) -> io::Result<()> {
         .open("/tmp/topiary.log")?;
     f.write_all(content)?;
     Ok(())
-}
+} */
 
 
 pub fn format(input: &[u8], output: &mut Vec<u8>) -> Result<(), topiary_core::FormatterError> {

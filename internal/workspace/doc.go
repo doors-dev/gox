@@ -15,18 +15,7 @@ import (
 
 type Doc = *doc
 
-type ows interface {
-	lock()
-	unlock()
-}
-
-type dummyWs struct{}
-
-func (d dummyWs) lock() {}
-
-func (d dummyWs) unlock() {}
-
-func NewDoc(file File, ws ows) Doc {
+func NewDoc(file File) Doc {
 	if file.Kind() != KindSource {
 		file = file.Reverse()
 	}
@@ -37,7 +26,6 @@ func NewDoc(file File, ws ows) Doc {
 		panic(err)
 	}
 	return &doc{
-		ws:            ws,
 		sourceFile:    file,
 		parser:        parser,
 		sourceVersion: -1,
@@ -46,7 +34,6 @@ func NewDoc(file File, ws ows) Doc {
 }
 
 type doc struct {
-	ws            ows
 	parser        *tree_sitter.Parser
 	sourceFile    File
 	tree          *tree_sitter.Tree
@@ -59,21 +46,6 @@ type doc struct {
 	err           error
 }
 
-func (d Doc) Lock() error {
-	if d == nil {
-		return errors.New("File is not a part of the workspace")
-	}
-	d.ws.lock()
-	if d.Err() != nil {
-		d.ws.unlock()
-		return d.Err()
-	}
-	return nil
-}
-
-func (d Doc) Unlock() {
-	d.ws.unlock()
-}
 
 func (d Doc) PrintTarget() {
 	d.target.Print()

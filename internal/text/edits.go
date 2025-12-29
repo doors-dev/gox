@@ -118,7 +118,6 @@ func (t *text) lastPos() common.Pos {
 	return common.NewPos(line, last.Len())
 }
 
-
 func (d Text) Update(content string) (tree_sitter.InputEdit, bool, error) {
 	b := common.Bytes(content)
 	for i := len(b) - 1; i >= 0 && b[i] == '\n'; i-- {
@@ -241,6 +240,27 @@ func (d Text) preparePatch(ran common.Range, content string) (patch, error) {
 	newEndColumn := offsets[len(offsets)-1].Len()
 	newEndLine := ran.Beg().Line() + len(offsets) - 1
 	offsets[len(offsets)-1].ExpandRight(rightExpansion)
+
+	newChunk := buf.Bytes()
+	/*
+		prevChunk := d.Slice(ran)
+		editIndex := 0
+		for i := range max(len(prevChunk), len(newChunk)) {
+			if i > len(prevChunk) {
+				if editIndex == 0 {
+					editIndex = len(newChunk) - 1
+				}
+				break
+			}
+			if i > len(newChunk) {
+				editIndex = len(newChunk) - 1
+				break
+			}
+			if prevChunk[i] != newChunk[i] {
+				editIndex = i
+			}
+		}
+		editIndex += beg */
 	return patch{
 		ran:          ran,
 		beg:          beg,
@@ -248,7 +268,7 @@ func (d Text) preparePatch(ran common.Range, content string) (patch, error) {
 		newEndColumn: newEndColumn,
 		newEndLine:   newEndLine,
 		offsets:      offsets,
-		content:      buf.Bytes(),
+		content:      newChunk,
 	}, nil
 }
 

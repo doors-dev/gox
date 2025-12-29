@@ -30,12 +30,10 @@ func initClientNotifs(on func(on onNotif, m ...method)) {
 			n.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
 		}
-		err = doc.Lock()
-		if err != nil { 
-			n.err(common.FromErr(jsonrpc2.ErrUnknown, err))
+		if doc.Err() != nil {
+			n.err(common.FromErr(jsonrpc2.ErrUnknown, doc.Err()))
 			return
 		}
-		defer doc.Unlock()
 		switch kind {
 		case workspace.KindSource:
 			doc.SourceOpen(int32(version))
@@ -78,12 +76,10 @@ func initClientNotifs(on func(on onNotif, m ...method)) {
 			n.forward()
 			return
 		}
-		err = doc.Lock()
-		if err != nil { 
-			n.err(common.FromErr(jsonrpc2.ErrUnknown, err))
+		if doc.Err() != nil {
+			n.err(common.FromErr(jsonrpc2.ErrUnknown, doc.Err()))
 			return
 		}
-		defer doc.Unlock()
 		switch kind {
 		case workspace.KindSource:
 			changes, err := jsonChanges.getChanges(j)
@@ -150,12 +146,10 @@ func initClientNotifs(on func(on onNotif, m ...method)) {
 		if kind == workspace.KindTarget {
 			return
 		}
-		err = doc.Lock()
-		if err != nil { 
-			n.err(common.FromErr(jsonrpc2.ErrUnknown, err))
+		if doc.Err() != nil {
+			n.err(common.FromErr(jsonrpc2.ErrUnknown, doc.Err()))
 			return
 		}
-		defer doc.Unlock()
 		err = doc.Save()
 		if err != nil {
 			n.err(common.FromErr(jsonrpc2.ErrInternal, err))
@@ -175,12 +169,10 @@ func initClientNotifs(on func(on onNotif, m ...method)) {
 			n.forward()
 			return
 		}
-		err = doc.Lock()
-		if err != nil { 
-			n.err(common.FromErr(jsonrpc2.ErrUnknown, err))
+		if doc.Err() != nil {
+			n.err(common.FromErr(jsonrpc2.ErrUnknown, doc.Err()))
 			return
 		}
-		defer doc.Unlock()
 		switch kind {
 		case workspace.KindSource:
 			slog.Info("source file closed: " + doc.SourceFile().Path())
