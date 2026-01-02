@@ -113,19 +113,20 @@ func (r jsonChangesDriver) convertEdit(enc common.Encoding, j Json) (err error) 
 				newChanges.Set(uri, *node)
 				return true
 			}
-			if kind == workspace.KindSource {
-				err = errors.New("Source can't be edited by the server")
-				return false
-			}
 			err = doc.Err()
 			if err != nil {
 				return false
 			}
-			err = jsonPos.convertRangeToSource(enc, doc, node, workspace.Strict)
+			if kind == workspace.KindSource {
+				err = jsonPos.convertRangeToTarget(enc, doc, node, workspace.Strict)
+				newChanges.Set(doc.TargetFile().URI(), *node)
+			} else {
+				err = jsonPos.convertRangeToSource(enc, doc, node, workspace.Strict)
+				newChanges.Set(doc.SourceFile().URI(), *node)
+			}
 			if err != nil {
 				return false
 			}
-			newChanges.Set(doc.SourceFile().URI(), *node)
 			return true
 		})
 		_, jerr := j.Set("changes", newChanges)
@@ -157,20 +158,21 @@ func (r jsonChangesDriver) convertEdit(enc common.Encoding, j Json) (err error) 
 				newChanges = append(newChanges, node)
 				continue
 			}
-			if kind == workspace.KindSource {
-				err = errors.New("Source can't be edited by the server")
+			err = doc.Err()
+			if err != nil {
 				return
 			}
 			edits := node.Get("edits")
-			err = doc.Err()
-			if err != nil {
-				return 
+			if kind == workspace.KindSource {
+				err = jsonPos.convertAllToTarget(enc, doc, edits, workspace.Strict)
+				jsonDoc.setAsTarget(&node, doc)
+			} else {
+				err = jsonPos.convertAllToSource(enc, doc, edits, workspace.Strict)
+				jsonDoc.setAsSource(&node, doc)
 			}
-			err = jsonPos.convertAllToSource(enc, doc, edits, workspace.Strict)
 			if err != nil {
 				return
 			}
-			jsonDoc.setAsSource(&node, doc)
 			newChanges = append(newChanges, node)
 			continue
 		}

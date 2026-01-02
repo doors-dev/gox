@@ -3,7 +3,6 @@ package workspace
 import (
 	"errors"
 	"log/slog"
-	"os"
 	"slices"
 
 	"github.com/doors-dev/gox/internal/assembler"
@@ -46,7 +45,6 @@ type doc struct {
 	err           error
 }
 
-
 func (d Doc) PrintTarget() {
 	d.target.Print()
 }
@@ -74,14 +72,27 @@ func (d Doc) SubmitTargetDraft() bool {
 	return slices.Equal(d.target.Source(), d.draft.Source())
 }
 
+func (d Doc) Load() error {
+	d.source = text.NewText()
+	return d.source.Load(d.sourceFile.Path())
+}
+
+func (d Doc) Parse() error {
+	d.tree = d.parser.Parse(d.source.Source(), nil)
+	if d.tree.RootNode().HasError() {
+		return errors.New("Parser detected ERROR nodes, please ensure that syntax is correct.")
+	}
+	return nil
+}
+
+
 func (d Doc) Init() {
 	if !d.sourceFile.Exists() {
 		d.targetRemove()
 		d.err = errors.New("Source file not exists")
 		return
 	}
-	d.source = text.NewText()
-	err := d.source.Load(d.sourceFile.Path())
+	err := d.Load()
 	if err != nil {
 		d.err = errors.New("Source reading error: " + err.Error())
 		return
@@ -89,10 +100,13 @@ func (d Doc) Init() {
 	if d.tree != nil {
 		d.tree.Close()
 	}
-	d.tree = d.parser.Parse(d.source.Source(), nil)
+	d.Parse()
 	d.Assemble()
 	d.resetDraft()
-	err = d.targetWrite()
+	if d.TargetIsUpToDate() {
+		return 
+	}
+	err = d.TargetWrite()
 	if err != nil {
 		d.err = errors.New("Target writing error: " + err.Error())
 		return
@@ -100,21 +114,21 @@ func (d Doc) Init() {
 }
 
 func (d Doc) Save() error {
-	err := d.targetWrite()
+	if d.TargetIsUpToDate() {
+		return nil
+	}
+	err := d.TargetWrite()
 	if err != nil && !d.TargetIsOpened() {
 		d.resetDraft()
 	}
-	if err != nil {
-		return errors.New("Target writing error: " + err.Error())
-	}
-	return nil
+	return err
 }
 
-func (d Doc) targetWrite() error {
-	hash, ok := d.TargetFile().Hash()
-	if ok && hash == d.target.Hash() {
-		return nil
-	}
+func (d Doc) TargetIsUpToDate() bool {
+	return d.TargetFile().IsEqual(d.target.Source()) 
+}
+
+func (d Doc) TargetWrite() error {
 	return d.target.Save(d.TargetFile().Path())
 }
 
@@ -143,7 +157,7 @@ func (d Doc) targetRemove() {
 	if !d.TargetFile().Exists() {
 		return
 	}
-	err := os.Remove(d.TargetFile().Path())
+	err := d.TargetFile().Remove()
 	if err != nil {
 		slog.Error("generated filer removal error: " + err.Error())
 	}

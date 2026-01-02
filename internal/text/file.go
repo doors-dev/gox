@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"os"
 
-	"github.com/zeebo/blake3"
+//	"github.com/zeebo/blake3"
 )
 
 func (l Text) Print() {
@@ -79,7 +79,7 @@ func (t Text) Load(path string) error {
 	t.source = buf.Bytes()
 	return nil
 }
-
+/*
 func (l Text) Hash() [32]byte {
 	return blake3.Sum256(l.source)
-}
+} */

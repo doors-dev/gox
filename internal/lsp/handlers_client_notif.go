@@ -80,6 +80,7 @@ func initClientNotifs(on func(on onNotif, m ...method)) {
 			n.err(common.FromErr(jsonrpc2.ErrUnknown, doc.Err()))
 			return
 		}
+		slog.Info("did change", "kind", kind)
 		switch kind {
 		case workspace.KindSource:
 			changes, err := jsonChanges.getChanges(j)
@@ -105,6 +106,7 @@ func initClientNotifs(on func(on onNotif, m ...method)) {
 			jsonChanges.setUpdate(j, doc.TargetContent())
 			n.notify(j)
 			if doc.TargetIsOpened() {
+				slog.Info("push changes tp target")
 				n.session().callClient(
 					applyEdit,
 					jsonGenerator.newUpdateEdit(doc.TargetFile().URI(), doc.TargetContent(), ""),
@@ -128,7 +130,7 @@ func initClientNotifs(on func(on onNotif, m ...method)) {
 			}
 			n.session().callClient(
 				applyEdit,
-				jsonGenerator.newUpdateEdit(doc.TargetFile().URI(), doc.TargetContent(), ""),
+				jsonGenerator.newUpdateEdit(doc.TargetFile().URI(), doc.TargetContent(), "[code restored] please edit the original .gox file"),
 			)
 		}
 	}, didChange)

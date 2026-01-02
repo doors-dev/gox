@@ -38,8 +38,10 @@ func initClientCalls(on func(h onCall, m ...method)) {
 				c.err(common.FromErr(jsonrpc2.ErrInternal, err))
 				return
 			}
+			/*
 			d, _ := res.MarshalJSON()
 			slog.Info("initialize", "res", string(d))
+			*/
 			c.res(res)
 		})
 	}, initialize)
@@ -247,11 +249,17 @@ func initClientCalls(on func(h onCall, m ...method)) {
 	}, codeAction)
 
 	on(func(c caller, j Json) {
-		j.Unset("edit")
 		j.Unset("diagnostics")
+		err := jsonChanges.convertCodeAction(c.enc(), nil, j)
+		if err != nil {
+			slog.Error("code action call error: " + err.Error())
+			c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert code action"))
+			return
+		}
 		c.proxy(j, func(res Json) {
 			err := jsonChanges.convertCodeAction(c.enc(), nil, res)
 			if err != nil {
+				slog.Error("code action convert error: " + err.Error())
 				c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert code action response"))
 				return
 			}
@@ -528,6 +536,5 @@ func initClientCalls(on func(h onCall, m ...method)) {
 			c.res(res)
 		})
 	}, subtypes, supertypes, symbol)
-
 
 }

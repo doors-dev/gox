@@ -6,8 +6,8 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/doors-dev/gox/cmd/internal/common"
-	"github.com/doors-dev/gox/cmd/internal/server"
+	"github.com/doors-dev/gox/cmd/gox/internal/common"
+	"github.com/doors-dev/gox/cmd/gox/internal/server"
 )
 
 func NewCmdDialer(command string, args ...string) server.Dialer {

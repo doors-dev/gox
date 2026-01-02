@@ -1,14 +1,14 @@
 package workspace
 
 import (
+	"bytes"
 	"io"
 	"log/slog"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/zeebo/blake3"
+	// "github.com/zeebo/blake3"
 )
 
 type FileKind string
@@ -55,6 +55,10 @@ func (f File) Dir() string {
 
 func (f File) IsValid() bool {
 	return f.name != "" && f.kind != ""
+}
+
+func (f File) Remove() error {
+	return os.Remove(f.Path())
 }
 
 func (f FileKind) Belongs(path string) bool {
@@ -118,6 +122,41 @@ func (f File) Exists() bool {
 	return !info.IsDir()
 }
 
+func (f File) IsEqual(b []byte) bool {
+	fl, err := os.Open(f.Path())
+	if err != nil {
+		return false
+	}
+	defer fl.Close()
+	if info, err := fl.Stat(); err == nil && info.Size() != int64(len(b)) {
+		return false
+	}
+	br := bytes.NewReader(b)
+	const chunk = 32 * 1024
+	bufFile := make([]byte, chunk)
+	bufBytes := make([]byte, chunk)
+	for {
+		nf, ef := fl.Read(bufFile)
+		nb, eb := br.Read(bufBytes)
+		if nf != nb || !bytes.Equal(bufFile[:nf], bufBytes[:nb]) {
+			return false
+		}
+		if ef == io.EOF && eb == io.EOF {
+			return true
+		}
+		if ef != nil && ef != io.EOF {
+			return false
+		}
+		if eb != nil && eb != io.EOF {
+			return false
+		}
+		if ef == io.EOF || eb == io.EOF {
+			return false
+		}
+	}
+}
+
+/*
 func (f File) Hash() ([32]byte, bool) {
 	var arr [32]byte
 	fl, err := os.Open(f.Path())
@@ -132,7 +171,7 @@ func (f File) Hash() ([32]byte, bool) {
 	}
 	copy(arr[:], hash.Sum(nil))
 	return arr, true
-}
+} */
 
 func (f File) remove() {
 	err := os.Remove(f.Path())

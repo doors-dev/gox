@@ -82,7 +82,6 @@ fn dump(content: &[u8]) -> io::Result<()> {
     Ok(())
 } */
 
-
 pub fn format(input: &[u8], output: &mut Vec<u8>) -> Result<(), topiary_core::FormatterError> {
     let mut parser = init::new_parser();
     let tree = parser.parse(input, None)?;
@@ -107,6 +106,9 @@ pub fn format(input: &[u8], output: &mut Vec<u8>) -> Result<(), topiary_core::Fo
             tolerate_parsing_errors: false,
         },
     )?;
+    while let Some(b'\n') = formatted_gox.last() {
+        formatted_gox.pop();
+    }
     let tree = parser.parse(formatted_gox.as_slice(), None)?;
     if tree.is_none() {
         return Ok(());
@@ -159,7 +161,7 @@ fn cure_tags(input: &[u8], root: &topiary_tree_sitter_facade::Node) -> Option<Ve
         let chunk = &input[insert_end..node.start_byte()];
         if i < impl_close_count {
             let name: Option<String> = (|| {
-                let head = node.parent()?; 
+                let head = node.parent()?;
                 let open = head.child_by_field_name("open")?;
                 let name_node = open.child_by_field_name("name")?;
                 name_node.utf8_text(input).ok().map(|s| s.to_owned())

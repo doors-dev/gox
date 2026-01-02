@@ -7,7 +7,7 @@ pub struct Buf {
     pub ptr: *mut u8,
     pub len: usize,
     pub cap: usize,
-    pub err: i32, 
+    pub res: i32, 
 }
 
 #[unsafe(no_mangle)]
@@ -17,7 +17,7 @@ pub extern "C" fn format(ptr_in: *const u8, len_in: usize) -> Buf {
             ptr: ptr::null_mut(),
             len: 0,
             cap: 0,
-            err: 1,
+            res: 1,
         };
     }
     let bytes = unsafe { std::slice::from_raw_parts(ptr_in, len_in) };
@@ -37,7 +37,7 @@ pub extern "C" fn format(ptr_in: *const u8, len_in: usize) -> Buf {
             ptr: ptr::null_mut(),
             len: 0,
             cap: 0,
-            err: reason,
+            res: reason,
         };
     }
 
@@ -46,18 +46,26 @@ pub extern "C" fn format(ptr_in: *const u8, len_in: usize) -> Buf {
             ptr: ptr::null_mut(),
             len: 0,
             cap: 0,
-            err: 0,
+            res: 0,
         };
     }
     let len = output.len();
     let ptr = output.as_mut_ptr();
     let cap = output.capacity();
+    if output.as_slice() == bytes {
+        return Buf {
+            ptr: ptr::null_mut(),
+            len: 0,
+            cap: 0,
+            res: -1,
+        };
+    }
     std::mem::forget(output);
     Buf {
         ptr,
         len,
         cap,
-        err: 0,
+        res: 0,
     }
 }
 

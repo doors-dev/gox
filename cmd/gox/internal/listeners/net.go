@@ -4,7 +4,7 @@ import (
 	"io"
 	"net"
 
-	"github.com/doors-dev/gox/cmd/internal/server"
+	"github.com/doors-dev/gox/cmd/gox/internal/server"
 )
 
 func NewNetListener(network string, address string) (server.Listener, error) {

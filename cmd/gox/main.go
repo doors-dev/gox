@@ -1,23 +1,25 @@
 package main
 
-//go:generate cargo build --release --manifest-path=../formatter/Cargo.toml
+//go:generate cargo build --release --manifest-path=../../formatter/Cargo.toml
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 
-	"github.com/doors-dev/gox/cmd/command"
+	"github.com/doors-dev/gox/cmd/gox/command"
 )
 
 func main() {
 	initLogger()
-	cmdErr, runErr := cmd.Execute(starter{})
+	cmdErr, runErr := command.Execute(starter{})
 	if cmdErr != nil {
-		println(cmdErr.Error())
+		fmt.Fprintln(os.Stderr, cmdErr.Error())
 		os.Exit(1)
 		return
 	}
-	if runErr != nil  {
+	if runErr != nil {
+		fmt.Fprintln(os.Stderr, runErr.Error())
 		os.Exit(1)
 		return
 	}

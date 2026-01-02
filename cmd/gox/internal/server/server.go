@@ -96,8 +96,12 @@ func (s *server) onConnect() bool {
 	return true
 }
 
-func (s *server) setKillTimer() {
+func (s *server) setKillTimer() bool {
+	if s.killTimeout == 0 {
+		return false
+	}
 	s.killTimer = time.AfterFunc(s.killTimeout, s.cancel)
+	return true
 }
 
 func (s *server) onDisconnect() {
@@ -105,6 +109,9 @@ func (s *server) onDisconnect() {
 	defer s.mu.Unlock()
 	s.killCountDown -= 1
 	if s.killCountDown == 0 {
-		s.setKillTimer()
+		if s.setKillTimer() {
+			return
+		}
+		s.cancel()
 	}
 }

@@ -3,11 +3,15 @@ module github.com/doors-dev/gox
 go 1.25.1
 
 require (
-	github.com/doors-dev/tree-sitter-gox v0.0.6
+	github.com/doors-dev/tree-sitter-gox v0.0.9
 	github.com/go-git/go-billy/v6 v6.0.0-20251008191739-bf4aa134545f
 	github.com/go-git/go-git/v6 v6.0.0-20251009132922-75a182125145
 	github.com/tree-sitter/go-tree-sitter v0.24.1-0.20251112183152-c9492002f76e
-	github.com/zeebo/blake3 v0.2.4
+)
+
+require (
+	github.com/panjf2000/ants/v2 v2.11.4
+	golang.org/x/sync v0.19.0 // indirect
 )
 
 require (
@@ -21,5 +25,6 @@ require (
 	github.com/mattn/go-pointer v0.0.1 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	golang.org/x/arch v0.0.0-20210923205945-b76863e36670 // indirect
-	golang.org/x/sys v0.37.0 // indirect
+	golang.org/x/sys v0.39.0 // indirect
+	golang.org/x/term v0.38.0
 )

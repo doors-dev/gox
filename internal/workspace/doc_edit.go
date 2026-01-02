@@ -19,6 +19,9 @@ func (d Doc) Format(enc common.Encoding) (Formatted, error) {
 	if err != nil {
 		return Formatted{}, errors.New("Formatting failed, please esure that the file is valid.")
 	}
+	if output == nil {
+		return Formatted{Range: common.NoRange()}, nil
+	}
 	ran := common.NewRange(common.NewPos(0, 0), common.NewPos(math.MaxInt32, 0))
 	return Formatted{
 		Range: ran,
