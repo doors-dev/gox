@@ -1,8 +1,6 @@
 package workspace
 
 import (
-	"log/slog"
-
 	"github.com/doors-dev/gox/internal/assembler"
 	"github.com/doors-dev/gox/internal/catalog/grammer"
 	"github.com/doors-dev/gox/internal/catalog/symbol"
@@ -27,10 +25,8 @@ func (d Doc) Symbols(enc common.Encoding) []Symbol {
 		case grammer.TYPE_DECLARATION:
 			spec := n.Child(1)
 			if spec == nil {
-				slog.Info("type declaration not found")
 				continue
 			}
-			slog.Info("type declaration found", "kind", spec.Kind())
 			nameNode := spec.ChildByFieldName("name")
 			if nameNode == nil {
 				continue

@@ -3,7 +3,6 @@ package workspace
 import (
 	"bytes"
 	"io"
-	"log/slog"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -38,7 +37,6 @@ func NewFile(path string) (File, bool) {
 func NewFileFromURI(uri string) (File, bool) {
 	path, err := url.Parse(uri)
 	if err != nil {
-		slog.Error("URI parse error: " + err.Error())
 		return File{}, false
 	}
 	return NewFile(path.Path)
@@ -156,26 +154,6 @@ func (f File) IsEqual(b []byte) bool {
 	}
 }
 
-/*
-func (f File) Hash() ([32]byte, bool) {
-	var arr [32]byte
-	fl, err := os.Open(f.Path())
-	if err != nil {
-		return arr, false
-	}
-	defer fl.Close()
-	hash := blake3.New()
-	_, err = io.Copy(hash, fl)
-	if err != nil {
-		return arr, false
-	}
-	copy(arr[:], hash.Sum(nil))
-	return arr, true
-} */
-
-func (f File) remove() {
-	err := os.Remove(f.Path())
-	if err != nil {
-		slog.Error("file remove error: " + err.Error())
-	}
+func (f File) remove() error {
+	return os.Remove(f.Path())
 }

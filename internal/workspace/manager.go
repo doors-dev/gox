@@ -33,7 +33,7 @@ func (m *manager) Unlock() {
 func (m *manager) RemoveWorkspace(uri string) {
 	url, err := url.Parse(uri)
 	if err != nil {
-		slog.Error("parse error: " + err.Error())
+		slog.Error("Workspace uri parse error: " + err.Error())
 		return
 	}
 	for i, ws := range m.workspaces {
@@ -51,7 +51,7 @@ func (m *manager) RemoveWorkspace(uri string) {
 func (m *manager) AddWorkspace(uri string) {
 	url, err := url.Parse(uri)
 	if err != nil {
-		slog.Error("parse error: " + err.Error())
+		slog.Error("Workspace uri parse error: " + err.Error())
 		return
 	}
 	for _, ws := range m.workspaces {

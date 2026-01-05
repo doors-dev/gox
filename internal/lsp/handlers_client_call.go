@@ -1,7 +1,6 @@
 package lsp
 
 import (
-	"log/slog"
 
 	"github.com/doors-dev/gox/internal/common"
 	"github.com/doors-dev/gox/internal/jsonrpc"
@@ -17,10 +16,6 @@ func initClientCalls(on func(h onCall, m ...method)) {
 			c.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
 		}
-		/*
-			d, _ := j.MarshalJSON()
-			slog.Info("initialize", "req", string(d))
-		*/
 		uris, err := jsonInit.getWorkspaceDirs(j)
 		for _, uri := range uris {
 			c.session().addWorkspace(uri)
@@ -28,7 +23,6 @@ func initClientCalls(on func(h onCall, m ...method)) {
 		c.proxy(j, func(res Json) {
 			enc, err := jsonInit.readEncoding(res)
 			if err != nil {
-				slog.Error("read encoding error: " + err.Error())
 				c.err(common.FromErr(jsonrpc2.ErrInternal, err))
 				return
 			}
@@ -38,10 +32,6 @@ func initClientCalls(on func(h onCall, m ...method)) {
 				c.err(common.FromErr(jsonrpc2.ErrInternal, err))
 				return
 			}
-			/*
-			d, _ := res.MarshalJSON()
-			slog.Info("initialize", "res", string(d))
-			*/
 			c.res(res)
 		})
 	}, initialize)
@@ -252,14 +242,12 @@ func initClientCalls(on func(h onCall, m ...method)) {
 		j.Unset("diagnostics")
 		err := jsonChanges.convertCodeAction(c.enc(), nil, j)
 		if err != nil {
-			slog.Error("code action call error: " + err.Error())
 			c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert code action"))
 			return
 		}
 		c.proxy(j, func(res Json) {
 			err := jsonChanges.convertCodeAction(c.enc(), nil, res)
 			if err != nil {
-				slog.Error("code action convert error: " + err.Error())
 				c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert code action response"))
 				return
 			}
@@ -305,7 +293,6 @@ func initClientCalls(on func(h onCall, m ...method)) {
 		c.proxy(j, func(res Json) {
 			err := jsonPos.convertCalls(c.enc(), res)
 			if err != nil {
-				slog.Error("convert calls error: " + err.Error())
 				c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert calls response"))
 				return
 			}

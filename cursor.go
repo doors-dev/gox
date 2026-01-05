@@ -33,6 +33,10 @@ type head struct {
 	tag  string
 }
 
+func (h head) isValid() bool {
+	return h.id != 0 
+}
+
 var stackId = atomic.Uint32{}
 
 type stack struct {
@@ -61,7 +65,7 @@ func (s *stack) last() head {
 
 func (s *stack) Opened() error {
 	last := s.last()
-	if last.id == 0 {
+	if !last.isValid() {
 		return nil
 	}
 	if !s.initiated() && last.kind != KindVoid {
@@ -71,7 +75,7 @@ func (s *stack) Opened() error {
 }
 
 func (s *stack) Submit(p *proxyManager, ctx context.Context) error {
-	if s.ctx == nil {
+	if !s.initiated() {
 		return errors.New("nothing to submit")
 	}
 	last := s.last()
@@ -217,6 +221,10 @@ func (c Cursor) WriteFprint(ctx context.Context, any any) error {
 	return c.printer.Send(newJobFprint(ctx, any))
 }
 
+func (c *cursor) terminate() {
+	c.printer.terminate()
+}
+
 func (c Cursor) WriteJob(job Job) error {
 	if err := c.stack.Opened(); err != nil {
 		return err
@@ -269,6 +277,13 @@ func (c Cursor) WriteAny(ctx context.Context, any any) error {
 		return nil
 	case Templ:
 		return c.WriteTempl(ctx, v)
+	case []interface{}:
+		for _, v := range v {
+			if err := c.WriteAny(ctx, v); err != nil {
+				return err
+			}
+		}
+		return nil
 	default:
 		return c.WriteFprint(ctx, any)
 	}

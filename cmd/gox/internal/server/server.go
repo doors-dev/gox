@@ -79,7 +79,6 @@ func (s *server) connect(clientRwc io.ReadWriteCloser) {
 		slog.Error("server connect error: " + err.Error())
 		return
 	}
-	slog.Info("Bridging client and gopls")
 	bridge := newBridge(s.ctx, clientRwc, goplsRwc)
 	bridge.run()
 }

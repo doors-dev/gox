@@ -8,6 +8,7 @@ import (
 	"github.com/bytedance/sonic"
 	"github.com/bytedance/sonic/ast"
 	"github.com/doors-dev/gox/internal/common"
+	"github.com/doors-dev/gox/internal/jsonrpc"
 	"github.com/doors-dev/gox/internal/workspace"
 )
 
@@ -119,10 +120,14 @@ func (c *request) res(result Json) {
 
 func (c *request) err(err *common.Err) {
 	if c.isCall() {
+		slog.Error("Error response to call", "method", c.m, "role", c.role, "msg", err.Msg, "error", err.Wire.Error())
+		c.sess.logError("Error response to call: [method=" + string(c.m) + ", role=" + string(c.role) + ", msg=" + err.Msg + ", error=" + err.Wire.Error() + "]")
 		c.cb(Response{Err: err.Wire})
-		c.sess.error(err.Error())
+		c.sess.showError(err.Error())
 	} else {
-		c.sess.error(err.Error())
+		slog.Error("Error \"response\" to notification", "method", c.m, "msg", err.Msg, "error", err.Wire.Error())
+		c.sess.logError("Error \"response\" to notification: [method=" + string(c.m) + ", msg=" + err.Msg + ", error=" + err.Wire.Error() + "]")
+		c.sess.showError(err.Error())
 	}
 }
 
@@ -156,12 +161,14 @@ func (c *request) proxy(params Json, handler func(res Json)) {
 		man.Lock()
 		defer man.Unlock()
 		if r.Err != nil {
+			slog.Error("Got error response to call", "method", c.m, "from", c.role.Revert(), "error", r.Err.Error())
 			c.cb(r)
 			return
 		}
 		node, err := sonic.Get(r.Result)
 		if err != nil {
-			slog.Error("Unmarshal error: " + err.Error())
+			slog.Error("Response parsing error", "method", c.m, "from", c.role.Revert(), "error", err.Error())
+			c.sess.logError("Response parsing error: [method=" + string(c.m) + ", from=" + string(c.role.Revert()) + ", error=" + err.Error() + "]")
 			c.cb(r)
 			return
 		}
@@ -175,41 +182,34 @@ type onCall func(c caller, j Json)
 func (r Router) Notification(role Role, n Request) {
 	man.Lock()
 	defer man.Unlock()
-	slog.Info("Notification", "role", role, "method", n.Method)
 	m := method(n.Method)
+	slog.Debug("Notification", "method", m, "from", role)
+	var handler onNotif
+	var ok bool
 	switch role {
 	case Client:
-		if handler, ok := r.clientNotifs[m]; ok {
-			node, err := sonic.Get(n.Params)
-			if err != nil {
-				slog.Error("Unmarshal error: " + err.Error())
-				return
-			}
-			handler(&request{
-				data: n.Params,
-				sess: r.session,
-				role: role,
-				m:    m,
-			}, &node)
-			return
-		}
+		handler, ok = r.clientNotifs[m]
 	case Gopls:
-		if handler, ok := r.serverNotifs[m]; ok {
-			node, err := sonic.Get(n.Params)
-			if err != nil {
-				slog.Error("Unmarshal error: " + err.Error())
-				return
-			}
-			handler(&request{
-				data: n.Params,
-				sess: r.session,
-				role: role,
-				m:    m,
-			}, &node)
-			return
-		}
+		handler, ok = r.serverNotifs[m]
 	default:
 		panic("unknown role")
+	}
+	if ok {
+		r := &request{
+			data: n.Params,
+			sess: r.session,
+			role: role,
+			m:    m,
+		}
+		node, err := sonic.Get(n.Params)
+		if err != nil {
+			slog.Error("Notification parsing error", "method", m, "from", role, "error", err.Error())
+			r.session().logError("Notification parsing error: [method=" + string(m) + ", from=" + string(role) + ", error=" + err.Error() + "]")
+			r.err(common.FromErr(jsonrpc.ErrParse, err))
+			return
+		}
+		handler(r, &node)
+		return
 	}
 	r.session.bridge.Notify(role.Revert(), n)
 }
@@ -217,43 +217,35 @@ func (r Router) Notification(role Role, n Request) {
 func (r Router) Call(role Role, call Request, cb Callback) {
 	man.Lock()
 	defer man.Unlock()
-	slog.Info("Call", "role", role, "method", call.Method)
 	m := method(call.Method)
+	slog.Debug("Call", "method", m, "from", role)
+	var handler onCall
+	var ok bool
 	switch role {
 	case Client:
-		if handler, ok := r.clientCalls[m]; ok {
-			node, err := sonic.Get(call.Params)
-			if err != nil {
-				slog.Error("Unmarshal error: " + err.Error())
-				return
-			}
-			handler(&request{
-				sess: r.session,
-				role: role,
-				m:    m,
-				data: call.Params,
-				cb:   cb,
-			}, &node)
-			return
-		}
+		handler, ok = r.clientCalls[m]
 	case Gopls:
-		if handler, ok := r.serverCalls[m]; ok {
-			node, err := sonic.Get(call.Params)
-			if err != nil {
-				slog.Error("Unmarshal error: " + err.Error())
-				return
-			}
-			handler(&request{
-				sess: r.session,
-				role: role,
-				data: call.Params,
-				m:    m,
-				cb:   cb,
-			}, &node)
-			return
-		}
+		handler, ok = r.serverCalls[m]
 	default:
 		panic("unknown role")
+	}
+	if ok {
+		r := &request{
+			sess: r.session,
+			role: role,
+			m:    m,
+			data: call.Params,
+			cb:   cb,
+		}
+		node, err := sonic.Get(call.Params)
+		if err != nil {
+			slog.Error("Call parsing error ", "method", m, "from", role, "error", err.Error())
+			r.session().logError("Call parsing error: [method=" + string(m) + ", from=" + string(role) + ", error=" + err.Error() + "]")
+			r.err(common.FromErr(jsonrpc.ErrParse, err))
+			return
+		}
+		handler(r, &node)
+		return
 	}
 	r.session.bridge.Call(role.Revert(), call, cb)
 }
@@ -349,7 +341,7 @@ type session struct {
 	workspaces []string
 }
 
-func (s session) ensureWorkspaces(uris []string) {
+func (s *session) ensureWorkspaces(uris []string) {
 	toRemove := make([]string, 0)
 	for _, existingUri := range s.workspaces {
 		if !slices.Contains(uris, existingUri) {
@@ -364,7 +356,7 @@ func (s session) ensureWorkspaces(uris []string) {
 	}
 }
 
-func (s session) addWorkspace(uri string) {
+func (s *session) addWorkspace(uri string) {
 	if slices.Contains(s.workspaces, uri) {
 		return
 	}
@@ -372,7 +364,7 @@ func (s session) addWorkspace(uri string) {
 	man.AddWorkspace(uri)
 }
 
-func (s session) removeWorkspace(uri string) {
+func (s *session) removeWorkspace(uri string) {
 	index := slices.Index(s.workspaces, uri)
 	if index == -1 {
 		return
@@ -381,15 +373,15 @@ func (s session) removeWorkspace(uri string) {
 	man.RemoveWorkspace(uri)
 }
 
-func (s session) enc() common.Encoding {
+func (s *session) enc() common.Encoding {
 	return s.encoding
 }
 
-func (s session) setEnc(e common.Encoding) {
+func (s *session) setEnc(e common.Encoding) {
 	s.encoding = e
 }
 
-func (s session) notifGo(m method, params Json) {
+func (s *session) notifGo(m method, params Json) {
 	data, err := params.MarshalJSON()
 	if err != nil {
 		panic("param marshaling error - should not happen")
@@ -400,7 +392,7 @@ func (s session) notifGo(m method, params Json) {
 	})
 }
 
-func (s session) notifClient(m method, params Json) {
+func (s *session) notifClient(m method, params Json) {
 	data, err := params.MarshalJSON()
 	if err != nil {
 		panic("param marshaling error - should not happen")
@@ -411,35 +403,47 @@ func (s session) notifClient(m method, params Json) {
 	})
 }
 
-func (s session) callClient(m method, params Json) {
+func (s *session) callClient(m method, params Json) {
 	data, err := params.MarshalJSON()
 	if err != nil {
 		panic("param marshaling error - should not happen")
 	}
+
 	s.bridge.Call(Client, Request{
 		Method: string(m),
 		Params: data,
 	}, func(r Response) {
-		slog.Info("call client result", "result", string(r.Result))
 		if r.Err != nil {
-			slog.Error("call client result error: " + r.Err.Error())
+			slog.Error("Call client result error", "method", m, "error", r.Err.Error())
+			s.logError("Call client result error: [method=" + string(m) + ", error=" + r.Err.Error() + "]")
 		}
 	})
 }
 
-func (s session) info(msg string) {
+func (s *session) showInfo(msg string) {
 	s.show(msg, 3)
 }
 
-func (s session) warn(msg string) {
+func (s *session) showWarn(msg string) {
 	s.show(msg, 2)
 }
 
-func (s session) error(msg string) {
+func (s *session) showError(msg string) {
 	s.show(msg, 1)
 }
 
-func (s session) show(msg string, typ int) {
+func (s *session) logError(msg string) {
+	s.log(msg, 1)
+}
+
+func (s *session) log(msg string, typ int) {
+	message := ast.NewPair("message", ast.NewString(msg))
+	typNode := ast.NewPair("type", ast.NewAny(typ))
+	node := ast.NewObject([]ast.Pair{message, typNode})
+	s.notifClient(logMessage, &node)
+}
+
+func (s *session) show(msg string, typ int) {
 	message := ast.NewPair("message", ast.NewString(msg))
 	typNode := ast.NewPair("type", ast.NewAny(typ))
 	node := ast.NewObject([]ast.Pair{message, typNode})

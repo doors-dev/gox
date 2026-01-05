@@ -1,8 +1,6 @@
 package lsp
 
 import (
-	"log/slog"
-
 	"github.com/doors-dev/gox/internal/common"
 	jsonrpc2 "github.com/doors-dev/gox/internal/jsonrpc"
 )
@@ -28,7 +26,6 @@ func initServerCalls(on func(on onCall, m ...method)) {
 		c.proxy(j, func(res Json) {
 			workspace, err := jsonInit.getWorkspaceDirsFromArray(res)
 			if err != nil {
-				slog.Error("get workspace folders error: " + err.Error())
 				c.res(res)
 				return
 			}

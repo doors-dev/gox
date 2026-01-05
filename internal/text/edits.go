@@ -132,7 +132,6 @@ func (d Text) Update(content string) (tree_sitter.InputEdit, bool, error) {
 
 func (d Text) Patch(ran common.Range, content string) (tree_sitter.InputEdit, bool, error) {
 	defer d.ensureLineOffsets()
-	// slog.Info("patch", "rang", ran, "content", content)
 	patch, err := d.preparePatch(ran, content)
 	if err != nil {
 		return tree_sitter.InputEdit{}, false, err
@@ -164,7 +163,6 @@ func (d Text) preparePatch(ran common.Range, content string) (patch, error) {
 	end := d.offset(ran.End())
 	offsets := []offset{}
 	buf := bytes.Buffer{}
-	// slog.Info("patch", "rang", ran, "beg", beg, "end", end)
 	if beg == -1 {
 		// allow only empty lines above the exiting lines
 		if ran.Beg().Column() != 0 {
@@ -182,7 +180,6 @@ func (d Text) preparePatch(ran common.Range, content string) (patch, error) {
 		pos := common.NewPos(begLine, begCol)
 		ran = common.NewRange(pos, pos)
 		end = beg
-		// slog.Info("patch upd", "rang", ran, "beg", beg, "end", end, "addedLines", missingLines)
 	} else if end == -1 {
 		end = len(d.source)
 		endLine := len(d.lineOffsets) - 1

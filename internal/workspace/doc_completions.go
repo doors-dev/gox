@@ -1,7 +1,6 @@
 package workspace
 
 import (
-	"log/slog"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -28,15 +27,6 @@ func (c Completion) Kind() completion.Kind {
 	return completion.Text
 }
 
-/*
-func isProperlyClosed(head *tree_sitter.Node) bool {
-	close := head.ChildByFieldName("close")
-	if close == nil {
-		return false
-	}
-	return close.Kind() == grammer.GOX_CLOSE_HEAD
-} */
-
 func hasAttrs(node *tree_sitter.Node) bool {
 	child := node.ChildByFieldName("attrs")
 	return child != nil
@@ -50,7 +40,6 @@ func tagIsEditable(node *tree_sitter.Node) bool {
 			continue
 		}
 		if child.Kind() == grammer.GOX_SELF_CLOSING_HEAD_END || child.Kind() == grammer.GOX_HEAD_END {
-			slog.Info("Tag has end")
 			return false
 		}
 	}
@@ -179,17 +168,7 @@ func (d Doc) Completions(enc common.Encoding, pos common.Pos) (completions []Com
 			})
 		}
 	}
-	slog.Info("head name comp", "kind", node.Kind())
 	if node.Kind() == grammer.GOX_TILDE_MARKER || node.Kind() == "~" {
-		/*
-			parent := node.Parent()
-			if parent == nil {
-				return
-			}
-			if !parent.IsError() {
-				if
-				return
-			}*/
 		proxy := prevIsTilde(d.source.Source(), node)
 		ran := d.source.FromRange(enc, common.NewTSRange(node.Range()))
 		completions = append(completions, Completion{
@@ -230,25 +209,20 @@ func (d Doc) Completions(enc common.Encoding, pos common.Pos) (completions []Com
 	}
 	if node.Kind() == grammer.GOX_HEAD_NAME {
 		str := node.Utf8Text(d.source.Source())
-		slog.Info("head name", "str", str)
 		parent := node.Parent()
 		if parent == nil {
-			slog.Info("head name parent nil")
 			return
 		}
 		if !tagIsEditable(parent) {
-			slog.Info("head name not editable")
 			return
 		}
 		var ran common.Range
 		ran = d.source.FromRange(enc, common.NewTSRange(node.Range()))
 		isOpen := parent.Kind() == grammer.GOX_OPEN_HEAD
 		isSelf := parent.Kind() == grammer.GOX_SELF_CLOSING_HEAD
-		slog.Info("head name comp", "isOpen", isOpen, "isSelf", isSelf)
 		if isOpen || isSelf {
 			options := tags.FindTag(str)
 			for _, tag := range options {
-				slog.Info("head name comp", "tag", tag.String())
 				var label = "<" + tag.String() + "/>"
 				var text string
 				if tag.IsVoid() {
@@ -265,7 +239,6 @@ func (d Doc) Completions(enc common.Encoding, pos common.Pos) (completions []Com
 			}
 			return
 		}
-		slog.Info("head name not open")
 		return
 	}
 	if node.Kind() == grammer.GOX_ERRONEOUS_CLOSE_HEAD_NAME {

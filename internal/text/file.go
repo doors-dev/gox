@@ -4,29 +4,11 @@ import (
 	"bufio"
 	"bytes"
 	"os"
-
-//	"github.com/zeebo/blake3"
 )
 
 func (l Text) Print() {
 	os.Stdout.Write(l.source)
 }
-
-/*
-func (l Text) SaveOffsets(path string) error {
-	f, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	for i, offset := range l.lineOffsets {
-		_, err = fmt.Fprintf(f, "%d) %d-%d\n", i, offset.Beg(), offset.End())
-		if err != nil {
-			return err
-		}
-	}
-	return err
-} */
 
 func (l Text) Save(path string) error {
 	f, err := os.Create(path)
@@ -79,7 +61,3 @@ func (t Text) Load(path string) error {
 	t.source = buf.Bytes()
 	return nil
 }
-/*
-func (l Text) Hash() [32]byte {
-	return blake3.Sum256(l.source)
-} */

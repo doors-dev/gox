@@ -293,4 +293,3 @@ func (j *JobFprint) Output(w io.Writer) error {
 	_, err := fmt.Fprint(ew, j.Any)
 	return err
 }
-

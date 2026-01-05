@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,6 +15,22 @@ import (
 	"github.com/doors-dev/gox/cmd/gox/internal/processor"
 	"github.com/doors-dev/gox/cmd/gox/internal/server"
 )
+
+func initLogger(file string, level slog.Level, enable bool) {
+	if !enable {
+		h := slog.NewTextHandler(io.Discard, nil)
+		slog.SetDefault(slog.New(h))
+		return
+	}
+	f, err := os.OpenFile(file, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		panic(err)
+	}
+	h := slog.NewTextHandler(f, &slog.HandlerOptions{
+		Level: level,
+	})
+	slog.SetDefault(slog.New(h))
+}
 
 type starter struct{}
 
@@ -29,6 +47,8 @@ func (s starter) Default() error {
 }
 
 func (s starter) Serve(args command.ServeArgs) error {
+	level, file, enabled := args.LoggerInfo()
+	initLogger(file, level, enabled)
 	var listener server.Listener
 	var dialer server.Dialer
 	network, address, ok := args.Socket()

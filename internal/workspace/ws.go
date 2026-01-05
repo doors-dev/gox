@@ -16,7 +16,7 @@ func newWs(root string, lock sync.Locker) *workspace {
 	fs := osfs.New(root)
 	pats, err := gitignore.ReadPatterns(fs, nil)
 	if err != nil {
-		slog.Error("gitignore read error: " + err.Error())
+		slog.Error("Error reading .gitignore: " + err.Error())
 	}
 	w := &workspace{
 		ignore: gitignore.NewMatcher(pats),
@@ -74,7 +74,6 @@ func (w *workspace) ticker() {
 			w.lock.Lock()
 			d.ProcessFileRemovals()
 			if d.IsEmpty() {
-				slog.Info("removing dir: " + name)
 				delete(w.dirs, name)
 			}
 			w.lock.Unlock()

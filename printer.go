@@ -13,7 +13,9 @@ type Job interface {
 }
 
 type Proxy interface {
-	Send(job Job, p Printer) (done bool, err error)
+	Init(p Printer)
+	Terminate()
+	Send(job Job) (done bool, err error)
 }
 
 type Printer interface {
@@ -38,7 +40,6 @@ func NewPrinter(w io.Writer) Printer {
 func newProxyManager(target Printer) *proxyManager {
 	return &proxyManager{
 		target:  target,
-		proxies: []*proxyPrinter{},
 	}
 }
 
@@ -48,10 +49,19 @@ type proxyManager struct {
 }
 
 func (p *proxyManager) Add(proxy Proxy) {
-	p.proxies = append(p.proxies, &proxyPrinter{
+	printer := &proxyPrinter{
 		manager: p,
 		proxy:   proxy,
-	})
+	}
+	p.proxies = append(p.proxies, printer)
+	printer.init()
+}
+
+func (p *proxyManager) terminate() {
+	for _, proxy := range p.proxies {
+		proxy.terminate()
+	}
+	p.proxies = nil
 }
 
 func (p *proxyManager) Send(job Job) error {
@@ -62,9 +72,11 @@ func (p *proxyManager) Send(job Job) error {
 }
 
 func (p *proxyManager) sendTo(index int, j Job) error {
-	done, err := p.proxies[index].send(j)
+	proxy := p.proxies[index]
+	done, err := proxy.send(j)
 	if done {
 		p.proxies = slices.Delete(p.proxies, index, 1)
+		proxy.terminate()
 	}
 	return err
 }
@@ -85,8 +97,16 @@ type proxyPrinter struct {
 	proxy   Proxy
 }
 
+func (p *proxyPrinter) init() {
+	p.proxy.Init(p)
+}
+
+func (p *proxyPrinter) terminate() {
+	p.proxy.Terminate()
+}
+
 func (p *proxyPrinter) send(j Job) (bool, error) {
-	return p.proxy.Send(j, p)
+	return p.proxy.Send(j)
 }
 
 func (p *proxyPrinter) Send(job Job) error {

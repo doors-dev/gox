@@ -1,7 +1,6 @@
 package lsp
 
 import (
-	"log/slog"
 
 	"github.com/doors-dev/gox/internal/common"
 	jsonrpc2 "github.com/doors-dev/gox/internal/jsonrpc"
@@ -80,7 +79,6 @@ func initClientNotifs(on func(on onNotif, m ...method)) {
 			n.err(common.FromErr(jsonrpc2.ErrUnknown, doc.Err()))
 			return
 		}
-		slog.Info("did change", "kind", kind)
 		switch kind {
 		case workspace.KindSource:
 			changes, err := jsonChanges.getChanges(j)
@@ -106,7 +104,6 @@ func initClientNotifs(on func(on onNotif, m ...method)) {
 			jsonChanges.setUpdate(j, doc.TargetContent())
 			n.notify(j)
 			if doc.TargetIsOpened() {
-				slog.Info("push changes tp target")
 				n.session().callClient(
 					applyEdit,
 					jsonGenerator.newUpdateEdit(doc.TargetFile().URI(), doc.TargetContent(), ""),
@@ -177,7 +174,6 @@ func initClientNotifs(on func(on onNotif, m ...method)) {
 		}
 		switch kind {
 		case workspace.KindSource:
-			slog.Info("source file closed: " + doc.SourceFile().Path())
 			doc.SourceClose()
 			if doc.TargetIsOpened() {
 				return

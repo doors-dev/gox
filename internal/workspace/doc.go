@@ -65,10 +65,6 @@ func (d Doc) resetDraft() {
 }
 
 func (d Doc) SubmitTargetDraft() bool {
-	/*
-		slog.Info("submit draft", "target", d.target.Source())
-		slog.Info("submit draft", "draft", d.draft.Source())
-	*/
 	return slices.Equal(d.target.Source(), d.draft.Source())
 }
 
@@ -153,12 +149,10 @@ func (d Doc) Delete() {
 }
 
 func (d Doc) targetRemove() {
-	slog.Info("removing target file: " + d.TargetFile().Path())
 	if !d.TargetFile().Exists() {
 		return
 	}
-	err := d.TargetFile().Remove()
-	if err != nil {
-		slog.Error("generated filer removal error: " + err.Error())
+	if err := d.TargetFile().Remove(); err != nil {
+		slog.Error("Target file [" + d.TargetFile().Path() + "] remove error: " + err.Error())
 	}
 }

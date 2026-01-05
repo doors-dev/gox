@@ -2,7 +2,6 @@ package lsp
 
 import (
 	"errors"
-	"log/slog"
 	"github.com/doors-dev/gox/internal/workspace"
 )
 
@@ -75,7 +74,6 @@ func (r jsonDocDriver) get(j Json) (workspace.Doc, workspace.FileKind, error) {
 func (r jsonDocDriver) setVersion(j Json, version int32) {
 	textDoc := j.Get("textDocument")
 	if !textDoc.Exists() {
-		slog.Error("text document not found")
 		return
 	}
 	_, err := textDoc.SetAny("version", version)

@@ -1,7 +1,6 @@
 package lsp
 
 import (
-	"log/slog"
 	"math"
 
 	"github.com/bytedance/sonic/ast"
@@ -69,8 +68,6 @@ func (r jsonGeneratorDriver) newUpdateEdit(uri string, content string, message s
 	changes := ast.NewPair("changes", ast.NewObject([]ast.Pair{docEdits}))
 	edit := ast.NewPair("edit", ast.NewObject([]ast.Pair{changes}))
 	node := ast.NewObject([]ast.Pair{messageNode, edit})
-	d, _ := node.MarshalJSON()
-	slog.Info("new update edit", "node", string(d))
 	return &node
 }
 
