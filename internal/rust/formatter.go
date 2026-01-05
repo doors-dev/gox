@@ -1,7 +1,7 @@
-package formatter
+package rust
 
 /*
-#cgo LDFLAGS: -L${SRCDIR}/../../formatter/target/release -lformatter
+#cgo LDFLAGS: -L${SRCDIR}/../../rust/target/release -lgox
 #include <stdint.h>
 #include <stdlib.h>
 

@@ -13,7 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/doors-dev/gox/internal/formatter"
+	"github.com/doors-dev/gox/internal/rust"
 	"github.com/doors-dev/gox/internal/workspace"
 	"github.com/go-git/go-billy/v6/osfs"
 	"github.com/go-git/go-git/v6/plumbing/format/gitignore"
@@ -199,7 +199,7 @@ func (p *processor) walkFmt(path string) {
 			continue
 		}
 		if strings.HasSuffix(path, ".gox") {
-			p.format(path, formatter.Format)
+			p.format(path, rust.Format)
 			continue
 		}
 		if strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, ".x.go") {

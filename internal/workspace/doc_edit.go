@@ -5,7 +5,7 @@ import (
 	"math"
 
 	"github.com/doors-dev/gox/internal/common"
-	"github.com/doors-dev/gox/internal/formatter"
+	"github.com/doors-dev/gox/internal/rust"
 )
 
 type Formatted struct {
@@ -14,7 +14,7 @@ type Formatted struct {
 }
 
 func (d Doc) Format(enc common.Encoding) (Formatted, error) {
-	output, err := formatter.Format(d.source.Source())
+	output, err := rust.Format(d.source.Source())
 	if err != nil {
 		return Formatted{}, errors.New("Formatting failed, please esure that the file is valid.")
 	}

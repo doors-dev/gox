@@ -565,28 +565,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a3076410a55c90011c298b04d0cfa770b00fa04e1e3c97d3f6c9de105a03844"
 
 [[package]]
-name = "formatter"
-version = "0.1.0"
-dependencies = [
- "biome_css_factory",
- "biome_css_formatter",
- "biome_css_parser",
- "biome_css_syntax",
- "biome_formatter",
- "biome_js_factory",
- "biome_js_formatter",
- "biome_js_parser",
- "biome_js_syntax",
- "biome_parser",
- "biome_rowan",
- "streaming-iterator",
- "topiary-core",
- "topiary-tree-sitter-facade",
- "tree-sitter",
- "tree-sitter-gox",
-]
-
-[[package]]
 name = "futures"
 version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -680,6 +658,28 @@ name = "gimli"
 version = "0.32.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e629b9b98ef3dd8afe6ca2bd0f89306cec16d43d907889945bc5d6687f2f13c7"
+
+[[package]]
+name = "gox"
+version = "0.1.0"
+dependencies = [
+ "biome_css_factory",
+ "biome_css_formatter",
+ "biome_css_parser",
+ "biome_css_syntax",
+ "biome_formatter",
+ "biome_js_factory",
+ "biome_js_formatter",
+ "biome_js_parser",
+ "biome_js_syntax",
+ "biome_parser",
+ "biome_rowan",
+ "streaming-iterator",
+ "topiary-core",
+ "topiary-tree-sitter-facade",
+ "tree-sitter",
+ "tree-sitter-gox",
+]
 
 [[package]]
 name = "hashbrown"
