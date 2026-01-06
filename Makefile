@@ -15,5 +15,6 @@ install: build_rust
 
 clean:
 	$(GO) clean -cache 
+	$(GO) mod tidy
 	$(CARGO) clean --manifest-path=$(RUST_MANIFEST)
 

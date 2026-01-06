@@ -2,6 +2,8 @@ package rust
 
 /*
 #cgo LDFLAGS: -L${SRCDIR}/../../rust/target/release -lgox
+#cgo windows LDFLAGS: -lws2_32 -luserenv -lntdll
+#cgo linux LDFLAGS: -lm
 #include <stdint.h>
 #include <stdlib.h>
 
