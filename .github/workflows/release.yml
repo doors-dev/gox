@@ -1,0 +1,171 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            goos: Linux
+            goarch: amd64
+            exe: gox
+          - os: ubuntu-24.04-arm
+            goos: Linux
+            goarch: arm64
+            exe: gox
+          - os: macos-latest
+            goos: Darwin
+            goarch: arm64
+            exe: gox
+          - os: macos-15-intel
+            goos: Darwin
+            goarch: amd64
+            exe: gox
+          - os: windows-latest
+            goos: Windows
+            goarch: amd64
+            exe: gox.exe
+          - os: windows-11-arm
+            goos: Windows
+            goarch: arm64
+            exe: gox.exe
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "stable"
+          cache: true
+
+      - name: Install Rust (Linux/macOS)
+        if: runner.os != 'Windows'
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux deps
+        if: matrix.goos == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y build-essential
+
+      - name: Setup MSYS2 (Windows amd64)
+        if: matrix.goos == 'Windows' && matrix.goarch == 'amd64'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          path-type: inherit
+          install: >-
+            make
+            mingw-w64-x86_64-toolchain
+            
+      - name: Setup MSYS2 (Windows arm64)
+        if: matrix.goos == 'Windows' && matrix.goarch == 'arm64'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          path-type: inherit
+          install: >-
+            make
+            mingw-w64-clang-aarch64-toolchain
+            
+      - name: Install Rust (Windows amd64)
+        if: matrix.goos == 'Windows' && matrix.goarch == 'amd64'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable-x86_64-pc-windows-gnu
+
+      - name: Install Rust (Windows arm64)
+        if: matrix.goos == 'Windows' && matrix.goarch == 'arm64'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable-aarch64-pc-windows-gnullvm
+
+      - name: Capture Go bin dir (Windows)
+        if: matrix.goos == 'Windows'
+        shell: pwsh
+        run: |
+          $go = (Get-Command go).Source
+          "GO_BIN_DIR=$([System.IO.Path]::GetDirectoryName($go))" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Build (Linux/macOS)
+        if: matrix.goos != 'Windows'
+        run: make build
+
+      - name: Build (Windows amd64)
+        if: matrix.goos == 'Windows' && matrix.goarch == 'amd64'
+        shell: msys2 {0}
+        run: |
+          export PATH="$(cygpath -u "$USERPROFILE")/.cargo/bin:$PATH"
+          export PATH="$(cygpath -u "$GO_BIN_DIR"):$PATH"
+          make build
+          
+      - name: Build (Windows arm64)
+        if: matrix.goos == 'Windows' && matrix.goarch == 'arm64'
+        shell: msys2 {0}
+        env:
+          GOOS: windows
+          GOARCH: arm64
+          CGO_ENABLED: "1"
+          CC: clang
+          CXX: clang++
+          AR: llvm-ar
+        run: |
+          export PATH="$(cygpath -u "$USERPROFILE")/.cargo/bin:$PATH"
+          export PATH="$(cygpath -u "$GO_BIN_DIR"):$PATH"
+          export PATH="/clangarm64/bin:$PATH"
+          make build
+          
+      - name: Stage output
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p out
+          cp -f "./${{ matrix.exe }}" "out/${{ matrix.exe }}"
+
+      - name: Upload build output (per platform)
+        uses: actions/upload-artifact@v4
+        with:
+          name: gox_${{ matrix.goos }}_${{ matrix.goarch }}
+          path: out/
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: builds
+
+      - name: Package assets
+        run: |
+          set -euxo pipefail
+          mkdir -p dist
+
+          # Artifact folders contain gox or gox.exe directly
+          tar -C "builds/gox_Linux_amd64"  -czf "dist/gox_linux_amd64.tar.gz" .
+          tar -C "builds/gox_Linux_arm64"  -czf "dist/gox_linux_arm64.tar.gz" .
+          tar -C "builds/gox_Darwin_arm64" -czf "dist/gox_darwin_arm64.tar.gz" .
+          tar -C "builds/gox_Darwin_amd64" -czf "dist/gox_darwin_amd64.tar.gz" .
+          (cd "builds/gox_Windows_amd64" && zip -r "../../dist/gox_windows_amd64.zip" .)
+          (cd "builds/gox_Windows_arm64" && zip -r "../../dist/gox_windows_arm64.zip" .)
+
+      - name: Create/Update GitHub Release and upload assets (once)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: dist/*
