@@ -39,7 +39,7 @@ func NewPrinter(w io.Writer) Printer {
 
 func newProxyManager(target Printer) *proxyManager {
 	return &proxyManager{
-		target:  target,
+		target: target,
 	}
 }
 

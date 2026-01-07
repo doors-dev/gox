@@ -7,11 +7,7 @@ require (
 	github.com/go-git/go-billy/v6 v6.0.0-20251008191739-bf4aa134545f
 	github.com/go-git/go-git/v6 v6.0.0-20251009132922-75a182125145
 	github.com/tree-sitter/go-tree-sitter v0.24.1-0.20251112183152-c9492002f76e
-)
-
-require (
-	github.com/panjf2000/ants/v2 v2.11.4
-	golang.org/x/sync v0.19.0 // indirect
+	golang.org/x/sync v0.19.0
 )
 
 require (

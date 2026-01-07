@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -17,7 +16,7 @@ import (
 	"github.com/doors-dev/gox/internal/workspace"
 	"github.com/go-git/go-billy/v6/osfs"
 	"github.com/go-git/go-git/v6/plumbing/format/gitignore"
-	"github.com/panjf2000/ants/v2"
+	"golang.org/x/sync/errgroup"
 )
 
 type task int
@@ -28,11 +27,10 @@ const (
 )
 
 type processor struct {
-	pool      *ants.Pool
 	ignore    gitignore.Matcher
 	root      string
 	task      task
-	wg        sync.WaitGroup
+	wg        errgroup.Group
 	errors    []string
 	updated   atomic.Int32
 	skipped   atomic.Int32
@@ -144,13 +142,12 @@ func (p *processor) walkGen(path string) {
 		}
 	}
 	for _, file := range files {
-		p.wg.Add(1)
-		p.pool.Submit(func() {
-			defer p.wg.Done()
+		p.wg.Go(func() error {
 			if file.Kind() == workspace.KindTarget {
 				file = file.Reverse()
 			}
 			p.genFile(file)
+			return nil
 		})
 	}
 }
@@ -176,7 +173,6 @@ func (p *processor) format(path string, formatter func([]byte) ([]byte, error)) 
 		return
 	}
 	p.formatted.Add(1)
-	return
 }
 
 func (p *processor) walkFmt(path string) {
@@ -199,19 +195,25 @@ func (p *processor) walkFmt(path string) {
 			continue
 		}
 		if strings.HasSuffix(path, ".gox") {
-			p.format(path, rust.Format)
+			p.wg.Go(func() error {
+				p.format(path, rust.Format)
+				return nil
+			})
 			continue
 		}
 		if strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, ".x.go") {
-			p.format(path, func(b []byte) ([]byte, error) {
-				o, err := format.Source(b)
-				if err != nil {
-					return nil, err
-				}
-				if bytes.Equal(b, o) {
-					return nil, nil
-				}
-				return o, nil
+			p.wg.Go(func() error {
+				p.format(path, func(b []byte) ([]byte, error) {
+					o, err := format.Source(b)
+					if err != nil {
+						return nil, err
+					}
+					if bytes.Equal(b, o) {
+						return nil, nil
+					}
+					return o, nil
+				})
+				return nil
 			})
 			continue
 		}
@@ -245,6 +247,7 @@ func (p *processor) run() error {
 	case formatting:
 		start := time.Now()
 		p.walkFmt(p.root)
+		p.wg.Wait()
 		p.formatPrint(time.Since(start))
 		if len(p.errors) > 0 {
 			return errors.New(strings.Join(p.errors, "\n"))
@@ -256,10 +259,6 @@ func (p *processor) run() error {
 }
 
 func newProcessor(path string, noIgnore bool, task task) *processor {
-	p, err := ants.NewPool(runtime.GOMAXPROCS(0) * 2)
-	if err != nil {
-		panic(err)
-	}
 	var ignore gitignore.Matcher = nil
 	if !noIgnore {
 		fs := osfs.New(path)
@@ -269,12 +268,13 @@ func newProcessor(path string, noIgnore bool, task task) *processor {
 		}
 		ignore = gitignore.NewMatcher(pats)
 	}
-	return &processor{
-		pool:   p,
+	p := processor{
 		ignore: ignore,
 		root:   path,
 		task:   task,
 	}
+	p.wg.SetLimit(runtime.GOMAXPROCS(0) * 2)
+	return &p
 }
 
 func Generate(path string, noIgnore bool) error {

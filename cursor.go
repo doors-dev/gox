@@ -34,7 +34,7 @@ type head struct {
 }
 
 func (h head) isValid() bool {
-	return h.id != 0 
+	return h.id != 0
 }
 
 var stackId = atomic.Uint32{}
@@ -356,7 +356,7 @@ func (c Cursor) AttrSetObject(name string, value any) error {
 	return nil
 }
 
-func (c Cursor) AttrMod(mut ...AttrMut) error {
+func (c Cursor) AttrMod(mut ...AttrMod) error {
 	attrs, err := c.stack.Attrs()
 	if err != nil {
 		return err

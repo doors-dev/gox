@@ -12,7 +12,7 @@ import (
 
 type Attrs = *attrs
 
-type AttrMut interface {
+type AttrMod interface {
 	Apply(ctx context.Context, attrs Attrs) error
 }
 
@@ -48,7 +48,7 @@ func (a Attrs) Ctx() context.Context {
 	return a.ctx
 }
 
-func (a Attrs) Mutate(mut AttrMut) error {
+func (a Attrs) Mutate(mut AttrMod) error {
 	return mut.Apply(a.ctx, a)
 }
 

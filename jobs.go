@@ -96,7 +96,6 @@ func (j *JobHeadClose) Output(w io.Writer) error {
 	return utils.WriteTagClose(w, j.Tag)
 }
 
-
 var elemPool = utils.NewStructPool[JobElem]()
 
 func newJobElem(ctx context.Context, elem Elem) *JobElem {
@@ -124,7 +123,6 @@ func (j *JobElem) Output(w io.Writer) error {
 	return j.Elem.Render(j.Ctx, w)
 }
 
-
 var compPool = utils.NewStructPool[JobComp]()
 
 func newJobComp(ctx context.Context, comp Comp) *JobComp {
@@ -149,11 +147,9 @@ func (j *JobComp) release() {
 
 func (j *JobComp) Output(w io.Writer) error {
 	defer j.release()
-
 	ej := newJobElem(j.Ctx, j.Comp.Main())
-	return ej.Output(w) // JobElem releases itself.
+	return ej.Output(w)
 }
-
 
 var textPool = utils.NewStructPool[JobText]()
 
@@ -236,7 +232,6 @@ func (j *JobFunc) Output(w io.Writer) error {
 	return j.Func(w)
 }
 
-
 var templPool = utils.NewStructPool[JobTempl]()
 
 func newJobTempl(ctx context.Context, templ Templ) *JobTempl {
@@ -263,7 +258,6 @@ func (j *JobTempl) Output(w io.Writer) error {
 	defer j.release()
 	return j.Templ.Render(j.Ctx, w)
 }
-
 
 var fprintPool = utils.NewStructPool[JobFprint]()
 
