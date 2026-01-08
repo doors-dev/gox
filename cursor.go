@@ -135,90 +135,91 @@ func (s *stack) Attrs() (*attrs, error) {
 
 type Cursor = *cursor
 
-func NewCursor(printer Printer) Cursor {
+func NewCursor(ctx context.Context, printer Printer) Cursor {
 	return &cursor{
 		printer: newProxyManager(printer),
 		stack:   stack{id: stackId.Add(1)},
+		ctx:     ctx,
 	}
 }
 
 type cursor struct {
 	stack   stack
 	printer *proxyManager
+	ctx     context.Context
 }
+
+func (c Cursor) Noop(any) {}
 
 func (c Cursor) AddProxy(proxy ...Proxy) {
 	for _, p := range proxy {
-		c.printer.Add(p)
+		c.printer.Add(c.ctx, p)
 	}
 }
 
-func (c Cursor) HeadInit(ctx context.Context, tag string) error {
-	return c.stack.Init(ctx, tag)
+func (c Cursor) HeadInit(tag string) error {
+	return c.stack.Init(c.ctx, tag)
 }
 
-func (c Cursor) HeadInitVoid(ctx context.Context, tag string) error {
-	return c.stack.InitVoid(ctx, tag)
+func (c Cursor) HeadInitVoid(tag string) error {
+	return c.stack.InitVoid(c.ctx, tag)
 }
 
-func (c Cursor) HeadSubmit(ctx context.Context) error {
-	return c.stack.Submit(c.printer, ctx)
+func (c Cursor) HeadSubmit() error {
+	return c.stack.Submit(c.printer, c.ctx)
 }
 
-func (c Cursor) HeadClose(ctx context.Context) error {
-	return c.stack.Close(c.printer, ctx)
+func (c Cursor) HeadClose() error {
+	return c.stack.Close(c.printer, c.ctx)
 }
 
-func (c Cursor) WriteElem(ctx context.Context, elem Elem) error {
+func (c Cursor) WriteElem(elem Elem) error {
 	if err := c.stack.Opened(); err != nil {
 		return err
 	}
-	return c.printer.Send(newJobElem(ctx, elem))
+	return c.printer.Send(newJobComp(c.ctx, elem))
 }
 
-func (c Cursor) WriteComp(ctx context.Context, comp Comp) error {
+func (c Cursor) WriteComp(comp Comp) error {
 	if err := c.stack.Opened(); err != nil {
 		return err
 	}
-	if elem, ok := comp.(Elem); ok {
-		return c.WriteElem(ctx, elem)
-	}
-	return c.printer.Send(newJobComp(ctx, comp))
+	return c.printer.Send(newJobComp(c.ctx, comp))
 }
 
-func (c Cursor) WriteText(ctx context.Context, text string) error {
+func (c Cursor) WriteText(text string) error {
 	if err := c.stack.Opened(); err != nil {
 		return err
 	}
-	return c.printer.Send(newJobText(ctx, text))
+	return c.printer.Send(newJobText(c.ctx, text))
 }
 
-func (c Cursor) WriteRaw(ctx context.Context, text string) error {
+func (c Cursor) WriteRaw(text string) error {
 	if err := c.stack.Opened(); err != nil {
 		return err
 	}
-	return c.printer.Send(NewJobRaw(ctx, text))
+	return c.printer.Send(NewJobRaw(c.ctx, text))
 }
 
-func (c Cursor) WriteFunc(ctx context.Context, f func(w io.Writer) error) error {
+func (c Cursor) WriteFunc(f func(w io.Writer) error) error {
 	if err := c.stack.Opened(); err != nil {
 		return err
 	}
-	return c.printer.Send(newJobFunc(ctx, f))
+	return c.printer.Send(newJobFunc(c.ctx, f))
 }
 
-func (c Cursor) WriteTempl(ctx context.Context, templ Templ) error {
+func (c Cursor) WriteTempl(templ Templ) error {
 	if err := c.stack.Opened(); err != nil {
 		return err
 	}
-	return c.printer.Send(newJobTempl(ctx, templ))
+	return c.printer.Send(newJobTempl(c.ctx, templ))
 }
 
-func (c Cursor) WriteFprint(ctx context.Context, any any) error {
+func (c Cursor) WriteFprint(any any) error {
 	if err := c.stack.Opened(); err != nil {
 		return err
 	}
-	return c.printer.Send(newJobFprint(ctx, any))
+	return c.printer.Send(newJobFprint(c.ctx, any))
 }
 
 func (c *cursor) terminate() {
@@ -232,40 +233,40 @@ func (c Cursor) WriteJob(job Job) error {
 	return c.printer.Send(job)
 }
 
-func (c Cursor) WriteAny(ctx context.Context, any any) error {
+func (c Cursor) WriteAny(any any) error {
 	if any == nil {
 		return nil
 	}
 	switch v := any.(type) {
 	case string:
-		return c.WriteText(ctx, v)
+		return c.WriteText(v)
 	case []string:
 		for _, v := range v {
-			if err := c.WriteText(ctx, v); err != nil {
+			if err := c.WriteText(v); err != nil {
 				return err
 			}
 		}
 		return nil
 	case Elem:
-		return c.WriteElem(ctx, v)
+		return c.WriteElem(v)
 	case []Elem:
 		for _, v := range v {
-			if err := c.WriteElem(ctx, v); err != nil {
+			if err := c.WriteElem(v); err != nil {
 				return err
 			}
 		}
 		return nil
 	case Comp:
-		return c.WriteComp(ctx, v)
+		return c.WriteComp(v)
 	case []Comp:
 		for _, v := range v {
-			if err := c.WriteComp(ctx, v); err != nil {
+			if err := c.WriteComp(v); err != nil {
 				return err
 			}
 		}
 		return nil
 	case func(w io.Writer) error:
-		return c.WriteFunc(ctx, v)
+		return c.WriteFunc(v)
 	case Job:
 		return c.WriteJob(v)
 	case []Job:
@@ -276,16 +277,16 @@ func (c Cursor) WriteAny(ctx context.Context, any any) error {
 		}
 		return nil
 	case Templ:
-		return c.WriteTempl(ctx, v)
+		return c.WriteTempl(v)
 	case []interface{}:
 		for _, v := range v {
-			if err := c.WriteAny(ctx, v); err != nil {
+			if err := c.WriteAny(v); err != nil {
 				return err
 			}
 		}
 		return nil
 	default:
-		return c.WriteFprint(ctx, any)
+		return c.WriteFprint(any)
 	}
 }
 

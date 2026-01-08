@@ -81,7 +81,6 @@ func (d Doc) Parse() error {
 	return nil
 }
 
-
 func (d Doc) Init() {
 	if !d.sourceFile.Exists() {
 		d.targetRemove()
@@ -100,7 +99,7 @@ func (d Doc) Init() {
 	d.Assemble()
 	d.resetDraft()
 	if d.TargetIsUpToDate() {
-		return 
+		return
 	}
 	err = d.TargetWrite()
 	if err != nil {
@@ -121,7 +120,7 @@ func (d Doc) Save() error {
 }
 
 func (d Doc) TargetIsUpToDate() bool {
-	return d.TargetFile().IsEqual(d.target.Source()) 
+	return d.TargetFile().IsEqual(d.target.Source())
 }
 
 func (d Doc) TargetWrite() error {

@@ -64,7 +64,6 @@ func (d Doc) SourcePos(enc common.Encoding, targetPos common.Pos, mode ConvMode)
 	}
 }
 
-
 func (d Doc) TargetRange(enc common.Encoding, sourceRange common.Range, mode ConvMode) (common.Range, bool) {
 	ran := d.source.IntoRange(enc, sourceRange)
 	switch mode {

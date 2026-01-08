@@ -21,11 +21,11 @@ func scanTilde(coll collector, root *tree_sitter.Node) {
 	case grammer.GOX_TILDE_FOR:
 		scanFor(coll, body)
 	case grammer.GOX_TILDE_VALUE, grammer.GOX_FUNC:
-		coll.append(r("__e = __c.WriteAny(ctx, "))
+		coll.append(r("__e = __c.WriteAny("))
 		scanValue(coll, body, false)
 		coll.append(r("); " + ERR_CHECK))
 	case grammer.GOX_TILDE_LITERAL_VALUE:
-		coll.append(r("__e = __c.WriteText(ctx, "), s(body), r("); "+ERR_CHECK))
+		coll.append(r("__e = __c.WriteText("), s(body), r("); "+ERR_CHECK))
 	case grammer.GOX_TIDE_BLOCK:
 		body = body.ChildByFieldName("body")
 		if body != nil {

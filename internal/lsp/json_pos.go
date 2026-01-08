@@ -343,7 +343,7 @@ func (r jsonPosDriver) convertPositionsToTarget(enc common.Encoding, doc workspa
 		err = jsonPos.convertPosToTarget(enc, doc, node, mode)
 		return err == nil
 	})
-	return 
+	return
 }
 
 func (r jsonPosDriver) convertPosToSource(enc common.Encoding, doc workspace.Doc, j Json, mode workspace.ConvMode) error {

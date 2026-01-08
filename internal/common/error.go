@@ -9,13 +9,13 @@ func FromErr(wire *jsonrpc.WireError, err error) *Err {
 func NewErr(wire *jsonrpc.WireError, msg string) *Err {
 	return &Err{
 		Wire: wire,
-		Msg: msg,
+		Msg:  msg,
 	}
 }
 
 type Err struct {
 	Wire *jsonrpc.WireError
-	Msg string
+	Msg  string
 }
 
 func (e *Err) Error() string {

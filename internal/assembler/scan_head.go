@@ -43,8 +43,8 @@ func scanContent(coll collector, root *tree_sitter.Node) {
 		case grammer.GOX_TILDE:
 			scanTilde(coll, &child)
 		case grammer.GOX_TILDE_COMMENT:
-			scanComment(coll, &child) 
-		} 
+			scanComment(coll, &child)
+		}
 	}
 }
 
@@ -58,23 +58,23 @@ func scanRawHead(coll collector, root *tree_sitter.Node) {
 
 func scanPlain(coll collector, root *tree_sitter.Node) {
 	coll.cr()
-	coll.append(r("__e = __c.WriteText(ctx, "), t(root), r("); "+ERR_CHECK))
+	coll.append(r("__e = __c.WriteText("), t(root), r("); "+ERR_CHECK))
 }
 
 func scanRaw(coll collector, root *tree_sitter.Node) {
 	coll.cr()
-	coll.append(r("__e = __c.WriteRaw(ctx, "), s(root), r("); "+ERR_CHECK))
+	coll.append(r("__e = __c.WriteRaw("), s(root), r("); "+ERR_CHECK))
 }
 
 func scanVoidHead(coll collector, root *tree_sitter.Node) {
 	coll.cr()
 	name := root.ChildByFieldName("name")
-	coll.append(r("__e = __c.HeadInitVoid(ctx, "), s(name), r("); "+ERR_CHECK))
+	coll.append(r("__e = __c.HeadInitVoid("), s(name), r("); "+ERR_CHECK))
 	coll.indentFake()
 	scanAttributes(coll, root)
 	coll.indentEnd()
 	coll.cr()
-	coll.append(r("__e = __c.HeadSubmit(ctx); " + ERR_CHECK))
+	coll.append(r("__e = __c.HeadSubmit(); " + ERR_CHECK))
 }
 
 func scanSelfClosingHead(coll collector, root *tree_sitter.Node) {
@@ -83,14 +83,14 @@ func scanSelfClosingHead(coll collector, root *tree_sitter.Node) {
 		return
 	}
 	coll.cr()
-	coll.append(r("__e = __c.HeadInit(ctx, "), s(name), r("); "+ERR_CHECK))
+	coll.append(r("__e = __c.HeadInit("), s(name), r("); "+ERR_CHECK))
 	coll.indentFake()
 	scanAttributes(coll, root)
 	coll.cr()
-	coll.append(r("__e = __c.HeadSubmit(ctx); " + ERR_CHECK))
+	coll.append(r("__e = __c.HeadSubmit(); " + ERR_CHECK))
 	coll.indentEnd()
 	coll.cr()
-	coll.append(r("__e = __c.HeadClose(ctx); " + ERR_CHECK))
+	coll.append(r("__e = __c.HeadClose(); " + ERR_CHECK))
 }
 
 func scanHead(coll collector, root *tree_sitter.Node) {
@@ -103,15 +103,15 @@ func scanHead(coll collector, root *tree_sitter.Node) {
 		return
 	}
 	coll.cr()
-	coll.append(r("__e = __c.HeadInit(ctx, "), s(name), r("); "+ERR_CHECK))
+	coll.append(r("__e = __c.HeadInit("), s(name), r("); "+ERR_CHECK))
 	coll.indentFake()
 	scanAttributes(coll, open)
 	coll.cr()
-	coll.append(r("__e = __c.HeadSubmit(ctx); " + ERR_CHECK))
+	coll.append(r("__e = __c.HeadSubmit(); " + ERR_CHECK))
 	scanContent(coll, root)
 	coll.indentEnd()
 	coll.cr()
-	coll.append(r("__e = __c.HeadClose(ctx); " + ERR_CHECK))
+	coll.append(r("__e = __c.HeadClose(); " + ERR_CHECK))
 }
 
 func scanAttributes(coll collector, root *tree_sitter.Node) {

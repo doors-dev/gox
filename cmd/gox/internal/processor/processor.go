@@ -191,7 +191,7 @@ func (p *processor) walkFmt(path string) {
 			}
 		}
 		if e.IsDir() {
-			p.walkGen(path)
+			p.walkFmt(path)
 			continue
 		}
 		if strings.HasSuffix(path, ".gox") {

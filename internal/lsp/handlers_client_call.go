@@ -1,7 +1,6 @@
 package lsp
 
 import (
-
 	"github.com/doors-dev/gox/internal/common"
 	"github.com/doors-dev/gox/internal/jsonrpc"
 	jsonrpc2 "github.com/doors-dev/gox/internal/jsonrpc"

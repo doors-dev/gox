@@ -1,6 +1,5 @@
 package workspace
 
-
 type dir struct {
 	path string
 	docs map[string]Doc
@@ -47,4 +46,3 @@ func (d *dir) ProcessFileRemovals() {
 func (d *dir) Path() string {
 	return d.path
 }
-

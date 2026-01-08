@@ -153,7 +153,6 @@ const (
 	RAW
 )
 
-
 var tags = [...]string{
 	AREA:             "area",
 	BASE:             "base",

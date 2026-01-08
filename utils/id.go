@@ -7,4 +7,3 @@ type ID = *id
 func NewID() ID {
 	return &id{}
 }
-

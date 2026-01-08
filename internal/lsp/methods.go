@@ -109,29 +109,29 @@ const (
 
 // notifs gopls -> client
 const (
-	logTrace               method = "$/logTrace"                       // skip
-	progress               method = "$/progress"                       // skip
-	registerCapability     method = "client/registerCapability"        // skip
-	unregisterCapability   method = "client/unregisterCapability"      // skip
-	event                  method = "telemetry/event"                  // skip
-	publishDiagnostics     method = "textDocument/publishDiagnostics"  // + TODO: add gox
-	logMessage             method = "window/logMessage"                // skip
-	showMessage            method = "window/showMessage"               // skip
-	workDoneProgressCreate method = "window/workDoneProgress/create"   // skip
-	codeLensRefresh        method = "workspace/codeLens/refresh"       // skip
-	diagnosticRefresh      method = "workspace/diagnostic/refresh"     // skip
-	foldingRangeRefresh    method = "workspace/foldingRange/refresh"   //	skip
-	inlayHintRefresh       method = "workspace/inlayHint/refresh"      // skip
-	inlineValueRefresh     method = "workspace/inlineValue/refresh"    // skip
-	semanticTokensRefresh  method = "workspace/semanticTokens/refresh" // skip
+	logTrace                   method = "$/logTrace"                            // skip
+	progress                   method = "$/progress"                            // skip
+	registerCapability         method = "client/registerCapability"             // skip
+	unregisterCapability       method = "client/unregisterCapability"           // skip
+	event                      method = "telemetry/event"                       // skip
+	publishDiagnostics         method = "textDocument/publishDiagnostics"       // + TODO: add gox
+	logMessage                 method = "window/logMessage"                     // skip
+	showMessage                method = "window/showMessage"                    // skip
+	workDoneProgressCreate     method = "window/workDoneProgress/create"        // skip
+	codeLensRefresh            method = "workspace/codeLens/refresh"            // skip
+	diagnosticRefresh          method = "workspace/diagnostic/refresh"          // skip
+	foldingRangeRefresh        method = "workspace/foldingRange/refresh"        //	skip
+	inlayHintRefresh           method = "workspace/inlayHint/refresh"           // skip
+	inlineValueRefresh         method = "workspace/inlineValue/refresh"         // skip
+	semanticTokensRefresh      method = "workspace/semanticTokens/refresh"      // skip
 	textDocumentContentRefresh method = "workspace/textDocumentContent/refresh" //skip
 )
 
 // calls gopls -> client
 const (
-	showDocument               method = "window/showDocument" // skip
-	showMessageRequest         method = "window/showMessageRequest" // skip
-	applyEdit                  method = "workspace/applyEdit" // +
-	configuration              method = "workspace/configuration" // skip 
-	workspaceFolders           method = "workspace/workspaceFolders" // +
+	showDocument       method = "window/showDocument"        // skip
+	showMessageRequest method = "window/showMessageRequest"  // skip
+	applyEdit          method = "workspace/applyEdit"        // +
+	configuration      method = "workspace/configuration"    // skip
+	workspaceFolders   method = "workspace/workspaceFolders" // +
 )

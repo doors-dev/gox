@@ -5,7 +5,6 @@ import (
 	"github.com/doors-dev/gox/internal/workspace"
 )
 
-
 var jsonDoc jsonDocDriver
 
 type jsonDocDriver struct{}
@@ -178,6 +177,3 @@ func (r jsonDocDriver) setAs(j Json, doc workspace.Doc, kind workspace.FileKind)
 		}
 	}
 }
-
-
-

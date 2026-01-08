@@ -132,5 +132,3 @@ func (r Range) Contains(pos Pos, includeEnd bool) bool {
 	}
 	return true
 }
-
-

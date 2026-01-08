@@ -13,24 +13,24 @@ type Job interface {
 }
 
 type Proxy interface {
-	Init(p Printer)
+	Init(ctx context.Context, p Printer) (add bool)
 	Terminate()
-	Send(job Job) (done bool, err error)
+	Send(j Job) (done bool, err error)
 }
 
 type Printer interface {
-	Send(job Job) error
+	Send(j Job) error
 }
 
 type printer struct {
 	w io.Writer
 }
 
-func (p *printer) Send(job Job) error {
-	if job.Context().Err() != nil {
-		return job.Context().Err()
+func (p *printer) Send(j Job) error {
+	if j.Context().Err() != nil {
+		return j.Context().Err()
 	}
-	return job.Output(p.w)
+	return j.Output(p.w)
 }
 
 func NewPrinter(w io.Writer) Printer {
@@ -48,13 +48,15 @@ type proxyManager struct {
 	target  Printer
 }
 
-func (p *proxyManager) Add(proxy Proxy) {
+func (p *proxyManager) Add(ctx context.Context, proxy Proxy) {
 	printer := &proxyPrinter{
 		manager: p,
 		proxy:   proxy,
 	}
 	p.proxies = append(p.proxies, printer)
-	printer.init()
+	if !printer.init(ctx) {
+		p.proxies = p.proxies[:len(p.proxies)-1]
+	}
 }
 
 func (p *proxyManager) terminate() {
@@ -64,11 +66,11 @@ func (p *proxyManager) terminate() {
 	p.proxies = nil
 }
 
-func (p *proxyManager) Send(job Job) error {
+func (p *proxyManager) Send(j Job) error {
 	if len(p.proxies) == 0 {
-		return p.target.Send(job)
+		return p.target.Send(j)
 	}
-	return p.sendTo(len(p.proxies)-1, job)
+	return p.sendTo(len(p.proxies)-1, j)
 }
 
 func (p *proxyManager) sendTo(index int, j Job) error {
@@ -97,8 +99,8 @@ type proxyPrinter struct {
 	proxy   Proxy
 }
 
-func (p *proxyPrinter) init() {
-	p.proxy.Init(p)
+func (p *proxyPrinter) init(ctx context.Context) bool {
+	return p.proxy.Init(ctx, p)
 }
 
 func (p *proxyPrinter) terminate() {
@@ -109,6 +111,6 @@ func (p *proxyPrinter) send(j Job) (bool, error) {
 	return p.proxy.Send(j)
 }
 
-func (p *proxyPrinter) Send(job Job) error {
-	return p.manager.sendFrom(p, job)
+func (p *proxyPrinter) Send(j Job) error {
+	return p.manager.sendFrom(p, j)
 }
