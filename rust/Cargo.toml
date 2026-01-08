@@ -22,6 +22,6 @@ biome_rowan = "=0.5.7"
 
 topiary-core = "0.7.2"
 topiary-tree-sitter-facade = "0.7.2"
-tree-sitter-gox = { git = "https://github.com/doors-dev/tree-sitter-gox", tag = "v0.0.11" }
+tree-sitter-gox = { git = "https://github.com/doors-dev/tree-sitter-gox", tag = "v0.0.12" }
 streaming-iterator = "0.1.9"
 tree-sitter = "^0.25"

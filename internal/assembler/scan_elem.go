@@ -11,12 +11,12 @@ func scanElement(coll collector, root *tree_sitter.Node, inCode bool) {
 	} else {
 		coll.cr()
 		coll.append(
-			r("__e = __c.WriteElem(gox.Elem(func(ctx gox.Context, __c gox.Cursor) (__e error) {"),
+			r("__e = __c.WriteComp(ctx, gox.Elem(func(ctx gox.Context, __c gox.Cursor) (__e error) {"),
 		)
 	}
 	coll.indentBeg()
-	coll.append(r("__c.Noop(ctx)"))
 	coll.cr()
+	coll.append(r("__c.Noop(ctx)"))
 	scanContent(coll, root)
 	coll.indentEnd()
 	if inCode {

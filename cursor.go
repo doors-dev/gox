@@ -173,18 +173,11 @@ func (c Cursor) HeadClose() error {
 	return c.stack.Close(c.printer, c.ctx)
 }
 
-func (c Cursor) WriteElem(elem Elem) error {
+func (c Cursor) WriteComp(ctx context.Context, comp Comp) error {
 	if err := c.stack.Opened(); err != nil {
 		return err
 	}
-	return c.printer.Send(newJobComp(c.ctx, elem))
-}
-
-func (c Cursor) WriteComp(comp Comp) error {
-	if err := c.stack.Opened(); err != nil {
-		return err
-	}
-	return c.printer.Send(newJobComp(c.ctx, comp))
+	return c.printer.Send(newJobComp(ctx, comp))
 }
 
 func (c Cursor) WriteText(text string) error {
@@ -233,7 +226,7 @@ func (c Cursor) WriteJob(job Job) error {
 	return c.printer.Send(job)
 }
 
-func (c Cursor) WriteAny(any any) error {
+func (c Cursor) WriteAny(ctx context.Context, any any) error {
 	if any == nil {
 		return nil
 	}
@@ -248,19 +241,19 @@ func (c Cursor) WriteAny(any any) error {
 		}
 		return nil
 	case Elem:
-		return c.WriteElem(v)
+		return c.WriteComp(ctx, v)
 	case []Elem:
 		for _, v := range v {
-			if err := c.WriteElem(v); err != nil {
+			if err := c.WriteComp(ctx, v); err != nil {
 				return err
 			}
 		}
 		return nil
 	case Comp:
-		return c.WriteComp(v)
+		return c.WriteComp(ctx, v)
 	case []Comp:
 		for _, v := range v {
-			if err := c.WriteComp(v); err != nil {
+			if err := c.WriteComp(ctx, v); err != nil {
 				return err
 			}
 		}
@@ -280,7 +273,7 @@ func (c Cursor) WriteAny(any any) error {
 		return c.WriteTempl(v)
 	case []interface{}:
 		for _, v := range v {
-			if err := c.WriteAny(v); err != nil {
+			if err := c.WriteAny(ctx, v); err != nil {
 				return err
 			}
 		}
