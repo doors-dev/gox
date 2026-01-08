@@ -58,23 +58,23 @@ func scanRawHead(coll collector, root *tree_sitter.Node) {
 
 func scanPlain(coll collector, root *tree_sitter.Node) {
 	coll.cr()
-	coll.append(r("__e = __c.WriteText("), t(root), r("); "+ERR_CHECK))
+	coll.append(r("__e = __c.Text("), t(root), r("); "+ERR_CHECK))
 }
 
 func scanRaw(coll collector, root *tree_sitter.Node) {
 	coll.cr()
-	coll.append(r("__e = __c.WriteRaw("), s(root), r("); "+ERR_CHECK))
+	coll.append(r("__e = __c.Raw("), s(root), r("); "+ERR_CHECK))
 }
 
 func scanVoidHead(coll collector, root *tree_sitter.Node) {
 	coll.cr()
 	name := root.ChildByFieldName("name")
-	coll.append(r("__e = __c.HeadInitVoid("), s(name), r("); "+ERR_CHECK))
+	coll.append(r("__e = __c.InitVoid("), s(name), r("); "+ERR_CHECK))
 	coll.indentFake()
 	scanAttributes(coll, root)
 	coll.indentEnd()
 	coll.cr()
-	coll.append(r("__e = __c.HeadSubmit(); " + ERR_CHECK))
+	coll.append(r("__e = __c.Submit(); " + ERR_CHECK))
 }
 
 func scanSelfClosingHead(coll collector, root *tree_sitter.Node) {
@@ -83,14 +83,14 @@ func scanSelfClosingHead(coll collector, root *tree_sitter.Node) {
 		return
 	}
 	coll.cr()
-	coll.append(r("__e = __c.HeadInit("), s(name), r("); "+ERR_CHECK))
+	coll.append(r("__e = __c.Init("), s(name), r("); "+ERR_CHECK))
 	coll.indentFake()
 	scanAttributes(coll, root)
 	coll.cr()
-	coll.append(r("__e = __c.HeadSubmit(); " + ERR_CHECK))
+	coll.append(r("__e = __c.Submit(); " + ERR_CHECK))
 	coll.indentEnd()
 	coll.cr()
-	coll.append(r("__e = __c.HeadClose(); " + ERR_CHECK))
+	coll.append(r("__e = __c.Close(); " + ERR_CHECK))
 }
 
 func scanHead(coll collector, root *tree_sitter.Node) {
@@ -103,15 +103,15 @@ func scanHead(coll collector, root *tree_sitter.Node) {
 		return
 	}
 	coll.cr()
-	coll.append(r("__e = __c.HeadInit("), s(name), r("); "+ERR_CHECK))
+	coll.append(r("__e = __c.Init("), s(name), r("); "+ERR_CHECK))
 	coll.indentFake()
 	scanAttributes(coll, open)
 	coll.cr()
-	coll.append(r("__e = __c.HeadSubmit(); " + ERR_CHECK))
+	coll.append(r("__e = __c.Submit(); " + ERR_CHECK))
 	scanContent(coll, root)
 	coll.indentEnd()
 	coll.cr()
-	coll.append(r("__e = __c.HeadClose(); " + ERR_CHECK))
+	coll.append(r("__e = __c.Close(); " + ERR_CHECK))
 }
 
 func scanAttributes(coll collector, root *tree_sitter.Node) {

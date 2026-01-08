@@ -7,9 +7,14 @@ import (
 	"slices"
 )
 
+
 type Job interface {
 	Context() context.Context
 	Output(w io.Writer) error
+}
+
+type Provider interface {
+	Job(ctx context.Context) Job
 }
 
 type Proxy interface {
