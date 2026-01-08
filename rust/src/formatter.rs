@@ -71,7 +71,6 @@ impl Replace {
         }
     }
 }
-
 /*
 fn dump(content: &[u8]) -> io::Result<()> {
     let mut f = OpenOptions::new()
@@ -80,7 +79,7 @@ fn dump(content: &[u8]) -> io::Result<()> {
         .open("/tmp/topiary.log")?;
     f.write_all(content)?;
     Ok(())
-} */
+}  */
 
 pub fn format(input: &[u8], output: &mut Vec<u8>) -> Result<(), topiary_core::FormatterError> {
     let mut parser = init::new_parser();
@@ -90,7 +89,7 @@ pub fn format(input: &[u8], output: &mut Vec<u8>) -> Result<(), topiary_core::Fo
     }
     let tree = tree.unwrap();
     let root = tree.root_node();
-    let cured = cure_tags(input, &root);
+    let cured = cure(input, &root);
     let input = if let Some(cured) = cured.as_ref() {
         std::str::from_utf8(cured).unwrap()
     } else {
@@ -143,40 +142,52 @@ pub fn format(input: &[u8], output: &mut Vec<u8>) -> Result<(), topiary_core::Fo
     Ok(())
 }
 
-fn cure_tags(input: &[u8], root: &topiary_tree_sitter_facade::Node) -> Option<Vec<u8>> {
-    let mut implicid_close = init::query().implicid_close(root, input);
-    let impl_close_count = implicid_close.len();
-    let mut err_close = init::query().err_close(root, input);
-    implicid_close.reserve(err_close.len());
-    implicid_close.append(&mut err_close);
-    implicid_close.sort_by_key(|close| close.start_byte());
-    let close_nodes = implicid_close;
-    if close_nodes.len() == 0 {
+struct CureNode<'a> {
+    node: Node<'a>,
+    remove: bool,
+}
+
+fn cure(input: &[u8], root: &topiary_tree_sitter_facade::Node) -> Option<Vec<u8>> {
+    let implicid_close = init::query().implicid_close(root, input);
+    let remove = init::query().remove(root, input);
+    let total = implicid_close.len() + remove.len();
+    if total == 0 {
         return None;
+    }
+    let mut to_cure = Vec::with_capacity(implicid_close.len() + remove.len());
+    for node in implicid_close.into_iter() {
+        to_cure.push(CureNode {
+            node,
+            remove: false,
+        });
+    }
+    for node in remove.into_iter() {
+        to_cure.push(CureNode { node, remove: true });
     }
     let mut buf = Vec::new();
     let mut insert_end = 0;
-    for i in 0..close_nodes.len() {
-        let node = close_nodes[i];
+    for node in to_cure.into_iter() {
+        let remove = node.remove;
+        let node = node.node;
         let chunk = &input[insert_end..node.start_byte()];
-        if i < impl_close_count {
-            let name: Option<String> = (|| {
-                let head = node.parent()?;
-                let open = head.child_by_field_name("open")?;
-                let name_node = open.child_by_field_name("name")?;
-                name_node.utf8_text(input).ok().map(|s| s.to_owned())
-            })();
-            if name.is_none() {
-                continue;
-            }
+        if !remove {
             buf.extend_from_slice(chunk);
-            buf.extend_from_slice("</".as_bytes());
-            buf.extend_from_slice(name.unwrap().as_bytes());
-            buf.extend_from_slice(">".as_bytes());
             insert_end = node.end_byte();
             continue;
         }
+        let name: Option<String> = (|| {
+            let head = node.parent()?;
+            let open = head.child_by_field_name("open")?;
+            let name_node = open.child_by_field_name("name")?;
+            name_node.utf8_text(input).ok().map(|s| s.to_owned())
+        })();
+        if name.is_none() {
+            continue;
+        }
         buf.extend_from_slice(chunk);
+        buf.extend_from_slice("</".as_bytes());
+        buf.extend_from_slice(name.unwrap().as_bytes());
+        buf.extend_from_slice(">".as_bytes());
         insert_end = node.end_byte();
     }
     buf.extend_from_slice(&input[insert_end..]);

@@ -20,15 +20,34 @@ func scanTilde(coll collector, root *tree_sitter.Node) {
 		scanIf(coll, body)
 	case grammer.GOX_TILDE_FOR:
 		scanFor(coll, body)
-	case grammer.GOX_TILDE_VALUE, grammer.GOX_FUNC:
+	case grammer.GOX_FUNC:
 		coll.append(r("__e = __c.Any(ctx, "))
-		scanValue(coll, body, false)
+		scanFunc(coll, body, false)
+		coll.append(r("); " + ERR_CHECK))
+	case grammer.GOX_TILDE_JOB:
+		arg := body.ChildByFieldName("arg")
+		if arg == nil {
+			return
+		}
+		switch arg.Kind() {
+		case grammer.GOX_SINGLE_ARG:
+			coll.append(r("__e = __c.Any(ctx, "))
+		case grammer.GOX_MULTI_ARG:
+			coll.append(r("__e = __c.Many(ctx, "))
+		default:
+			return
+		}
+		scanGoSnippet(coll, arg)
 		coll.append(r("); " + ERR_CHECK))
 	case grammer.GOX_TILDE_LITERAL_VALUE:
 		coll.append(r("__e = __c.Text("), s(body), r("); "+ERR_CHECK))
 	case grammer.GOX_TILDE_PROXY:
+		arg := body.ChildByFieldName("arg")
+		if arg == nil {
+			return
+		}
 		coll.append(r("__c.Proxy("))
-		scanValue(coll, body, false)
+		scanValue(coll, arg, false)
 		coll.append(r(")"))
 	case grammer.GOX_TIDE_BLOCK:
 		body = body.ChildByFieldName("body")

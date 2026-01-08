@@ -159,17 +159,21 @@ func scanAttributes(coll collector, root *tree_sitter.Node) {
 	}
 }
 
+func scanFunc(coll collector, root *tree_sitter.Node, string bool) {
+	body := root.ChildByFieldName("body")
+	if string {
+		coll.append(r("func() string "))
+	} else {
+		coll.append(r("func() any "))
+	}
+	scanGoSnippet(coll, body)
+	coll.append(r("()"))
+}
+
 func scanValue(coll collector, root *tree_sitter.Node, string bool) {
 	kind := root.Kind()
 	if kind == grammer.GOX_FUNC {
-		body := root.ChildByFieldName("body")
-		if string {
-			coll.append(r("func() string "))
-		} else {
-			coll.append(r("func() any "))
-		}
-		scanGoSnippet(coll, body)
-		coll.append(r("()"))
+		scanFunc(coll, root, string)
 		return
 	}
 	scanGoSnippet(coll, root)

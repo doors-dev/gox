@@ -94,7 +94,7 @@ pub struct Query {
     script: topiary_tree_sitter_facade::Query,
     style: topiary_tree_sitter_facade::Query,
     impl_close: topiary_tree_sitter_facade::Query,
-    err_close: topiary_tree_sitter_facade::Query,
+    remove: topiary_tree_sitter_facade::Query,
 }
 
 impl Query {
@@ -127,12 +127,12 @@ impl Query {
     ) -> Vec<Node<'a>> {
         return Self::query(&self.impl_close, node, source);
     }
-    pub fn err_close<'a>(
+    pub fn remove<'a>(
         &self,
         node: &'a topiary_tree_sitter_facade::Node,
         source: &[u8],
     ) -> Vec<Node<'a>> {
-        return Self::query(&self.err_close, node, source);
+        return Self::query(&self.remove, node, source);
     }
     pub fn styles<'a>(
         &self,
@@ -157,24 +157,21 @@ const IMPLICID_CLOSE_QUERY: &str = r#"
 (gox_implicit_close_head) @cap
 "#;
 
-const ERR_CLOSE_HEAD: &str = r#"
-(gox_erroneous_close_head) @cap
+const REMOVE: &str = r#"
+[(gox_redundant) (gox_space_filler) (gox_erroneous_close_head)] @cap
 "#;
+
 pub fn query() -> &'static Query {
     QUERY.get_or_init(|| {
-        let script = topiary_tree_sitter_facade::Query::new(ts_lang(), SCRIPT_QUERY)
-            .expect("failed to compile Topiary scripy query");
-        let style = topiary_tree_sitter_facade::Query::new(ts_lang(), STYLE_QUERY)
-            .expect("failed to compile Topiary style query");
-        let impl_close = topiary_tree_sitter_facade::Query::new(ts_lang(), IMPLICID_CLOSE_QUERY)
-            .expect("failed to compile Topiary style query");
-        let err_close = topiary_tree_sitter_facade::Query::new(ts_lang(), ERR_CLOSE_HEAD)
-            .expect("failed to compile Topiary style query");
+        let script = topiary_tree_sitter_facade::Query::new(ts_lang(), SCRIPT_QUERY).unwrap();
+        let style = topiary_tree_sitter_facade::Query::new(ts_lang(), STYLE_QUERY).unwrap();
+        let impl_close = topiary_tree_sitter_facade::Query::new(ts_lang(), IMPLICID_CLOSE_QUERY).unwrap();
+        let remove = topiary_tree_sitter_facade::Query::new(ts_lang(), REMOVE).unwrap();
         Query {
             script,
             style,
             impl_close,
-            err_close,
+            remove,
         }
     })
 }

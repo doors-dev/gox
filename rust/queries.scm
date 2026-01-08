@@ -459,8 +459,6 @@ _
  .
 )
 
-(gox_space_filler) @delete
-
 (_
   [
    (gox_head) 
@@ -590,4 +588,31 @@ _
   "}" @prepend_indent_end
   .
 )
+
+(gox_tilde_job
+  "(" @append_indent_start @append_input_softline @append_antispace
+  (_)+
+  ")" @prepend_indent_end @prepend_input_softline @prepend_antispace
+  )
+
+
+(gox_tilde_proxy
+  "(" @append_indent_start @append_input_softline @append_antispace
+  (_)+
+  ")" @prepend_indent_end @prepend_input_softline @prepend_antispace
+  )
+
+
+(gox_attr_mod
+  "(" @append_indent_start @append_input_softline @append_antispace
+  (_)+
+  ")" @prepend_indent_end @prepend_input_softline @prepend_antispace
+  )
+
+(gox_multi_arg
+  "," @append_input_softline
+  .
+  ")"* @do_nothing
+)
+
 

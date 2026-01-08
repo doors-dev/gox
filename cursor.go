@@ -227,6 +227,15 @@ func (c Cursor) Provider(provider Provider) error {
 	return c.Job(provider.Job(c.ctx))
 }
 
+func (c Cursor) Many(ctx context.Context, many ...any) error {
+	for _, any := range many {
+		if err := c.Any(ctx, any); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (c Cursor) Any(ctx context.Context, any any) error {
 	if any == nil {
 		return nil
@@ -275,12 +284,7 @@ func (c Cursor) Any(ctx context.Context, any any) error {
 	case Templ:
 		return c.Templ(v)
 	case []interface{}:
-		for _, v := range v {
-			if err := c.Any(ctx, v); err != nil {
-				return err
-			}
-		}
-		return nil
+		return c.Many(ctx, v...)
 	default:
 		return c.Fprint(any)
 	}
@@ -292,6 +296,10 @@ func (c Cursor) AttrSetAny(name string, value any) error {
 		return err
 	}
 	attr := attrs.Get(name)
+	if value == nil {
+		attr.SetBool(true)
+		return nil
+	}
 	switch v := value.(type) {
 	case bool:
 		attr.SetBool(v)
