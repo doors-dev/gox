@@ -177,14 +177,14 @@ func (c Cursor) Comp(ctx context.Context, comp Comp) error {
 	if err := c.stack.Opened(); err != nil {
 		return err
 	}
-	return c.printer.Send(newJobComp(ctx, comp))
+	return c.printer.Send(NewJobComp(ctx, comp))
 }
 
 func (c Cursor) Text(text string) error {
 	if err := c.stack.Opened(); err != nil {
 		return err
 	}
-	return c.printer.Send(newJobText(c.ctx, text))
+	return c.printer.Send(NewJobText(c.ctx, text))
 }
 
 func (c Cursor) Raw(text string) error {
@@ -198,21 +198,21 @@ func (c Cursor) Func(f func(w io.Writer) error) error {
 	if err := c.stack.Opened(); err != nil {
 		return err
 	}
-	return c.printer.Send(newJobFunc(c.ctx, f))
+	return c.printer.Send(NewJobFunc(c.ctx, f))
 }
 
 func (c Cursor) Templ(templ Templ) error {
 	if err := c.stack.Opened(); err != nil {
 		return err
 	}
-	return c.printer.Send(newJobTempl(c.ctx, templ))
+	return c.printer.Send(NewJobTempl(c.ctx, templ))
 }
 
 func (c Cursor) Fprint(any any) error {
 	if err := c.stack.Opened(); err != nil {
 		return err
 	}
-	return c.printer.Send(newJobFprint(c.ctx, any))
+	return c.printer.Send(NewJobFprint(c.ctx, any))
 }
 
 func (c *cursor) terminate() {

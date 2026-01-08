@@ -104,37 +104,9 @@ func (j *JobHeadClose) Output(w io.Writer) error {
 	return utils.WriteTagClose(w, j.Tag)
 }
 
-/*
-var elemPool = utils.NewStructPool[JobElem]()
-
-func newJobElem(ctx context.Context, elem Elem) *JobElem {
-	j := elemPool.Get()
-	j.Ctx = ctx
-	j.Elem = elem
-	return j
-}
-
-type JobElem struct {
-	Elem Elem
-	Ctx  context.Context
-}
-
-func (j *JobElem) Context() context.Context { return j.Ctx }
-
-func (j *JobElem) release() {
-	j.Elem = nil
-	j.Ctx = nil
-	elemPool.Put(j)
-}
-
-func (j *JobElem) Output(w io.Writer) error {
-	defer j.release()
-	return j.Elem.Render(j.Ctx, w)
-} */
-
 var compPool = utils.NewStructPool[JobComp]()
 
-func newJobComp(ctx context.Context, comp Comp) *JobComp {
+func NewJobComp(ctx context.Context, comp Comp) *JobComp {
 	j := compPool.Get()
 	j.Ctx = ctx
 	j.Comp = comp
@@ -161,7 +133,7 @@ func (j *JobComp) Output(w io.Writer) error {
 
 var textPool = utils.NewStructPool[JobText]()
 
-func newJobText(ctx context.Context, text string) *JobText {
+func NewJobText(ctx context.Context, text string) *JobText {
 	j := textPool.Get()
 	j.Ctx = ctx
 	j.Text = text
@@ -215,7 +187,7 @@ func (j *JobRaw) Output(w io.Writer) error {
 
 var funcPool = utils.NewStructPool[JobFunc]()
 
-func newJobFunc(ctx context.Context, fn func(w io.Writer) error) *JobFunc {
+func NewJobFunc(ctx context.Context, fn func(w io.Writer) error) *JobFunc {
 	j := funcPool.Get()
 	j.Ctx = ctx
 	j.Func = fn
@@ -242,7 +214,7 @@ func (j *JobFunc) Output(w io.Writer) error {
 
 var templPool = utils.NewStructPool[JobTempl]()
 
-func newJobTempl(ctx context.Context, templ Templ) *JobTempl {
+func NewJobTempl(ctx context.Context, templ Templ) *JobTempl {
 	j := templPool.Get()
 	j.Ctx = ctx
 	j.Templ = templ
@@ -269,7 +241,7 @@ func (j *JobTempl) Output(w io.Writer) error {
 
 var fprintPool = utils.NewStructPool[JobFprint]()
 
-func newJobFprint(ctx context.Context, v any) *JobFprint {
+func NewJobFprint(ctx context.Context, v any) *JobFprint {
 	j := fprintPool.Get()
 	j.Ctx = ctx
 	j.Any = v
