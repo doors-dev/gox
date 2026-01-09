@@ -7,19 +7,20 @@ import (
 	"slices"
 )
 
-
 type Job interface {
 	Context() context.Context
 	Output(w io.Writer) error
 }
 
-type Provider interface {
+type JobProvider interface {
 	Job(ctx context.Context) Job
 }
 
+type ProxyProvider interface {
+	Proxy(ctx context.Context, p Printer) Proxy
+}
+
 type Proxy interface {
-	Init(ctx context.Context, p Printer) (add bool)
-	Terminate()
 	Send(j Job) (done bool, err error)
 }
 
@@ -53,10 +54,10 @@ type proxyManager struct {
 	target  Printer
 }
 
-func (p *proxyManager) Add(ctx context.Context, proxy Proxy) {
+func (p *proxyManager) Add(ctx context.Context, provider ProxyProvider) {
 	printer := &proxyPrinter{
-		manager: p,
-		proxy:   proxy,
+		manager:       p,
+		proxyProvider: provider,
 	}
 	p.proxies = append(p.proxies, printer)
 	if !printer.init(ctx) {
@@ -83,7 +84,6 @@ func (p *proxyManager) sendTo(index int, j Job) error {
 	done, err := proxy.send(j)
 	if done {
 		p.proxies = slices.Delete(p.proxies, index, 1)
-		proxy.terminate()
 	}
 	return err
 }
@@ -100,16 +100,20 @@ func (p *proxyManager) sendFrom(from *proxyPrinter, j Job) error {
 }
 
 type proxyPrinter struct {
-	manager *proxyManager
-	proxy   Proxy
+	manager       *proxyManager
+	proxyProvider ProxyProvider
+	proxy         Proxy
 }
 
 func (p *proxyPrinter) init(ctx context.Context) bool {
-	return p.proxy.Init(ctx, p)
+	p.proxy = p.proxyProvider.Proxy(ctx, p)
+	p.proxyProvider = nil
+	return p.proxy != nil
 }
 
 func (p *proxyPrinter) terminate() {
-	p.proxy.Terminate()
+	p.proxy.Send(nil)
+	p.proxy = nil
 }
 
 func (p *proxyPrinter) send(j Job) (bool, error) {
@@ -117,5 +121,11 @@ func (p *proxyPrinter) send(j Job) (bool, error) {
 }
 
 func (p *proxyPrinter) Send(j Job) error {
+	if p.proxy == nil {
+		return errors.New("proxy is used after termination")
+	}
+	if j == nil {
+		return nil
+	}
 	return p.manager.sendFrom(p, j)
 }

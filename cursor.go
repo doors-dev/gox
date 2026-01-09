@@ -151,7 +151,7 @@ type cursor struct {
 
 func (c Cursor) Noop(any) {}
 
-func (c Cursor) Proxy(proxy ...Proxy) {
+func (c Cursor) Proxy(proxy ...ProxyProvider) {
 	for _, p := range proxy {
 		c.printer.Add(c.ctx, p)
 	}
@@ -223,8 +223,12 @@ func (c Cursor) Job(job Job) error {
 	return c.printer.Send(job)
 }
 
-func (c Cursor) Provider(provider Provider) error {
-	return c.Job(provider.Job(c.ctx))
+func (c Cursor) Provider(provider JobProvider) error {
+	job := provider.Job(c.ctx)
+	if job == nil {
+		return nil
+	}
+	return c.Job(job)
 }
 
 func (c Cursor) Many(ctx context.Context, many ...any) error {
@@ -279,7 +283,7 @@ func (c Cursor) Any(ctx context.Context, any any) error {
 			}
 		}
 		return nil
-	case Provider:
+	case JobProvider:
 		return c.Provider(v)
 	case Templ:
 		return c.Templ(v)
