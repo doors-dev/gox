@@ -164,11 +164,12 @@ fn cure(input: &[u8], root: &topiary_tree_sitter_facade::Node) -> Option<Vec<u8>
     for node in remove.into_iter() {
         to_cure.push(CureNode { node, remove: true });
     }
+    to_cure.sort_by_key(|cure| cure.node.start_byte());
     let mut buf = Vec::new();
     let mut insert_end = 0;
-    for node in to_cure.into_iter() {
-        let remove = node.remove;
-        let node = node.node;
+    for cure in to_cure.into_iter() {
+        let remove = cure.remove;
+        let node = cure.node;
         let chunk = &input[insert_end..node.start_byte()];
         if !remove {
             buf.extend_from_slice(chunk);

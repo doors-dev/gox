@@ -102,11 +102,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 		}
 		jsonDoc.setAsTarget(j, doc)
 		c.proxy(j, func(res Json) {
-			err := jsonPos.convertAllToSource(c.enc(), doc, res, workspace.Strict)
-			if err != nil {
-				c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert completion response to source"))
-				return
-			}
+			jsonChanges.convertCompletions(c.enc(), doc, res)
 			c.res(res)
 		})
 	}, completion)

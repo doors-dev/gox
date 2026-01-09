@@ -17,6 +17,35 @@ type ContentChange struct {
 	Text  string
 }
 
+func (r jsonChangesDriver) convertCompletions(enc common.Encoding, doc workspace.Doc, j Json) {
+	defaults := j.Get("itemDefaults")
+	if defaults.Exists() {
+		err := jsonPos.convertAllToSource(enc, doc, defaults, workspace.Strict)
+		if err != nil {
+			j.Set("items", *jsonGenerator.newEmptyArray())
+			return
+		}
+	}
+	items := j.Get("items")
+	if !items.Exists() {
+		return
+	}
+	arr, err := items.ArrayUseNode()
+	if err != nil {
+		return
+	}
+	var newArr = make([]ast.Node, 0, len(arr))
+	for _, node := range arr {
+		err := jsonPos.convertAllToSource(enc, doc, &node, workspace.Strict)
+		if err != nil {
+			continue
+		}
+		newArr = append(newArr, node)
+	}
+	newNode := ast.NewArray(newArr)
+	j.Set("items", newNode)
+}
+
 func (r jsonChangesDriver) convertInlayHints(enc common.Encoding, doc workspace.Doc, j Json) (err error) {
 	j.ForEach(func(path ast.Sequence, node *ast.Node) bool {
 		if path.Index == -1 || path.Key != nil {
