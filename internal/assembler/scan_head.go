@@ -14,11 +14,44 @@ func scanContent(coll collector, root *tree_sitter.Node) {
 	cursor := root.Walk()
 	children := root.ChildrenByFieldName("content", cursor)
 	cursor.Close()
+	proxies := make([]*tree_sitter.Node, 0)
 	for _, child := range children {
 		name := child.Kind()
+		if name == grammer.GOX_SPACE_FILLER {
+			continue
+		}
+		if name == grammer.GOX_TILDE_PROXY {
+			body := child.ChildByFieldName("body")
+			if body == nil {
+				continue
+			}
+			arg := body.ChildByFieldName("arg")
+			if arg == nil {
+				continue
+			}
+			proxies = append(proxies, arg)
+			continue
+		}
+		proxied := len(proxies) != 0
+		if proxied {
+			for _, proxy := range proxies {
+				coll.cr()
+				coll.append(r("__c.AddProxy("))
+				scanValue(coll, proxy, false)
+				coll.append(r(")"))
+			}
+			proxies = proxies[:0]
+			coll.cr()
+			coll.append(
+				r("__e = __c.ProxyElem(gox.Elem(func(ctx gox.Context, __c gox.Cursor) (__e error) {"),
+			)
+			coll.indentBeg()
+			coll.cr()
+			coll.append(r("__c.Noop(ctx)"))
+		}
 		switch name {
-		case grammer.GOX_ELEMENT:
-			scanElement(coll, &child, false)
+		case grammer.GOX_CONTAINER_HEAD:
+			scanContainerHead(coll, &child)
 		case grammer.GOX_HEAD:
 			scanHead(coll, &child)
 		case grammer.GOX_RAW_HEAD:
@@ -42,8 +75,13 @@ func scanContent(coll collector, root *tree_sitter.Node) {
 			scanRaw(coll, &child)
 		case grammer.GOX_TILDE:
 			scanTilde(coll, &child)
-		case grammer.GOX_TILDE_COMMENT:
-			scanComment(coll, &child)
+		}
+		if proxied {
+			coll.indentEnd()
+			coll.cr()
+			coll.append(
+				r("return })); " + ERR_CHECK),
+			)
 		}
 	}
 }
@@ -114,6 +152,16 @@ func scanHead(coll collector, root *tree_sitter.Node) {
 	coll.append(r("__e = __c.Close(); " + ERR_CHECK))
 }
 
+func scanContainerHead(coll collector, root *tree_sitter.Node) {
+	coll.cr()
+	coll.append(r("__e = __c.InitContainer(); " + ERR_CHECK))
+	coll.indentFake()
+	scanContent(coll, root)
+	coll.indentEnd()
+	coll.cr()
+	coll.append(r("__e = __c.Close(); " + ERR_CHECK))
+}
+
 func scanAttributes(coll collector, root *tree_sitter.Node) {
 	cursor := root.Walk()
 	children := root.ChildrenByFieldName("attrs", cursor)
@@ -150,11 +198,14 @@ func scanAttributes(coll collector, root *tree_sitter.Node) {
 				coll.append(r("__e = __c.AttrSetBool("), s(name), r(", "), p(value), r("); "), r(ERR_CHECK))
 			}
 		case grammer.GOX_ATTR_MOD:
+			arg := child.ChildByFieldName("arg")
+			if arg == nil {
+				continue
+			}
 			coll.cr()
-			coll.append(r("__e = __c.AttrMod"))
-			scanGoSnippet(coll, &child)
-			coll.cr()
-			coll.append(r("; "), r(ERR_CHECK))
+			coll.append(r("__e = __c.AttrMod("))
+			scanGoSnippet(coll, arg)
+			coll.append(r("); "), r(ERR_CHECK))
 		}
 	}
 }

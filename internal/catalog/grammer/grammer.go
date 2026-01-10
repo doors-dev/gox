@@ -28,6 +28,7 @@ const (
 	// content
 	GOX_ELEMENT                   = "gox_element"
 	GOX_HEAD                      = "gox_head"
+	GOX_CONTAINER_HEAD            = "gox_container_head"
 	GOX_RAW_HEAD                  = "gox_raw_head"
 	GOX_SCRIPT_HEAD               = "gox_script_head"
 	GOX_STYLE_HEAD                = "gox_style_head"
@@ -63,6 +64,7 @@ const (
 	GOX_IMPLICID_CLOSE        = "gox_implicit_close_head"
 	GOX_HEAD_END              = "gox_head_end"
 	GOX_SELF_CLOSING_HEAD_END = "gox_self_closing_head_end"
+	GOX_SPACE_FILLER          = "gox_space_filler"
 
 	// GOX_TILDE
 	GOX_TILDE_IF            = "gox_tilde_if"

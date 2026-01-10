@@ -19,7 +19,8 @@ func (e HeadError) Error() string {
 type HeadKind int
 
 const (
-	KindRegular HeadKind = iota
+	KindContainer HeadKind = iota
+	KindRegular
 	KindVoid
 )
 
@@ -40,20 +41,17 @@ func (h head) isValid() bool {
 var stackId = atomic.Uint32{}
 
 type stack struct {
-	heads   []head
-	attrs   *attrs
-	ctx     context.Context
-	id      uint32
-	counter uint32
+	heads     []head
+	attrs     *attrs
+	ctx       context.Context
+	submitted bool
+	id        uint32
+	counter   uint32
 }
 
 func (s *stack) headId() uint64 {
 	s.counter++
 	return uint64(s.id)<<32 | uint64(s.counter)
-}
-
-func (s *stack) initiated() bool {
-	return s.ctx != nil
 }
 
 func (s *stack) last() head {
@@ -68,67 +66,85 @@ func (s *stack) Opened() error {
 	if !last.isValid() {
 		return nil
 	}
-	if !s.initiated() && last.kind != KindVoid {
+	if s.submitted && last.kind != KindVoid {
 		return nil
 	}
 	return HeadError("head is not in the opened state")
 }
 
-func (s *stack) Submit(p *proxyManager, ctx context.Context) error {
-	if !s.initiated() {
-		return errors.New("nothing to submit")
+func (s *stack) Submit(p Printer) error {
+	if s.submitted {
+		return errors.New("head is already submitted")
 	}
 	last := s.last()
-	err := p.Send(NewJobHeadOpen(last.id, last.kind, last.tag, ctx, s.attrs))
 	if last.kind == KindVoid {
 		s.heads = s.heads[:len(s.heads)-1]
 	}
-	s.ctx = nil
+	if err := s.attrs.applyMods(); err != nil {
+		return err
+	}
+	err := p.Send(NewJobHeadOpen(last.id, last.kind, last.tag, s.ctx, s.attrs))
+	s.submitted = true
 	s.attrs = nil
 	return err
 }
 
-func (s *stack) Close(p *proxyManager, ctx context.Context) error {
+func (s *stack) Close(p Printer) error {
+	if !s.submitted {
+		return errors.New("head neads to be submitted before closing")
+	}
 	last := s.last()
-	if last.id == 0 {
+	if !last.isValid() {
 		return errors.New("nothing to close")
 	}
+	s.submitted = true
 	s.heads = s.heads[:len(s.heads)-1]
-	return p.Send(NewJobHeadClose(last.id, last.kind, last.tag, ctx))
+	return p.Send(NewJobHeadClose(last.id, last.kind, last.tag, s.ctx))
 }
 
-func (s *stack) Init(ctx context.Context, name string) error {
+func (s *stack) Init(name string) error {
 	if err := s.Opened(); err != nil {
 		return err
 	}
-	s.ctx = ctx
+	s.submitted = false
 	s.heads = append(s.heads, head{
 		kind: KindRegular,
 		id:   s.headId(),
 		tag:  name,
 	})
+	s.attrs = NewAttrs(s.ctx)
 	return nil
 }
 
-func (s *stack) InitVoid(ctx context.Context, name string) error {
+func (s *stack) InitVoid(name string) error {
 	if err := s.Opened(); err != nil {
 		return err
 	}
-	s.ctx = ctx
+	s.submitted = false
 	s.heads = append(s.heads, head{
 		kind: KindVoid,
 		id:   s.headId(),
 		tag:  name,
 	})
+	s.attrs = NewAttrs(s.ctx)
 	return nil
 }
 
-func (s *stack) Attrs() (*attrs, error) {
-	if !s.initiated() {
-		return nil, HeadError("head is not in the init state")
+func (s *stack) InitSubmitContainer(p Printer) error {
+	if err := s.Opened(); err != nil {
+		return err
 	}
-	if s.attrs == nil {
-		s.attrs = NewAttrs(s.ctx)
+	s.submitted = false
+	s.heads = append(s.heads, head{
+		kind: KindContainer,
+		id:   s.headId(),
+	})
+	return s.Submit(p)
+}
+
+func (s *stack) Attrs() (*attrs, error) {
+	if s.submitted {
+		return nil, HeadError("head is already submitted")
 	}
 	return s.attrs, nil
 }
@@ -137,43 +153,65 @@ type Cursor = *cursor
 
 func NewCursor(ctx context.Context, printer Printer) Cursor {
 	return &cursor{
-		printer: newProxyManager(printer),
-		stack:   stack{id: stackId.Add(1)},
+		printer: printer,
+		stack:   stack{id: stackId.Add(1), submitted: true, ctx: ctx},
 		ctx:     ctx,
 	}
 }
 
 type cursor struct {
 	stack   stack
-	printer *proxyManager
+	printer Printer
 	ctx     context.Context
+	proxies []Proxy
 }
 
 func (c Cursor) Noop(any) {}
 
-func (c Cursor) Proxy(proxy ...ProxyProvider) {
-	for _, p := range proxy {
-		c.printer.Add(c.ctx, p)
+func (c Cursor) AddProxy(proxies ...Proxy) {
+	c.proxies = append(c.proxies, proxies...)
+}
+
+func (c Cursor) ProxyElem(elem Elem) error {
+	for i := len(c.proxies) - 1; i > 0; i-- {
+		proxy := c.proxies[i]
+		c.proxies[i] = nil
+		elem = Elem(func(ctx context.Context, cur Cursor) error {
+			return proxy.Proxy(ctx, cur, elem)
+		})
 	}
+	c.proxies = c.proxies[:0]
+	return elem(c.ctx, c)
 }
 
 func (c Cursor) Init(tag string) error {
-	return c.stack.Init(c.ctx, tag)
+	return c.stack.Init(tag)
 }
 
 func (c Cursor) InitVoid(tag string) error {
-	return c.stack.InitVoid(c.ctx, tag)
+	return c.stack.InitVoid(tag)
+}
+
+func (c Cursor) InitContainer() error {
+	return c.stack.InitSubmitContainer(c.printer)
 }
 
 func (c Cursor) Submit() error {
-	return c.stack.Submit(c.printer, c.ctx)
+	return c.stack.Submit(c.printer)
 }
 
 func (c Cursor) Close() error {
-	return c.stack.Close(c.printer, c.ctx)
+	return c.stack.Close(c.printer)
 }
 
-func (c Cursor) Comp(ctx context.Context, comp Comp) error {
+func (c Cursor) Comp(comp Comp) error {
+	if err := c.stack.Opened(); err != nil {
+		return err
+	}
+	return c.printer.Send(NewJobComp(c.ctx, comp))
+}
+
+func (c Cursor) CompCtx(ctx context.Context, comp Comp) error {
 	if err := c.stack.Opened(); err != nil {
 		return err
 	}
@@ -208,6 +246,13 @@ func (c Cursor) Templ(templ Templ) error {
 	return c.printer.Send(NewJobTempl(c.ctx, templ))
 }
 
+func (c Cursor) TemplCtx(ctx context.Context, templ Templ) error {
+	if err := c.stack.Opened(); err != nil {
+		return err
+	}
+	return c.printer.Send(NewJobTempl(ctx, templ))
+}
+
 func (c Cursor) Fprint(any any) error {
 	if err := c.stack.Opened(); err != nil {
 		return err
@@ -215,15 +260,11 @@ func (c Cursor) Fprint(any any) error {
 	return c.printer.Send(NewJobFprint(c.ctx, any))
 }
 
-func (c *cursor) terminate() {
-	c.printer.terminate()
-}
-
 func (c Cursor) Job(job Job) error {
 	return c.printer.Send(job)
 }
 
-func (c Cursor) Provider(provider JobProvider) error {
+func (c Cursor) Provider(provider Provider) error {
 	job := provider.Job(c.ctx)
 	if job == nil {
 		return nil
@@ -231,16 +272,16 @@ func (c Cursor) Provider(provider JobProvider) error {
 	return c.Job(job)
 }
 
-func (c Cursor) Many(ctx context.Context, many ...any) error {
+func (c Cursor) Many(many ...any) error {
 	for _, any := range many {
-		if err := c.Any(ctx, any); err != nil {
+		if err := c.Any(any); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (c Cursor) Any(ctx context.Context, any any) error {
+func (c Cursor) Any(any any) error {
 	if any == nil {
 		return nil
 	}
@@ -255,19 +296,19 @@ func (c Cursor) Any(ctx context.Context, any any) error {
 		}
 		return nil
 	case Elem:
-		return c.Comp(ctx, v)
+		return c.Comp(v)
 	case []Elem:
 		for _, v := range v {
-			if err := c.Comp(ctx, v); err != nil {
+			if err := c.Comp(v); err != nil {
 				return err
 			}
 		}
 		return nil
 	case Comp:
-		return c.Comp(ctx, v)
+		return c.Comp(v)
 	case []Comp:
 		for _, v := range v {
-			if err := c.Comp(ctx, v); err != nil {
+			if err := c.Comp(v); err != nil {
 				return err
 			}
 		}
@@ -283,12 +324,12 @@ func (c Cursor) Any(ctx context.Context, any any) error {
 			}
 		}
 		return nil
-	case JobProvider:
+	case Provider:
 		return c.Provider(v)
 	case Templ:
 		return c.Templ(v)
 	case []interface{}:
-		return c.Many(ctx, v...)
+		return c.Many(v...)
 	default:
 		return c.Fprint(any)
 	}
@@ -365,15 +406,13 @@ func (c Cursor) AttrSetObject(name string, value any) error {
 	return nil
 }
 
-func (c Cursor) AttrMod(mut ...AttrMod) error {
+func (c Cursor) AttrMod(mods ...AttrMod) error {
 	attrs, err := c.stack.Attrs()
 	if err != nil {
 		return err
 	}
-	for _, m := range mut {
-		if err := attrs.Mutate(m); err != nil {
-			return err
-		}
+	for _, m := range mods {
+		attrs.AddMod(m)
 	}
 	return nil
 }

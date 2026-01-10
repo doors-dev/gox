@@ -452,7 +452,7 @@ _
  .
 )
 
-(gox_element
+(gox_container_head
   .
  open: (_) @append_empty_softline
  close: (_) @prepend_empty_softline
@@ -462,7 +462,7 @@ _
 (_
   [
    (gox_head) 
-   (gox_element)
+   (gox_container_head)
    (gox_void_head)
    (gox_plain_text)
    (gox_space_filler)
@@ -470,12 +470,13 @@ _
    (gox_doctype)
    (gox_raw_head)
    (gox_tilde)
+   (gox_tilde_proxy)
    (gox_comment)
   ] 
   .
   [
    (gox_head) 
-   (gox_element)
+   (gox_container_head)
    (gox_void_head)
    (gox_plain_text)
    (gox_space_filler)
@@ -483,6 +484,7 @@ _
    (gox_doctype)
    (gox_raw_head)
    (gox_tilde)
+   (gox_tilde_proxy)
    (gox_comment)
   ] @prepend_input_softline @prepend_antispace @allow_blank_line_before
 )
@@ -490,7 +492,7 @@ _
 (_
   [
    (gox_head) 
-   (gox_element)
+   (gox_container_head)
    (gox_void_head)
    (gox_plain_text)
    (gox_space_filler)
@@ -498,6 +500,7 @@ _
    (gox_doctype)
    (gox_raw_head)
    (gox_tilde)
+   (gox_tilde_proxy)
    (gox_comment)
   ] 
   .
@@ -515,7 +518,7 @@ _
   .
   [
    (gox_head) 
-   (gox_element)
+   (gox_container_head)
    (gox_void_head)
    (gox_plain_text)
    (gox_space_filler)
@@ -523,6 +526,7 @@ _
    (gox_doctype)
    (gox_raw_head)
    (gox_tilde)
+   (gox_tilde_proxy)
    (gox_comment)
   ] @allow_blank_line_before
 )
@@ -590,13 +594,6 @@ _
 )
 
 (gox_tilde_job
-  "(" @append_indent_start @append_input_softline @append_antispace
-  (_)+
-  ")" @prepend_indent_end @prepend_input_softline @prepend_antispace
-  )
-
-
-(gox_tilde_proxy
   "(" @append_indent_start @append_input_softline @append_antispace
   (_)+
   ")" @prepend_indent_end @prepend_input_softline @prepend_antispace

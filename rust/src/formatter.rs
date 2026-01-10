@@ -79,7 +79,7 @@ fn dump(content: &[u8]) -> io::Result<()> {
         .open("/tmp/topiary.log")?;
     f.write_all(content)?;
     Ok(())
-}  */
+} */
 
 pub fn format(input: &[u8], output: &mut Vec<u8>) -> Result<(), topiary_core::FormatterError> {
     let mut parser = init::new_parser();
@@ -171,7 +171,7 @@ fn cure(input: &[u8], root: &topiary_tree_sitter_facade::Node) -> Option<Vec<u8>
         let remove = cure.remove;
         let node = cure.node;
         let chunk = &input[insert_end..node.start_byte()];
-        if !remove {
+        if remove {
             buf.extend_from_slice(chunk);
             insert_end = node.end_byte();
             continue;

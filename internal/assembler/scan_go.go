@@ -69,7 +69,7 @@ func (g *goScanner) process() bool {
 		return true
 	case grammer.GOX_ELEMENT:
 		g.portal(node)
-		scanElement(g.coll, node, true)
+		scanElement(g.coll, node)
 	case grammer.GOX_ELEM_FUNC_DEC:
 		g.portal(node)
 		scanElemDec(g.coll, node)

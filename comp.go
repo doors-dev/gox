@@ -9,21 +9,25 @@ type Comp interface {
 	Main() Elem
 }
 
-type Elem func(ctx context.Context, cursor Cursor) error
+type Elem func(ctx context.Context, cur Cursor) error
 
 func (e Elem) Main() Elem {
 	return e
 }
 
 func (e Elem) Print(ctx context.Context, printer Printer) error {
-	cursor := NewCursor(ctx, printer)
-	defer cursor.terminate()
-	return e(ctx, cursor)
+	cur := NewCursor(ctx, printer)
+	defer cur.terminate()
+	return e(ctx, cur)
 }
 
 func (e Elem) Render(ctx context.Context, w io.Writer) error {
 	printer := NewPrinter(w)
 	return e.Print(ctx, printer)
+}
+
+type Proxy interface {
+	Proxy(ctx context.Context, cur Cursor, elem Elem) error
 }
 
 type Templ interface {

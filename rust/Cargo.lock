@@ -1426,7 +1426,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-gox"
 version = "0.1.0"
-source = "git+https://github.com/doors-dev/tree-sitter-gox?tag=v0.0.17#9127abe39b81566b68e04eecc1c59f892955d3c7"
+source = "git+https://github.com/doors-dev/tree-sitter-gox?tag=v0.0.20#7836518abe9aee43cc810c64ccb731cc53785aa9"
 dependencies = [
  "cc",
  "tree-sitter-language",

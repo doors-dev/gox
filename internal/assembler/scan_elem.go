@@ -2,35 +2,21 @@ package assembler
 
 import tree_sitter "github.com/tree-sitter/go-tree-sitter"
 
-func scanElement(coll collector, root *tree_sitter.Node, inCode bool) {
-	if inCode {
-		coll.append(
-			r("gox.Elem(func(ctx gox.Context, __c gox.Cursor) (__e error) {"),
-		)
-		coll.indentRef(root.StartPosition())
-	} else {
-		coll.cr()
-		coll.append(
-			r("__e = __c.Comp(ctx, gox.Elem(func(ctx gox.Context, __c gox.Cursor) (__e error) {"),
-		)
-	}
+func scanElement(coll collector, root *tree_sitter.Node) {
+	coll.append(
+		r("gox.Elem(func(ctx gox.Context, __c gox.Cursor) (__e error) {"),
+	)
+	coll.indentRef(root.StartPosition())
 	coll.indentBeg()
 	coll.cr()
 	coll.append(r("__c.Noop(ctx)"))
 	scanContent(coll, root)
 	coll.indentEnd()
-	if inCode {
-		coll.cr()
-		coll.append(
-			r("return })"),
-		)
-		coll.indentEnd()
-	} else {
-		coll.cr()
-		coll.append(
-			r("return })); " + ERR_CHECK),
-		)
-	}
+	coll.cr()
+	coll.append(
+		r("return })"),
+	)
+	coll.indentEnd()
 }
 
 func scanElemDec(coll collector, root *tree_sitter.Node) {
