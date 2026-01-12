@@ -80,7 +80,7 @@ func (s *stack) Submit(p Printer) error {
 	if last.kind == KindVoid {
 		s.heads = s.heads[:len(s.heads)-1]
 	}
-	if err := s.attrs.applyMods(); err != nil {
+	if err := s.attrs.ApplyMods(); err != nil {
 		return err
 	}
 	err := p.Send(NewJobHeadOpen(last.id, last.kind, last.tag, s.ctx, s.attrs))

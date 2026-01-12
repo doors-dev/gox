@@ -22,23 +22,23 @@ var attrsPool = utils.NewPool(func() Attrs {
 
 func NewAttrs(ctx context.Context) Attrs {
 	a := attrsPool.Get()
-	a.ctx = ctx
+	a.Ctx = ctx
 	return a
 }
 
 type attrs struct {
-	ctx     context.Context
+	Ctx     context.Context
 	mods    []AttrMod
 	entries []Attr
 }
 
-func (a Attrs) applyMods() error {
+func (a Attrs) ApplyMods() error {
 	if a == nil {
 		return nil
 	}
 	for i, m := range a.mods {
 		a.mods[i] = nil
-		if err := m.Apply(a.ctx, a); err != nil {
+		if err := m.Apply(a.Ctx, a); err != nil {
 			return err
 		}
 	}
@@ -55,14 +55,12 @@ func (a Attrs) Clone(ctx context.Context) Attrs {
 	for i := range a.entries {
 		entries[i] = a.entries[i].clone()
 	}
+	mods := slices.Clone(a.mods)
 	return &attrs{
-		ctx:     ctx,
+		Ctx:     ctx,
 		entries: entries,
+		mods:    mods,
 	}
-}
-
-func (a Attrs) Ctx() context.Context {
-	return a.ctx
 }
 
 func (a Attrs) List() []Attr {
@@ -91,7 +89,7 @@ func (a *attrs) release() {
 		a.entries[i] = nil
 	}
 	a.mods = a.mods[:0]
-	a.ctx = nil
+	a.Ctx = nil
 	attrsPool.Put(a)
 }
 
@@ -99,7 +97,7 @@ func (a Attrs) output(w io.Writer) error {
 	if a == nil {
 		return nil
 	}
-	if err := a.applyMods(); err != nil {
+	if err := a.ApplyMods(); err != nil {
 		return err
 	}
 	defer a.release()

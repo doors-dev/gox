@@ -17,7 +17,6 @@ func (e Elem) Main() Elem {
 
 func (e Elem) Print(ctx context.Context, printer Printer) error {
 	cur := NewCursor(ctx, printer)
-	defer cur.terminate()
 	return e(ctx, cur)
 }
 
