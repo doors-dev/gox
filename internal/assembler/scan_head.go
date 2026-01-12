@@ -17,7 +17,7 @@ func scanContent(coll collector, root *tree_sitter.Node) {
 	proxies := make([]*tree_sitter.Node, 0)
 	for _, child := range children {
 		name := child.Kind()
-		if name == grammer.GOX_SPACE_FILLER {
+		if name == grammer.GOX_SPACE_FILLER || name == grammer.GOX_ERRONEOUS_CLOSE_HEAD {
 			continue
 		}
 		if name == grammer.GOX_TILDE_PROXY {
@@ -49,32 +49,48 @@ func scanContent(coll collector, root *tree_sitter.Node) {
 			coll.cr()
 			coll.append(r("__c.Noop(ctx)"))
 		}
+		nonContainer := false
 		switch name {
 		case grammer.GOX_CONTAINER_HEAD:
 			scanContainerHead(coll, &child)
 		case grammer.GOX_HEAD:
 			scanHead(coll, &child)
-		case grammer.GOX_RAW_HEAD:
-			scanRawHead(coll, &child)
 		case grammer.GOX_SCRIPT_HEAD:
 			scanHead(coll, &child)
 		case grammer.GOX_STYLE_HEAD:
 			scanHead(coll, &child)
-		case grammer.GOX_VOID_HEAD:
-			scanVoidHead(coll, &child)
 		case grammer.GOX_SELF_CLOSING_HEAD:
 			scanSelfClosingHead(coll, &child)
-		case grammer.GOX_ERRONEOUS_CLOSE_HEAD:
-		case grammer.GOX_DOCTYPE:
-			scanRaw(coll, &child)
-		case grammer.GOX_COMMENT:
-			scanRaw(coll, &child)
-		case grammer.GOX_PLAIN_TEXT:
-			scanPlain(coll, &child)
-		case grammer.GOX_RAW_TEXT:
-			scanRaw(coll, &child)
-		case grammer.GOX_TILDE:
-			scanTilde(coll, &child)
+		default:
+			nonContainer = true
+		}
+		if nonContainer {
+			if proxied {
+				coll.cr()
+				coll.append(r("__e = __c.InitContainer(); " + ERR_CHECK))
+				coll.indentFake()
+			}
+			switch name {
+			case grammer.GOX_RAW_HEAD:
+				scanRawHead(coll, &child)
+			case grammer.GOX_VOID_HEAD:
+				scanVoidHead(coll, &child)
+			case grammer.GOX_DOCTYPE:
+				scanRaw(coll, &child)
+			case grammer.GOX_COMMENT:
+				scanRaw(coll, &child)
+			case grammer.GOX_PLAIN_TEXT:
+				scanPlain(coll, &child)
+			case grammer.GOX_RAW_TEXT:
+				scanRaw(coll, &child)
+			case grammer.GOX_TILDE:
+				scanTilde(coll, &child)
+			}
+			if proxied {
+				coll.indentEnd()
+				coll.cr()
+				coll.append(r("__e = __c.Close(); " + ERR_CHECK))
+			}
 		}
 		if proxied {
 			coll.indentEnd()
