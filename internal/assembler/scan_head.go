@@ -43,11 +43,11 @@ func scanContent(coll collector, root *tree_sitter.Node) {
 			proxies = proxies[:0]
 			coll.cr()
 			coll.append(
-				r("__e = __c.ProxyElem(gox.Elem(func(ctx gox.Context, __c gox.Cursor) (__e error) {"),
+				r("__e = __c.ProxyElem(gox.Elem(func(__c gox.Cursor) (__e error) {"),
 			)
 			coll.indentBeg()
 			coll.cr()
-			coll.append(r("__c.Noop(ctx)"))
+			coll.append(r("ctx := __c.Context(); __c.Noop(ctx)"))
 		}
 		nonContainer := false
 		switch name {

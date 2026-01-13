@@ -163,7 +163,11 @@ type cursor struct {
 	proxies []Proxy
 }
 
-func (c *cursor) NewId() uint64 {
+func (c Cursor) Context() context.Context {
+	return c.ctx
+}
+
+func (c Cursor) NewId() uint64 {
 	return c.stack.headId()
 }
 
@@ -177,12 +181,12 @@ func (c Cursor) ProxyElem(elem Elem) error {
 	for i := len(c.proxies) - 1; i > 0; i-- {
 		proxy := c.proxies[i]
 		c.proxies[i] = nil
-		elem = Elem(func(ctx context.Context, cur Cursor) error {
-			return proxy.Proxy(ctx, cur, elem)
+		elem = Elem(func(cur Cursor) error {
+			return proxy.Proxy(cur, elem)
 		})
 	}
 	c.proxies = c.proxies[:0]
-	return elem(c.ctx, c)
+	return elem(c)
 }
 
 func (c Cursor) Init(tag string) error {

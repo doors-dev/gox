@@ -9,7 +9,7 @@ type Comp interface {
 	Main() Elem
 }
 
-type Elem func(ctx context.Context, cur Cursor) error
+type Elem func(cur Cursor) error
 
 func (e Elem) Main() Elem {
 	return e
@@ -17,7 +17,7 @@ func (e Elem) Main() Elem {
 
 func (e Elem) Print(ctx context.Context, printer Printer) error {
 	cur := NewCursor(ctx, printer)
-	return e(ctx, cur)
+	return e(cur)
 }
 
 func (e Elem) Render(ctx context.Context, w io.Writer) error {
@@ -26,7 +26,7 @@ func (e Elem) Render(ctx context.Context, w io.Writer) error {
 }
 
 type Proxy interface {
-	Proxy(ctx context.Context, cur Cursor, elem Elem) error
+	Proxy(cur Cursor, elem Elem) error
 }
 
 type Templ interface {
