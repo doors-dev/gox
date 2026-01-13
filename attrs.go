@@ -50,14 +50,14 @@ func (a Attrs) AddMod(m AttrMod) {
 	a.mods = append(a.mods, m)
 }
 
-func (a Attrs) Clone(ctx context.Context) Attrs {
+func (a Attrs) Clone() Attrs {
 	entries := make([]Attr, len(a.entries))
 	for i := range a.entries {
 		entries[i] = a.entries[i].clone()
 	}
 	mods := slices.Clone(a.mods)
 	return &attrs{
-		Ctx:     ctx,
+		Ctx:     a.Ctx,
 		entries: entries,
 		mods:    mods,
 	}
