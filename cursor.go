@@ -163,6 +163,10 @@ type cursor struct {
 	proxies []Proxy
 }
 
+func (c *cursor) NewId() uint64 {
+	return c.stack.headId()
+}
+
 func (c Cursor) Noop(any) {}
 
 func (c Cursor) AddProxy(proxies ...Proxy) {
