@@ -53,6 +53,9 @@ func (j *JobHeadOpen) release() {
 
 func (j *JobHeadOpen) Output(w io.Writer) error {
 	defer j.release()
+	if j.Kind == KindContainer {
+		return nil
+	}
 	if j.Tag == "" {
 		return JobError("void or regular element must have a name")
 	}
@@ -95,6 +98,9 @@ func (j *JobHeadClose) release() {
 
 func (j *JobHeadClose) Output(w io.Writer) error {
 	defer j.release()
+	if j.Kind == KindContainer {
+		return nil
+	}
 	if j.Kind == KindVoid {
 		return JobError("void element cannot be closed")
 	}
