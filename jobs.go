@@ -47,7 +47,10 @@ func (j *JobHeadOpen) release() {
 	j.Kind = 0
 	j.Tag = ""
 	j.Ctx = nil
-	j.Attrs = nil
+	if j.Attrs != nil {
+		j.Attrs.release()
+		j.Attrs = nil
+	}
 	headOpenPool.Put(j)
 }
 

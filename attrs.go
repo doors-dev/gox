@@ -88,6 +88,10 @@ func (a *attrs) release() {
 	for i := range a.entries {
 		a.entries[i] = nil
 	}
+	a.entries = a.entries[:0]
+	for i := range a.mods {
+		a.mods[i] = nil
+	}
 	a.mods = a.mods[:0]
 	a.Ctx = nil
 	attrsPool.Put(a)
@@ -100,7 +104,6 @@ func (a Attrs) output(w io.Writer) error {
 	if err := a.ApplyMods(); err != nil {
 		return err
 	}
-	defer a.release()
 	for _, attr := range a.entries {
 		_, err := w.Write(space)
 		if err != nil {
