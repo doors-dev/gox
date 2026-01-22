@@ -16,9 +16,9 @@ func Release(r Releaser) {
 	r.release()
 }
 
-type JobError string
+type Error string
 
-func (e JobError) Error() string { return string(e) }
+func (e Error) Error() string { return string(e) }
 
 var headOpenPool = utils.NewStructPool[JobHeadOpen]()
 
@@ -60,7 +60,7 @@ func (j *JobHeadOpen) Output(w io.Writer) error {
 		return nil
 	}
 	if j.Tag == "" {
-		return JobError("void or regular element must have a name")
+		return Error("void or regular element must have a name")
 	}
 	if err := utils.WriteTagOpenBeg(w, j.Tag); err != nil {
 		return err
@@ -105,10 +105,10 @@ func (j *JobHeadClose) Output(w io.Writer) error {
 		return nil
 	}
 	if j.Kind == KindVoid {
-		return JobError("void element cannot be closed")
+		return Error("void element cannot be closed")
 	}
 	if j.Kind == KindRegular && j.Tag == "" {
-		return JobError("regular element must have a name")
+		return Error("regular element must have a name")
 	}
 	return utils.WriteTagClose(w, j.Tag)
 }
@@ -276,3 +276,32 @@ func (j *JobFprint) Output(w io.Writer) error {
 	_, err := fmt.Fprint(ew, j.Any)
 	return err
 }
+
+
+var errorPool = utils.NewStructPool[JobError]()
+
+func NewJobError(ctx context.Context, err error) *JobError {
+	j := errorPool.Get()
+	j.Ctx = ctx
+	j.Err = err
+	return j
+}
+
+type JobError struct {
+	Ctx context.Context
+	Err error
+}
+
+func (j *JobError) Context() context.Context { return j.Ctx }
+
+func (j *JobError) release() {
+	j.Ctx = nil
+	j.Err = nil
+	errorPool.Put(j)
+}
+
+func (j *JobError) Output(w io.Writer) error {
+	defer j.release()
+	return j.Err
+}
+ 
