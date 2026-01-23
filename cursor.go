@@ -38,7 +38,7 @@ func (h head) isValid() bool {
 	return h.id != 0
 }
 
-var stackId = atomic.Uint32{}
+var stackID = atomic.Uint32{}
 
 type stack struct {
 	heads     []head
@@ -49,7 +49,7 @@ type stack struct {
 	counter   uint32
 }
 
-func (s *stack) headId() uint64 {
+func (s *stack) headID() uint64 {
 	s.counter++
 	return uint64(s.id)<<32 | uint64(s.counter)
 }
@@ -106,7 +106,7 @@ func (s *stack) Init(name string) error {
 	s.submitted = false
 	s.heads = append(s.heads, head{
 		kind: KindRegular,
-		id:   s.headId(),
+		id:   s.headID(),
 		tag:  name,
 	})
 	s.attrs = NewAttrs(s.ctx)
@@ -120,7 +120,7 @@ func (s *stack) InitVoid(name string) error {
 	s.submitted = false
 	s.heads = append(s.heads, head{
 		kind: KindVoid,
-		id:   s.headId(),
+		id:   s.headID(),
 		tag:  name,
 	})
 	s.attrs = NewAttrs(s.ctx)
@@ -134,7 +134,7 @@ func (s *stack) InitSubmitContainer(p Printer) error {
 	s.submitted = false
 	s.heads = append(s.heads, head{
 		kind: KindContainer,
-		id:   s.headId(),
+		id:   s.headID(),
 	})
 	return s.Submit(p)
 }
@@ -151,7 +151,7 @@ type Cursor = *cursor
 func NewCursor(ctx context.Context, printer Printer) Cursor {
 	return &cursor{
 		printer: printer,
-		stack:   stack{id: stackId.Add(1), submitted: true, ctx: ctx},
+		stack:   stack{id: stackID.Add(1), submitted: true, ctx: ctx},
 		ctx:     ctx,
 	}
 }
@@ -167,8 +167,8 @@ func (c Cursor) Context() context.Context {
 	return c.ctx
 }
 
-func (c Cursor) NewId() uint64 {
-	return c.stack.headId()
+func (c Cursor) NewID() uint64 {
+	return c.stack.headID()
 }
 
 func (c Cursor) Noop(any) {}

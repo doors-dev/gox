@@ -24,7 +24,7 @@ var headOpenPool = utils.NewStructPool[JobHeadOpen]()
 
 func NewJobHeadOpen(id uint64, kind HeadKind, tag string, ctx context.Context, attrs Attrs) *JobHeadOpen {
 	job := headOpenPool.Get()
-	job.Id = id
+	job.ID = id
 	job.Kind = kind
 	job.Tag = tag
 	job.Ctx = ctx
@@ -33,7 +33,7 @@ func NewJobHeadOpen(id uint64, kind HeadKind, tag string, ctx context.Context, a
 }
 
 type JobHeadOpen struct {
-	Id    uint64
+	ID    uint64
 	Kind  HeadKind
 	Tag   string
 	Ctx   context.Context
@@ -43,7 +43,7 @@ type JobHeadOpen struct {
 func (j *JobHeadOpen) Context() context.Context { return j.Ctx }
 
 func (j *JobHeadOpen) release() {
-	j.Id = 0
+	j.ID = 0
 	j.Kind = 0
 	j.Tag = ""
 	j.Ctx = nil
@@ -75,7 +75,7 @@ var headClosePool = utils.NewStructPool[JobHeadClose]()
 
 func NewJobHeadClose(id uint64, kind HeadKind, tag string, ctx context.Context) *JobHeadClose {
 	job := headClosePool.Get()
-	job.Id = id
+	job.ID = id
 	job.Kind = kind
 	job.Tag = tag
 	job.Ctx = ctx
@@ -83,7 +83,7 @@ func NewJobHeadClose(id uint64, kind HeadKind, tag string, ctx context.Context) 
 }
 
 type JobHeadClose struct {
-	Id   uint64
+	ID   uint64
 	Kind HeadKind
 	Tag  string
 	Ctx  context.Context
@@ -92,7 +92,7 @@ type JobHeadClose struct {
 func (j *JobHeadClose) Context() context.Context { return j.Ctx }
 
 func (j *JobHeadClose) release() {
-	j.Id = 0
+	j.ID = 0
 	j.Kind = 0
 	j.Tag = ""
 	j.Ctx = nil
