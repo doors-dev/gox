@@ -32,6 +32,27 @@ type attrs struct {
 	entries []Attr
 }
 
+func (a Attrs) Inherit(attrs Attrs) {
+	for _, otherAttr := range attrs.entries {
+		if !otherAttr.IsSet() {
+			continue
+		}
+		attr := a.Get(otherAttr.name)
+		switch otherValue := otherAttr.value.(type) {
+		case *stringValue:
+			attr.Set(otherValue.string())
+		case *jsonValue:
+			attr.SetObject(otherValue.value)
+		case *boolValue:
+			attr.SetBool(true)
+		case *jsonArrayValue:
+			for _, v := range *otherValue {
+				attr.AppendObject(v)
+			}
+		}
+	}
+}
+
 func (a Attrs) ApplyMods() error {
 	if a == nil {
 		return nil
