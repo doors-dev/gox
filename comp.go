@@ -33,5 +33,10 @@ type Templ interface {
 	Render(ctx context.Context, w io.Writer) error
 }
 
+type Editor interface {
+	Use(cur Cursor) error
+}
+
+
 var _ Comp = Elem(nil)
 var _ Templ = Elem(nil)

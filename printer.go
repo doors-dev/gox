@@ -14,10 +14,6 @@ type Job interface {
 	Output(w io.Writer) error
 }
 
-type Provider interface {
-	Job(ctx context.Context) Job
-}
-
 type printer struct {
 	w io.Writer
 }

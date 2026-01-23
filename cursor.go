@@ -276,14 +276,6 @@ func (c Cursor) Job(job Job) error {
 	return c.printer.Send(job)
 }
 
-func (c Cursor) Provider(provider Provider) error {
-	job := provider.Job(c.ctx)
-	if job == nil {
-		return nil
-	}
-	return c.Job(job)
-}
-
 func (c Cursor) Many(many ...any) error {
 	for _, any := range many {
 		if err := c.Any(any); err != nil {
@@ -336,8 +328,8 @@ func (c Cursor) Any(any any) error {
 			}
 		}
 		return nil
-	case Provider:
-		return c.Provider(v)
+	case Editor:
+		return v.Use(c)
 	case Templ:
 		return c.Templ(v)
 	case []interface{}:
