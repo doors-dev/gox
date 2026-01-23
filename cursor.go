@@ -276,6 +276,10 @@ func (c Cursor) Job(job Job) error {
 	return c.printer.Send(job)
 }
 
+func (c Cursor) Editor(editor Editor) error {
+	return editor.Use(c)
+}
+
 func (c Cursor) Many(many ...any) error {
 	for _, any := range many {
 		if err := c.Any(any); err != nil {
@@ -329,7 +333,7 @@ func (c Cursor) Any(any any) error {
 		}
 		return nil
 	case Editor:
-		return v.Use(c)
+		return c.Editor(v)
 	case Templ:
 		return c.Templ(v)
 	case []interface{}:
