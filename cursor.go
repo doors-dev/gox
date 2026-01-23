@@ -237,6 +237,13 @@ func (c Cursor) Raw(text string) error {
 	return c.printer.Send(NewJobRaw(c.ctx, text))
 }
 
+func (c Cursor) Bytes(data []byte) error {
+	if err := c.stack.Opened(); err != nil {
+		return err
+	}
+	return c.printer.Send(NewJobBytes(c.ctx, data))
+}
+
 func (c Cursor) Func(f func(w io.Writer) error) error {
 	if err := c.stack.Opened(); err != nil {
 		return err

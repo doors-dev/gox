@@ -305,3 +305,31 @@ func (j *JobError) Output(w io.Writer) error {
 	return j.Err
 }
  
+var bytesPool = utils.NewStructPool[JobBytes]()
+
+func NewJobBytes(ctx context.Context, b []byte) *JobBytes {
+	j := bytesPool.Get()
+	j.Ctx = ctx
+	j.Data = b
+	return j
+}
+
+type JobBytes struct {
+	Ctx context.Context
+	Data   []byte
+}
+
+func (j *JobBytes) Context() context.Context { return j.Ctx }
+
+func (j *JobBytes) release() {
+	j.Ctx = nil
+	j.Data = nil
+	bytesPool.Put(j)
+}
+
+func (j *JobBytes) Output(w io.Writer) error {
+	defer j.release()
+	_, err := w.Write(j.Data)
+	return err
+}
+
