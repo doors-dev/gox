@@ -272,7 +272,7 @@ func (c Cursor) Fprint(any any) error {
 	return c.printer.Send(NewJobFprint(c.ctx, any))
 }
 
-func (c Cursor) Job(job Job) error {
+func (c Cursor) Send(job Job) error {
 	return c.printer.Send(job)
 }
 
@@ -324,10 +324,10 @@ func (c Cursor) Any(any any) error {
 	case func(w io.Writer) error:
 		return c.Func(v)
 	case Job:
-		return c.Job(v)
+		return c.Send(v)
 	case []Job:
 		for _, v := range v {
-			if err := c.Job(v); err != nil {
+			if err := c.Send(v); err != nil {
 				return err
 			}
 		}
