@@ -34,7 +34,7 @@ type Templ interface {
 }
 
 type Editor interface {
-	Use(cur Cursor) error
+	Edit(cur Cursor) error
 }
 
 

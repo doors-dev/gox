@@ -277,7 +277,7 @@ func (c Cursor) Send(job Job) error {
 }
 
 func (c Cursor) Editor(editor Editor) error {
-	return editor.Use(c)
+	return editor.Edit(c)
 }
 
 func (c Cursor) Many(many ...any) error {
