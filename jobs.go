@@ -65,7 +65,7 @@ func (j *JobHeadOpen) Output(w io.Writer) error {
 	if err := utils.WriteTagOpenBeg(w, j.Tag); err != nil {
 		return err
 	}
-	if err := j.Attrs.output(w); err != nil {
+	if err := j.Attrs.output(j.Ctx, j.Tag, w); err != nil {
 		return err
 	}
 	return utils.WriteTagOpenEnd(w)

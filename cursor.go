@@ -109,7 +109,7 @@ func (s *stack) Init(name string) error {
 		id:   s.headID(),
 		tag:  name,
 	})
-	s.attrs = NewAttrs(s.ctx)
+	s.attrs = NewAttrs()
 	return nil
 }
 
@@ -123,7 +123,7 @@ func (s *stack) InitVoid(name string) error {
 		id:   s.headID(),
 		tag:  name,
 	})
-	s.attrs = NewAttrs(s.ctx)
+	s.attrs = NewAttrs()
 	return nil
 }
 
