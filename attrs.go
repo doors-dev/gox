@@ -13,7 +13,7 @@ import (
 type Attrs = *attrs
 
 type AttrMod interface {
-	Apply(ctx context.Context, attrs Attrs) error
+	Modify(ctx context.Context, attrs Attrs) error
 }
 
 var attrsPool = utils.NewPool(func() Attrs {
@@ -59,7 +59,7 @@ func (a Attrs) ApplyMods() error {
 	}
 	for i, m := range a.mods {
 		a.mods[i] = nil
-		if err := m.Apply(a.Ctx, a); err != nil {
+		if err := m.Modify(a.Ctx, a); err != nil {
 			return err
 		}
 	}

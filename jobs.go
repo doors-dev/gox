@@ -277,7 +277,6 @@ func (j *JobFprint) Output(w io.Writer) error {
 	return err
 }
 
-
 var errorPool = utils.NewStructPool[JobError]()
 
 func NewJobError(ctx context.Context, err error) *JobError {
@@ -304,32 +303,31 @@ func (j *JobError) Output(w io.Writer) error {
 	defer j.release()
 	return j.Err
 }
- 
+
 var bytesPool = utils.NewStructPool[JobBytes]()
 
 func NewJobBytes(ctx context.Context, b []byte) *JobBytes {
 	j := bytesPool.Get()
 	j.Ctx = ctx
-	j.Data = b
+	j.Bytes = b
 	return j
 }
 
 type JobBytes struct {
-	Ctx context.Context
-	Data   []byte
+	Ctx   context.Context
+	Bytes []byte
 }
 
 func (j *JobBytes) Context() context.Context { return j.Ctx }
 
 func (j *JobBytes) release() {
 	j.Ctx = nil
-	j.Data = nil
+	j.Bytes = nil
 	bytesPool.Put(j)
 }
 
 func (j *JobBytes) Output(w io.Writer) error {
 	defer j.release()
-	_, err := w.Write(j.Data)
+	_, err := w.Write(j.Bytes)
 	return err
 }
-
