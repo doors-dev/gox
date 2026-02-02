@@ -14,13 +14,13 @@ func scanContent(coll collector, root *tree_sitter.Node) {
 	cursor := root.Walk()
 	children := root.ChildrenByFieldName("content", cursor)
 	cursor.Close()
-	proxies := make([]*tree_sitter.Node, 0)
+	proxyLevel := 0
 	for _, child := range children {
 		name := child.Kind()
-		if name == grammer.GOX_SPACE_FILLER || name == grammer.GOX_ERRONEOUS_CLOSE_HEAD {
+		switch name {
+		case grammer.GOX_SPACE_FILLER, grammer.GOX_ERRONEOUS_CLOSE_HEAD, grammer.GOX_TILDE_COMMENT:
 			continue
-		}
-		if name == grammer.GOX_TILDE_PROXY {
+		case grammer.GOX_TILDE_PROXY:
 			body := child.ChildByFieldName("body")
 			if body == nil {
 				continue
@@ -29,28 +29,21 @@ func scanContent(coll collector, root *tree_sitter.Node) {
 			if arg == nil {
 				continue
 			}
-			proxies = append(proxies, arg)
-			continue
-		}
-		proxied := len(proxies) != 0
-		if proxied {
-			for _, proxy := range proxies {
-				coll.cr()
-				coll.append(r("__c.AddProxy("))
-				scanValue(coll, proxy, false)
-				coll.append(r(")"))
+			if arg.Kind() == grammer.GOX_SINGLE_ARG {
+				proxyLevel++
+				renderProxyBeg(coll, arg)
 			}
-			proxies = proxies[:0]
-			coll.cr()
-			coll.append(
-				r("__e = __c.ProxyElem(gox.Elem(func(__c gox.Cursor) (__e error) {"),
-			)
-			coll.indentBeg()
-			coll.cr()
-			coll.append(r("ctx := __c.Context(); __c.Noop(ctx)"))
-		}
-		nonContainer := false
-		switch name {
+			if arg.Kind() == grammer.GOX_MULTI_ARG {
+				for i := range arg.ChildCount() {
+					proxy := arg.Child(i)
+					if !proxy.IsNamed() {
+						continue
+					}
+					proxyLevel++
+					renderProxyBeg(coll, proxy)
+				}
+			}
+			continue
 		case grammer.GOX_CONTAINER_HEAD:
 			scanContainerHead(coll, &child)
 		case grammer.GOX_HEAD:
@@ -62,10 +55,7 @@ func scanContent(coll collector, root *tree_sitter.Node) {
 		case grammer.GOX_SELF_CLOSING_HEAD:
 			scanSelfClosingHead(coll, &child)
 		default:
-			nonContainer = true
-		}
-		if nonContainer {
-			if proxied {
+			if proxyLevel != 0 {
 				coll.cr()
 				coll.append(r("__e = __c.InitContainer(); " + ERR_CHECK))
 				coll.indentFake()
@@ -86,20 +76,39 @@ func scanContent(coll collector, root *tree_sitter.Node) {
 			case grammer.GOX_TILDE:
 				scanTilde(coll, &child)
 			}
-			if proxied {
+			if proxyLevel != 0 {
 				coll.indentEnd()
 				coll.cr()
 				coll.append(r("__e = __c.Close(); " + ERR_CHECK))
 			}
 		}
-		if proxied {
-			coll.indentEnd()
-			coll.cr()
-			coll.append(
-				r("return })); " + ERR_CHECK),
-			)
+		if proxyLevel == 0 {
+			continue
 		}
+		proxyLevel--
+		coll.indentEnd()
+		coll.cr()
+		coll.append(
+			r("return })); " + ERR_CHECK),
+		)
 	}
+	for range proxyLevel {
+		coll.indentEnd()
+		coll.cr()
+		coll.append(
+			r("return })); " + ERR_CHECK),
+		)
+	}
+}
+
+func renderProxyBeg(coll collector, proxy *tree_sitter.Node) {
+	coll.cr()
+	coll.append(r("__e = "))
+	scanValue(coll, proxy, false)
+	coll.append(r(".Proxy(__c, gox.Elem(func(__c gox.Cursor) (__e error) {"))
+	coll.indentBeg()
+	coll.cr()
+	coll.append(r("ctx := __c.Context(); __c.Noop(ctx)"))
 }
 
 func scanRawHead(coll collector, root *tree_sitter.Node) {

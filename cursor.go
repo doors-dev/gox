@@ -160,7 +160,6 @@ type cursor struct {
 	stack   stack
 	printer Printer
 	ctx     context.Context
-	proxies []Proxy
 }
 
 func (c Cursor) Context() context.Context {
@@ -172,22 +171,6 @@ func (c Cursor) NewID() uint64 {
 }
 
 func (c Cursor) Noop(any) {}
-
-func (c Cursor) AddProxy(proxies ...Proxy) {
-	c.proxies = append(c.proxies, proxies...)
-}
-
-func (c Cursor) ProxyElem(elem Elem) error {
-	for i := len(c.proxies) - 1; i > 0; i-- {
-		proxy := c.proxies[i]
-		c.proxies[i] = nil
-		elem = Elem(func(cur Cursor) error {
-			return proxy.Proxy(cur, elem)
-		})
-	}
-	c.proxies = c.proxies[:0]
-	return elem(c)
-}
 
 func (c Cursor) Init(tag string) error {
 	return c.stack.Init(tag)
