@@ -268,16 +268,25 @@ func (a Attr) ReadBool() (bool, bool) {
 }
 
 func (a Attr) ReadObject() (any, bool) {
+	if a.value == nil {
+		return nil, false
+	}
 	v, ok := a.value.(*jsonValue)
 	return v.value, ok
 }
 
 func (a Attr) ReadObjectArray() ([]any, bool) {
+	if a.value == nil {
+		return nil, false
+	}
 	v, ok := a.value.(*jsonArrayValue)
 	return *v, ok
 }
 
 func (a Attr) ReadString() (string, bool) {
+	if a.value == nil {
+		return "", false
+	}
 	v, ok := a.value.(*stringValue)
 	return v.string(), ok
 }
