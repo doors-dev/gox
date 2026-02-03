@@ -82,15 +82,14 @@ func scanContent(coll collector, root *tree_sitter.Node) {
 				coll.append(r("__e = __c.Close(); " + ERR_CHECK))
 			}
 		}
-		if proxyLevel == 0 {
-			continue
+		for range proxyLevel {
+			coll.indentEnd()
+			coll.cr()
+			coll.append(
+				r("return })); " + ERR_CHECK),
+			)
 		}
-		proxyLevel--
-		coll.indentEnd()
-		coll.cr()
-		coll.append(
-			r("return })); " + ERR_CHECK),
-		)
+		proxyLevel = 0
 	}
 	for range proxyLevel {
 		coll.indentEnd()

@@ -88,10 +88,14 @@ func (a Attrs) List() []Attr {
 var attrPool = utils.NewStructPool[attr]()
 
 func (a Attrs) Has(name string) bool {
-	_, ok := slices.BinarySearchFunc(a.entries, name, func(a Attr, name string) int {
+	index, ok := slices.BinarySearchFunc(a.entries, name, func(a Attr, name string) int {
 		return strings.Compare(a.name, name)
 	})
-	return ok
+	if !ok {
+		return false
+	}
+	attr := a.entries[index]
+	return attr.IsSet()
 }
 
 func (a Attrs) Get(name string) Attr {
