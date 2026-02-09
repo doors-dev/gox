@@ -443,6 +443,13 @@ _
 
 ; GOX --------------------------------------------------------------------------------
 
+[
+ (gox_comment)
+ ] @leaf
+
+
+
+(gox_tilde_marker) @append_antispace
 
 (gox_open_head_beg) @append_indent_start
 (gox_self_closing_head_end) @prepend_indent_end
@@ -461,6 +468,25 @@ _
  open: (_) @append_empty_softline
  close: (_) @prepend_empty_softline
  .
+)
+
+(_
+  [
+   (gox_head) 
+   (gox_container_head)
+   (gox_void_head)
+   (gox_plain_text)
+   (gox_space_filler)
+   (gox_self_closing_head)
+   (gox_doctype)
+   (gox_raw_head)
+   (gox_tilde)
+   (gox_comment)
+   (gox_script_head)
+   (gox_style_head)
+  ] 
+  .
+  (gox_tilde_comment) @prepend_input_softline  @allow_blank_line_before
 )
 
 (_
