@@ -91,8 +91,7 @@ func writeName(w io.Writer, name string) error {
 }
 
 func WriteRawText(w io.Writer, text string) error {
-	b := unsafe.Slice(unsafe.StringData(text), len(text))
-	_, err := w.Write(b)
+	_, err := io.WriteString(w, text)
 	return err
 }
 
@@ -100,8 +99,7 @@ func WriteEscapedText(w io.Writer, text string) error {
 	ew := &EscapedWriter{
 		W: w,
 	}
-	b := unsafe.Slice(unsafe.StringData(text), len(text))
-	_, err := ew.Write(b)
+	_, err := io.WriteString(ew, text)
 	return err
 }
 
