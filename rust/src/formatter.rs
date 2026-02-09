@@ -1,85 +1,10 @@
-use std::fs::OpenOptions;
+use std::collections::HashMap;
 use std::io::Write;
-use std::{fmt, io};
+
+use crate::init::indent;
 
 use super::init;
 use tree_sitter::Node;
-
-struct Replace {
-    code: String,
-    prefix: String,
-    beg: usize,
-    end: usize,
-}
-
-impl fmt::Display for Replace {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("\n")?;
-        for line in self.code.lines() {
-            f.write_str(self.prefix.as_str())?;
-            init::indent().fmt(f)?;
-            f.write_str(line)?;
-            f.write_str("\n")?;
-        }
-        f.write_str(self.prefix.as_str())?;
-        Ok(())
-    }
-}
-
-impl Replace {
-    fn append_to(
-        acc: &mut Vec<Replace>,
-        text: &[u8],
-        nodes: Vec<Node<'_>>,
-        formatter: fn(&str) -> Result<String, Box<dyn std::error::Error>>,
-    ) {
-        for node in nodes {
-            let mut indent_beg = node.start_byte();
-            for i in (0..node.start_byte()).rev() {
-                if text[i] == b'\n' {
-                    break;
-                }
-                indent_beg = i
-            }
-            let mut indent_end = indent_beg;
-            for i in indent_beg..=node.start_byte() {
-                indent_end = i;
-                if !text[i].is_ascii_whitespace() {
-                    break;
-                }
-            }
-            let prefix = &text[indent_beg..indent_end];
-            let prefix = str::from_utf8(prefix).unwrap().to_string();
-            if let Some(content) = node.child_by_field_name("content") {
-                let open = node.child_by_field_name("open");
-                let close = node.child_by_field_name("close");
-                if open.is_none() || close.is_none() {
-                    continue;
-                }
-                let beg = open.unwrap().end_byte();
-                let end = close.unwrap().start_byte();
-                let code = content.utf8_text(text).unwrap();
-                if let Ok(code) = formatter(code) {
-                    acc.push(Self {
-                        prefix: prefix,
-                        code: code,
-                        beg,
-                        end,
-                    });
-                }
-            }
-        }
-    }
-}
-/*
-fn dump(content: &[u8]) -> io::Result<()> {
-    let mut f = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open("/tmp/topiary.log")?;
-    f.write_all(content)?;
-    Ok(())
-} */
 
 pub fn format(input: &[u8], output: &mut Vec<u8>) -> Result<(), topiary_core::FormatterError> {
     let mut parser = init::new_parser();
@@ -105,40 +30,18 @@ pub fn format(input: &[u8], output: &mut Vec<u8>) -> Result<(), topiary_core::Fo
             tolerate_parsing_errors: false,
         },
     )?;
-    while let Some(b'\n') = formatted_gox.last() {
-        formatted_gox.pop();
-    }
     let tree = parser.parse(formatted_gox.as_slice(), None)?;
     if tree.is_none() {
         return Ok(());
     }
     let tree = tree.unwrap();
-    let mut replacements = Vec::new();
     let root = tree.root_node();
     let scripts = init::query().scripts(&root, formatted_gox.as_slice());
     let styles = init::query().styles(&root, formatted_gox.as_slice());
-    Replace::append_to(
-        &mut replacements,
-        formatted_gox.as_slice(),
-        scripts,
-        format_js,
-    );
-    Replace::append_to(
-        &mut replacements,
-        formatted_gox.as_slice(),
-        styles,
-        format_css,
-    );
-    replacements.sort_by_key(|replace| replace.beg);
-    let mut last_replace_end = 0;
-    for replace in replacements {
-        let chunk = &formatted_gox[last_replace_end..replace.beg];
-        last_replace_end = replace.end;
-        output.extend_from_slice(chunk);
-        write!(output, "{}", replace).unwrap();
-    }
-    let chunk = &formatted_gox[last_replace_end..];
-    output.extend_from_slice(chunk);
+    let mut proc = PostProcessor::new(formatted_gox, output);
+    proc.add_externals(scripts, format_js);
+    proc.add_externals(styles, format_css);
+    proc.write_out();
     Ok(())
 }
 
@@ -194,6 +97,220 @@ fn cure(input: &[u8], root: &topiary_tree_sitter_facade::Node) -> Option<Vec<u8>
     buf.extend_from_slice(&input[insert_end..]);
     Some(buf)
 }
+
+struct External {
+    code: String,
+    indent_pos: tree_sitter::Point,
+    start_pos: tree_sitter::Point,
+    end_pos: tree_sitter::Point,
+}
+
+impl External {
+    fn write_out(&self, output: &mut Vec<u8>, indent: String) {
+        for line in self.code.lines() {
+            write!(output, "{}{}\n", &indent, line).unwrap();
+        }
+    }
+    fn create(
+        text: &[u8],
+        node: Node<'_>,
+        formatter: fn(&str) -> Result<String, Box<dyn std::error::Error>>,
+    ) -> Option<Self> {
+        let content = node.child_by_field_name("content")?;
+        let open = node.child_by_field_name("open")?;
+        let close = node.child_by_field_name("close")?;
+        let code = content.utf8_text(text).unwrap();
+        if code.is_empty() {
+            return None;
+        }
+        let code = formatter(code).ok()?;
+        Some(External {
+            code,
+            indent_pos: open.start_position(),
+            start_pos: open.end_position(),
+            end_pos: close.start_position(),
+        })
+    }
+}
+
+enum ProcessorState {
+    Look,
+    Enter(usize, Indent),
+    Exit(usize, Indent),
+}
+
+#[derive(Clone)]
+struct Indent {
+    actual: usize,
+    output: usize,
+}
+
+impl Indent {
+    fn advance(&self) -> Indent {
+        Indent {
+            actual: self.actual,
+            output: self.output + 1,
+        }
+    }
+    fn write_out(&self, output: &mut Vec<u8>, indent: &str, rest: &str) {
+        write!(output, "{}{}\n", self.indent(indent), rest).unwrap();
+    }
+    fn indent(&self, indent: &str) -> String {
+        indent.repeat(self.output)
+    }
+}
+
+struct PostProcessor<'a> {
+    text: Option<Vec<u8>>,
+    externals: HashMap<usize, External>,
+    output: &'a mut Vec<u8>,
+    indents: Vec<Indent>,
+    state: ProcessorState,
+    indent: String,
+}
+
+impl<'a> PostProcessor<'a> {
+    fn new(mut text: Vec<u8>, output: &'a mut Vec<u8>) -> Self {
+        while let Some(b'\n') = text.last() {
+            text.pop();
+        }
+        Self {
+            text: Some(text),
+            externals: HashMap::new(),
+            output,
+            indents: vec![Indent {
+                actual: 0,
+                output: 0,
+            }],
+            state: ProcessorState::Look,
+            indent: indent().to_string(),
+        }
+    }
+    fn add_externals(
+        &mut self,
+        nodes: Vec<Node<'_>>,
+        formatter: fn(&str) -> Result<String, Box<dyn std::error::Error>>,
+    ) {
+        for node in nodes {
+            if let Some(ext) = External::create(self.text.as_ref().unwrap(), node, formatter) {
+                self.externals.insert(ext.indent_pos.row, ext);
+            }
+        }
+    }
+    fn write_out(mut self) {
+        let text = String::from_utf8(self.text.take().unwrap()).unwrap();
+        for (i, line) in text.lines().enumerate() {
+            self.on_line(i, line);
+        }
+    }
+    fn on_line(&mut self, index: usize, line: &str) {
+        match &self.state {
+            ProcessorState::Look => {
+                self.look(index, line);
+            }
+            ProcessorState::Enter(i, indent) => {
+                self.enter(*i, indent.clone(), index, line);
+            }
+            ProcessorState::Exit(i, indent) => {
+                self.exit(*i, indent.clone(), index, line);
+            }
+        }
+    }
+
+    fn look(&mut self, index: usize, line: &str) {
+        if let Some((indent, rest)) = self.process_indent(line) {
+            if self.externals.contains_key(&index) {
+                self.state = ProcessorState::Enter(index, indent);
+                self.on_line(index, line);
+                return;
+            }
+            indent.write_out(&mut self.output, &self.indent, rest);
+            return;
+        }
+        self.write_empty_line();
+    }
+
+    fn enter(&mut self, ext_index: usize, ext_indent: Indent, line_index: usize, line: &str) {
+        if let Some((indent, mut rest)) = self.process_indent(line) {
+            let ext = self.externals.get(&ext_index).unwrap();
+            if line_index != ext.start_pos.row {
+                indent.write_out(&mut self.output, &self.indent, rest);
+                return;
+            }
+            self.state = ProcessorState::Exit(ext_index, ext_indent);
+            let end = ext.start_pos.column + rest.len() - line.len();
+            rest = &rest[..end];
+            indent.write_out(&mut self.output, &self.indent, rest);
+            self.on_line(line_index, line);
+            return;
+        }
+        self.write_empty_line();
+    }
+
+    fn write_empty_line(&mut self) {
+        self.indents
+            .last()
+            .unwrap()
+            .write_out(&mut self.output, &self.indent, "");
+    }
+
+    fn exit(&mut self, ext_index: usize, indent: Indent, line_index: usize, line: &str) {
+        let ext = self.externals.get(&ext_index).unwrap();
+        if line_index != ext.end_pos.row {
+            return;
+        }
+        let line = &line[ext.end_pos.column..];
+        ext.write_out(&mut self.output, indent.advance().indent(&self.indent));
+        write!(self.output, "{}{}\n", indent.indent(&self.indent), line).unwrap();
+        self.state = ProcessorState::Look;
+    }
+
+    fn process_indent<'b>(&mut self, line: &'b str) -> Option<(Indent, &'b str)> {
+        let mut last = self.indents.last().unwrap();
+        let (indent_count, rest) = self.calc_indent(line)?;
+        if indent_count > last.actual {
+            let new_ind = Indent {
+                actual: indent_count,
+                output: last.output + 1,
+            };
+            self.indents.push(new_ind.clone());
+            return Some((new_ind, rest));
+        }
+        loop {
+            if indent_count >= last.actual {
+                return Some((last.clone(), rest));
+            }
+            self.indents.pop();
+            last = self.indents.last().unwrap();
+        }
+    }
+
+    fn calc_indent<'b>(&self, line: &'b str) -> Option<(usize, &'b str)> {
+        if line.len() == 0 {
+            return None;
+        }
+        let mut indent_count = 0usize;
+        let mut rest = line;
+        while let Some(r) = rest.strip_prefix(self.indent.as_str()) {
+            indent_count += 1;
+            rest = r;
+        }
+        if rest.len() == 0 {
+            return None;
+        }
+        Some((indent_count, rest))
+    }
+}
+
+/*
+fn dump(content: &[u8]) -> io::Result<()> {
+    let mut f = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open("/tmp/topiary.log")?;
+    f.write_all(content)?;
+    Ok(())
+} */
 
 fn format_js(code: &str) -> Result<String, Box<dyn std::error::Error>> {
     let source_type = biome_js_syntax::JsFileSource::js_script();

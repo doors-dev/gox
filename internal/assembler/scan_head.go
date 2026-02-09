@@ -46,6 +46,8 @@ func scanContent(coll collector, root *tree_sitter.Node) {
 			continue
 		case grammer.GOX_CONTAINER_HEAD:
 			scanContainerHead(coll, &child)
+		case grammer.GOX_VOID_HEAD:
+			scanVoidHead(coll, &child)
 		case grammer.GOX_HEAD:
 			scanHead(coll, &child)
 		case grammer.GOX_SCRIPT_HEAD:
@@ -63,8 +65,6 @@ func scanContent(coll collector, root *tree_sitter.Node) {
 			switch name {
 			case grammer.GOX_RAW_HEAD:
 				scanRawHead(coll, &child)
-			case grammer.GOX_VOID_HEAD:
-				scanVoidHead(coll, &child)
 			case grammer.GOX_DOCTYPE:
 				scanRaw(coll, &child)
 			case grammer.GOX_COMMENT:
@@ -103,7 +103,7 @@ func scanContent(coll collector, root *tree_sitter.Node) {
 func renderProxyBeg(coll collector, proxy *tree_sitter.Node) {
 	coll.cr()
 	coll.append(r("__e = "))
-	scanValue(coll, proxy, false)
+	scanValue(coll, proxy)
 	coll.append(r(".Proxy(__c, gox.Elem(func(__c gox.Cursor) (__e error) {"))
 	coll.indentBeg()
 	coll.cr()
@@ -201,19 +201,11 @@ func scanAttributes(coll collector, root *tree_sitter.Node) {
 		case grammer.GOX_ATTR:
 			coll.cr()
 			coll.append(r("__e = __c.AttrSetAny("), s(name), r(", "))
-			scanValue(coll, value, false)
+			scanValue(coll, value)
 			coll.append(r("); "), r(ERR_CHECK))
 		case grammer.GOX_LITERAL_ATTR:
 			coll.cr()
 			coll.append(r("__e = __c.AttrSet("), s(name), r(", "), s(value), r("); "), r(ERR_CHECK))
-		case grammer.GOX_CLASS_ATTR:
-			coll.cr()
-			coll.append(r("__e = __c.AttrAppend(\"class\", "))
-			scanValue(coll, value, true)
-			coll.append(r("); "), r(ERR_CHECK))
-		case grammer.GOX_CLASS_LITERAL_ATTR:
-			coll.cr()
-			coll.append(r("__e = __c.AttrAppend(\"class\", "), s(value), r("); "), r(ERR_CHECK))
 		case grammer.GOX_BOOL_ATTR:
 			coll.cr()
 			if value == nil {
@@ -234,21 +226,17 @@ func scanAttributes(coll collector, root *tree_sitter.Node) {
 	}
 }
 
-func scanFunc(coll collector, root *tree_sitter.Node, string bool) {
+func scanFunc(coll collector, root *tree_sitter.Node) {
 	body := root.ChildByFieldName("body")
-	if string {
-		coll.append(r("func() string "))
-	} else {
-		coll.append(r("func() any "))
-	}
+	coll.append(r("func() any "))
 	scanGoSnippet(coll, body)
 	coll.append(r("()"))
 }
 
-func scanValue(coll collector, root *tree_sitter.Node, string bool) {
+func scanValue(coll collector, root *tree_sitter.Node) {
 	kind := root.Kind()
 	if kind == grammer.GOX_FUNC {
-		scanFunc(coll, root, string)
+		scanFunc(coll, root)
 		return
 	}
 	scanGoSnippet(coll, root)

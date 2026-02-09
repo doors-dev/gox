@@ -40,41 +40,18 @@ func (p Portal) Convert(pos common.Pos) common.Pos {
 		if pos.Line() == p.self.End().Line() {
 			column += p.other.End().Column() - p.self.End().Column()
 		}
-		return common.NewPos(line, column)
+		return common.NewPos(max(0, line), max(0, column))
 	default:
 		line := pos.Line() - p.self.Beg().Line() + p.other.Beg().Line()
 		column := pos.Column()
 		if pos.Line() == p.self.Beg().Line() {
 			column += p.other.Beg().Column() - p.self.Beg().Column()
 		}
-		return common.NewPos(line, column)
+		return common.NewPos(max(0, line), max(0, column))
 	}
 }
 
 type portals []Portal
-
-/*
-func (rs portals) findRange(r common.Range) []Portal {
-	reg := Portal{
-		self:  r,
-		other: common.NoRange(),
-	}
-	firstIndex, ok := slices.BinarySearchFunc(rs, reg, func(a, b Portal) int {
-		return a.self.Beg().Compare(b.self.Beg())
-	})
-	if !ok {
-		if firstIndex != 0 {
-			prev := rs[firstIndex-1]
-			if prev.self.Contains(r.Beg()) {
-				firstIndex -= 1
-			}
-		}
-	}
-	lastIndex, ok := slices.BinarySearchFunc(rs, reg, func(a, b Portal) int {
-		return a.self.Beg().Compare(b.self.End())
-	})
-	return rs[firstIndex:lastIndex]
-} */
 
 func abs(x int) int {
 	if x < 0 {

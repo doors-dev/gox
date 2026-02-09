@@ -24,6 +24,10 @@
  "go"
 ] @append_space
 
+[
+ "else"
+] @prepend_space
+
 (type_declaration
   "type" @append_space
 )
@@ -470,7 +474,6 @@ _
    (gox_doctype)
    (gox_raw_head)
    (gox_tilde)
-   (gox_tilde_proxy)
    (gox_comment)
   ] 
   .
@@ -500,7 +503,6 @@ _
    (gox_doctype)
    (gox_raw_head)
    (gox_tilde)
-   (gox_tilde_proxy)
    (gox_comment)
   ] 
   .
@@ -530,6 +532,8 @@ _
    (gox_comment)
   ] @allow_blank_line_before
 )
+
+(gox_tilde_proxy) @append_space
 
 
 ; attrs

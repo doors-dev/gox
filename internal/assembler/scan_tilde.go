@@ -22,7 +22,7 @@ func scanTilde(coll collector, root *tree_sitter.Node) {
 		scanFor(coll, body)
 	case grammer.GOX_FUNC:
 		coll.append(r("__e = __c.Any("))
-		scanFunc(coll, body, false)
+		scanFunc(coll, body)
 		coll.append(r("); " + ERR_CHECK))
 	case grammer.GOX_TILDE_JOB:
 		arg := body.ChildByFieldName("arg")

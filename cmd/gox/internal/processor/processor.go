@@ -118,6 +118,9 @@ func (p *processor) walkGen(path string) {
 	}
 	files := make(map[string]workspace.File)
 	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), ".") {
+			continue
+		}
 		path := filepath.Join(path, e.Name())
 		if p.ignore != nil {
 			rel, _ := filepath.Rel(p.root, path)

@@ -96,6 +96,9 @@ func (w *workspace) scan(path string) {
 	}
 	files := make(map[string]File)
 	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), ".") {
+			continue
+		}
 		path := filepath.Join(path, e.Name())
 		rel, _ := filepath.Rel(w.root, path)
 		rel = filepath.ToSlash(rel)
