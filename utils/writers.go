@@ -1,9 +1,8 @@
 package utils
 
 import (
-	"encoding/json"
+	"fmt"
 	"io"
-	"unicode"
 	"unsafe"
 )
 
@@ -11,7 +10,6 @@ var (
 	tagOpen    = []byte("<")
 	tagClose   = []byte("</")
 	tagEnd     = []byte(">")
-	attrSpace  = []byte{' '}
 	attrAssign = []byte{'='}
 	attrQuot   = []byte{'"'}
 	htmlQuot   = []byte("&#34;")
@@ -22,19 +20,19 @@ var (
 	htmlNull   = []byte("\uFFFD")
 )
 
-type EscapedWriter struct {
-	W           io.Writer
-	TrimNewline bool
+func NewEscapedWriter(w io.Writer) io.Writer {
+	return &escapedWriter{
+		w: w,
+	}
 }
 
-func (a *EscapedWriter) Write(b []byte) (int, error) {
+type escapedWriter struct {
+	w io.Writer
+}
+
+func (a *escapedWriter) Write(b []byte) (int, error) {
 	last := 0
 	sum := 0
-	adj := 0
-	if a.TrimNewline && len(b) > 0 && b[len(b)-1] == '\n' {
-		b = b[:len(b)-1]
-		adj = 1
-	}
 	for i, c := range b {
 		var html []byte
 		switch c {
@@ -53,25 +51,23 @@ func (a *EscapedWriter) Write(b []byte) (int, error) {
 		default:
 			continue
 		}
-		n, err := a.W.Write(b[last:i])
+		n, err := a.w.Write(b[last:i])
 		sum += n
 		if err != nil {
 			return sum, err
 		}
-		_, err = a.W.Write(html)
+		_, err = a.w.Write(html)
 		if err != nil {
 			return sum, err
 		}
 		last = i + 1
 		sum += 1
 	}
-	n, err := a.W.Write(b[last:])
+	n, err := a.w.Write(b[last:])
 	sum += n
-	if err != nil {
-		sum += adj
-	}
 	return sum, err
 }
+
 
 func writeName(w io.Writer, name string) error {
 	b := unsafe.Slice(unsafe.StringData(name), len(name))
@@ -96,8 +92,8 @@ func WriteRawText(w io.Writer, text string) error {
 }
 
 func WriteEscapedText(w io.Writer, text string) error {
-	ew := &EscapedWriter{
-		W: w,
+	ew := &escapedWriter{
+		w: w,
 	}
 	_, err := io.WriteString(ew, text)
 	return err
@@ -129,82 +125,41 @@ func WriteTagClose(w io.Writer, name string) error {
 	return err
 }
 
-func writeAttrValue(w io.Writer, value []string) error {
-	_, err := w.Write(attrQuot)
-	if err != nil {
+type Output interface {
+	Output(w io.Writer) error
+}
+
+func WriteAttr(w io.Writer, name string, value any) error {
+	if value == nil {
+		return nil
+	}
+	if boolValue, ok := value.(bool); ok {
+		if !boolValue {
+			return nil
+		}
+		return writeName(w, name)
+	}
+	if err := writeName(w, name); err != nil {
 		return err
 	}
-	ew := &EscapedWriter{
-		W: w,
+	if _, err := w.Write(attrAssign); err != nil {
+		return err
 	}
-	prevSpace := true
-	for _, v := range value {
-		if len(v) == 0 {
-			continue
+	if _, err := w.Write(attrQuot); err != nil {
+		return err
+	}
+	ew := NewEscapedWriter(w)
+	if o, ok := value.(Output); ok {
+		if err := o.Output(ew); err != nil {
+			return err
 		}
-		if !prevSpace {
-			spaced := unicode.IsSpace(rune(v[0]))
-			if !spaced {
-				_, err = w.Write(attrSpace)
-				if err != nil {
-					return err
-				}
-			}
-		}
-		prevSpace = unicode.IsSpace(rune(v[len(v)-1]))
-		b := unsafe.Slice(unsafe.StringData(v), len(v))
-		_, err = ew.Write(b)
-		if err != nil {
+	} else {
+		if _, err := fmt.Fprint(ew, value); err != nil {
 			return err
 		}
 	}
-	_, err = w.Write(attrQuot)
-	return err
-}
-
-func writeAttrJsonValue(w io.Writer, value any) error {
-	_, err := w.Write(attrQuot)
-	if err != nil {
+	if _, err := w.Write(attrQuot); err != nil {
 		return err
 	}
-	ew := &EscapedWriter{
-		W:           w,
-		TrimNewline: true,
-	}
-	enc := json.NewEncoder(ew)
-	enc.SetEscapeHTML(false)
-	err = enc.Encode(value)
-	if err != nil {
-		return err
-	}
-	_, err = w.Write(attrQuot)
-	return err
-}
-
-func WriteBoolAttr(w io.Writer, name string) error {
-	return writeName(w, name)
-}
-
-func WriteAttr(w io.Writer, name string, value []string) error {
-	err := writeName(w, name)
-	if err != nil {
-		return err
-	}
-	_, err = w.Write(attrAssign)
-	if err != nil {
-		return err
-	}
-	return writeAttrValue(w, value)
-}
-
-func WriteAttrJson(w io.Writer, name string, value any) error {
-	err := writeName(w, name)
-	if err != nil {
-		return err
-	}
-	_, err = w.Write(attrAssign)
-	if err != nil {
-		return err
-	}
-	return writeAttrJsonValue(w, value)
+	return nil
 }

@@ -272,7 +272,7 @@ func (j *JobFprint) release() {
 
 func (j *JobFprint) Output(w io.Writer) error {
 	defer j.release()
-	ew := &utils.EscapedWriter{W: w}
+	ew := utils.NewEscapedWriter(w)
 	_, err := fmt.Fprint(ew, j.Any)
 	return err
 }

@@ -3,7 +3,6 @@ package gox
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"sync/atomic"
 )
@@ -326,76 +325,15 @@ func (c Cursor) Any(any any) error {
 	}
 }
 
-func (c Cursor) AttrSetAny(name string, value any) error {
+func (c Cursor) AttrSet(name string, value any) error {
 	attrs, err := c.stack.Attrs()
 	if err != nil {
 		return err
 	}
-	attr := attrs.Get(name)
-	if value == nil {
-		attr.SetBool(true)
-		return nil
-	}
-	switch v := value.(type) {
-	case bool:
-		attr.SetBool(v)
-	case string:
-		attr.Set(v)
-	default:
-		attr.Set(fmt.Sprint(value))
-	}
+	attrs.Get(name).Set(value)
 	return nil
 }
 
-func (c Cursor) AttrSetBool(name string, value bool) error {
-	attrs, err := c.stack.Attrs()
-	if err != nil {
-		return err
-	}
-	attr := attrs.Get(name)
-	attr.SetBool(value)
-	return nil
-}
-
-func (c Cursor) AttrSet(name string, value string) error {
-	attrs, err := c.stack.Attrs()
-	if err != nil {
-		return err
-	}
-	attr := attrs.Get(name)
-	attr.Set(value)
-	return nil
-}
-
-func (c Cursor) AttrAppend(name string, value string) error {
-	attrs, err := c.stack.Attrs()
-	if err != nil {
-		return err
-	}
-	attr := attrs.Get(name)
-	attr.Append(value)
-	return nil
-}
-
-func (c Cursor) AttrAppendObject(name string, value any) error {
-	attrs, err := c.stack.Attrs()
-	if err != nil {
-		return err
-	}
-	attr := attrs.Get(name)
-	attr.AppendObject(value)
-	return nil
-}
-
-func (c Cursor) AttrSetObject(name string, value any) error {
-	attrs, err := c.stack.Attrs()
-	if err != nil {
-		return err
-	}
-	attr := attrs.Get(name)
-	attr.SetObject(value)
-	return nil
-}
 
 func (c Cursor) AttrMod(mods ...AttrMod) error {
 	attrs, err := c.stack.Attrs()

@@ -3,15 +3,19 @@ package gox
 import (
 	"context"
 	"io"
+
+	"github.com/doors-dev/gox/utils"
 )
 
 type Printer interface {
 	Send(j Job) error
 }
 
+type Output = utils.Output
+
 type Job interface {
 	Context() context.Context
-	Output(w io.Writer) error
+	Output
 }
 
 type printer struct {

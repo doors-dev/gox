@@ -124,6 +124,9 @@ impl External {
             return None;
         }
         let code = formatter(code).ok()?;
+        if code.is_empty() {
+            return None;
+        }
         Some(External {
             code,
             indent_pos: open.start_position(),

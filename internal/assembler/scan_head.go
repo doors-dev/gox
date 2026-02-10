@@ -200,7 +200,7 @@ func scanAttributes(coll collector, root *tree_sitter.Node) {
 			coll.append(p(&child))
 		case grammer.GOX_ATTR:
 			coll.cr()
-			coll.append(r("__e = __c.AttrSetAny("), s(name), r(", "))
+			coll.append(r("__e = __c.AttrSet("), s(name), r(", "))
 			scanValue(coll, value)
 			coll.append(r("); "), r(ERR_CHECK))
 		case grammer.GOX_LITERAL_ATTR:
@@ -209,9 +209,9 @@ func scanAttributes(coll collector, root *tree_sitter.Node) {
 		case grammer.GOX_BOOL_ATTR:
 			coll.cr()
 			if value == nil {
-				coll.append(r("__e = __c.AttrSetBool("), s(name), r(", true);"), r(ERR_CHECK))
+				coll.append(r("__e = __c.AttrSet("), s(name), r(", true);"), r(ERR_CHECK))
 			} else {
-				coll.append(r("__e = __c.AttrSetBool("), s(name), r(", "), p(value), r("); "), r(ERR_CHECK))
+				coll.append(r("__e = __c.AttrSet("), s(name), r(", "), p(value), r("); "), r(ERR_CHECK))
 			}
 		case grammer.GOX_ATTR_MOD:
 			arg := child.ChildByFieldName("arg")

@@ -35,14 +35,14 @@ func (p Portal) Convert(pos common.Pos) common.Pos {
 	case 0:
 		return p.other.End()
 	case 1:
-		line := pos.Line() - p.self.End().Line() + p.other.End().Line()
+		line := pos.Line() - p.self.Beg().Line() + p.other.Beg().Line()
 		column := pos.Column()
 		if pos.Line() == p.self.Beg().Line() {
 			column += p.other.Beg().Column() - p.self.Beg().Column()
 		}
 		return common.NewPos(max(0, line), max(0, column))
 	default:
-		line := pos.Line() - p.self.Beg().Line() + p.other.Beg().Line()
+		line := pos.Line() - p.self.End().Line() + p.other.End().Line()
 		column := pos.Column()
 		if pos.Line() == p.self.End().Line() {
 			column += p.other.End().Column() - p.self.End().Column()
