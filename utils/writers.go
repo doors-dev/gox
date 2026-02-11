@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"unsafe"
@@ -68,7 +69,6 @@ func (a *escapedWriter) Write(b []byte) (int, error) {
 	return sum, err
 }
 
-
 func writeName(w io.Writer, name string) error {
 	b := unsafe.Slice(unsafe.StringData(name), len(name))
 	last := 0
@@ -129,6 +129,34 @@ type Output interface {
 	Output(w io.Writer) error
 }
 
+func WriteAttrName(w io.Writer, name string) error {
+	return writeName(w, name)
+}
+
+func WriteAttrValue(w io.Writer, value any) error {
+	if value == nil {
+		return errors.New("nil attribute value cannot be written")
+	}
+	if _, ok := value.(bool); ok {
+		return errors.New("boolean attribute value cannot be written")
+	}
+	return writeAttrValue(w, value)
+}
+
+func writeAttrValue(w io.Writer, value any) error {
+	ew := NewEscapedWriter(w)
+	if o, ok := value.(Output); ok {
+		if err := o.Output(ew); err != nil {
+			return err
+		}
+	} else {
+		if _, err := fmt.Fprint(ew, value); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func WriteAttr(w io.Writer, name string, value any) error {
 	if value == nil {
 		return nil
@@ -148,15 +176,8 @@ func WriteAttr(w io.Writer, name string, value any) error {
 	if _, err := w.Write(attrQuot); err != nil {
 		return err
 	}
-	ew := NewEscapedWriter(w)
-	if o, ok := value.(Output); ok {
-		if err := o.Output(ew); err != nil {
-			return err
-		}
-	} else {
-		if _, err := fmt.Fprint(ew, value); err != nil {
-			return err
-		}
+	if err := writeAttrValue(w, value); err != nil {
+		return err
 	}
 	if _, err := w.Write(attrQuot); err != nil {
 		return err

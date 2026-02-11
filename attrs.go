@@ -38,7 +38,7 @@ func (a Attrs) Inherit(attrs Attrs) {
 		if !attr.IsSet() {
 			continue
 		}
-		a.Get(attr.name).Set(attr.Read())
+		a.Get(attr.name).Set(attr.Value())
 	}
 }
 
@@ -169,7 +169,7 @@ func (a Attr) Unset() {
 	a.value = nil
 }
 
-func (a Attr) Read() any {
+func (a Attr) Value() any {
 	return a.value
 }
 
@@ -199,4 +199,12 @@ func (a *attr) release() {
 func (a *attr) output(w io.Writer) error {
 	defer a.release()
 	return utils.WriteAttr(w, a.name, a.value)
+}
+
+func (a Attr) OutputName(w io.Writer) error {
+	return utils.WriteAttrName(w, a.name)
+}
+
+func (a Attr) OutputValue(w io.Writer) error {
+	return utils.WriteAttrValue(w, a.value)
 }

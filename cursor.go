@@ -3,11 +3,8 @@ package gox
 import (
 	"context"
 	"errors"
-	"io"
 	"sync/atomic"
 )
-
-type Context = context.Context
 
 type HeadError string
 
@@ -169,8 +166,6 @@ func (c Cursor) NewID() uint64 {
 	return c.stack.headID()
 }
 
-func (c Cursor) Noop(any) {}
-
 func (c Cursor) Init(tag string) error {
 	return c.stack.Init(tag)
 }
@@ -224,13 +219,6 @@ func (c Cursor) Bytes(data []byte) error {
 		return err
 	}
 	return c.printer.Send(NewJobBytes(c.ctx, data))
-}
-
-func (c Cursor) Func(f func(w io.Writer) error) error {
-	if err := c.stack.Opened(); err != nil {
-		return err
-	}
-	return c.printer.Send(NewJobFunc(c.ctx, f))
 }
 
 func (c Cursor) Templ(templ Templ) error {
@@ -303,8 +291,6 @@ func (c Cursor) Any(any any) error {
 			}
 		}
 		return nil
-	case func(w io.Writer) error:
-		return c.Func(v)
 	case Job:
 		return c.Send(v)
 	case []Job:
@@ -333,7 +319,6 @@ func (c Cursor) AttrSet(name string, value any) error {
 	attrs.Get(name).Set(value)
 	return nil
 }
-
 
 func (c Cursor) AttrMod(mods ...AttrMod) error {
 	attrs, err := c.stack.Attrs()

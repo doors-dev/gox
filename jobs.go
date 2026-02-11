@@ -137,7 +137,10 @@ func (j *JobComp) release() {
 
 func (j *JobComp) Output(w io.Writer) error {
 	defer j.release()
-	return j.Comp.Main().Render(j.Ctx, w)
+	if el := j.Comp.Main(); el != nil {
+		return el.Render(j.Ctx, w)
+	}
+	return nil
 }
 
 var textPool = utils.NewStructPool[JobText]()
@@ -192,33 +195,6 @@ func (j *JobRaw) release() {
 func (j *JobRaw) Output(w io.Writer) error {
 	defer j.release()
 	return utils.WriteRawText(w, j.Text)
-}
-
-var funcPool = utils.NewStructPool[JobFunc]()
-
-func NewJobFunc(ctx context.Context, fn func(w io.Writer) error) *JobFunc {
-	j := funcPool.Get()
-	j.Ctx = ctx
-	j.Func = fn
-	return j
-}
-
-type JobFunc struct {
-	Ctx  context.Context
-	Func func(w io.Writer) error
-}
-
-func (j *JobFunc) Context() context.Context { return j.Ctx }
-
-func (j *JobFunc) release() {
-	j.Ctx = nil
-	j.Func = nil
-	funcPool.Put(j)
-}
-
-func (j *JobFunc) Output(w io.Writer) error {
-	defer j.release()
-	return j.Func(w)
 }
 
 var templPool = utils.NewStructPool[JobTempl]()

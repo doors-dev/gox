@@ -24,9 +24,6 @@
  "go"
 ] @append_space
 
-[
- "else"
-] @prepend_space
 
 (type_declaration
   "type" @append_space
@@ -45,6 +42,7 @@
  "^="
  ">>="
  "<<="
+ "else"
 ] @append_space @prepend_space
 
 (binary_expression
