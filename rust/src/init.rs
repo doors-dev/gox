@@ -95,6 +95,8 @@ pub struct Query {
     style: topiary_tree_sitter_facade::Query,
     impl_close: topiary_tree_sitter_facade::Query,
     remove: topiary_tree_sitter_facade::Query,
+    shift: topiary_tree_sitter_facade::Query,
+    keep: topiary_tree_sitter_facade::Query,
 }
 
 impl Query {
@@ -141,6 +143,26 @@ impl Query {
     ) -> Vec<Node<'a>> {
         return Self::query(&self.style, node, source);
     }
+    pub fn shift<'a>(
+        &self,
+        node: &'a topiary_tree_sitter_facade::Node,
+        source: &[u8],
+    ) -> Vec<Node<'a>> {
+        Self::query(&self.shift, node, source)
+            .into_iter()
+            .filter(|n| n.start_position().row != n.end_position().row)
+            .collect()
+    }
+    pub fn keep<'a>(
+        &self,
+        node: &'a topiary_tree_sitter_facade::Node,
+        source: &[u8],
+    ) -> Vec<Node<'a>> {
+        Self::query(&self.keep, node, source)
+            .into_iter()
+            .filter(|n| n.start_position().row != n.end_position().row)
+            .collect()
+    }
 }
 
 static QUERY: OnceLock<Query> = OnceLock::new();
@@ -161,17 +183,30 @@ const REMOVE: &str = r#"
 [(gox_redundant) (gox_space_filler) (gox_erroneous_close_head)] @cap
 "#;
 
+const SHIFT: &str = r#"
+[(comment) (gox_comment) (gox_tilde_comment)] @cap
+"#;
+
+const KEEP: &str = r#"
+[(raw_string_literal) (gox_raw_head)] @cap
+"#;
+
 pub fn query() -> &'static Query {
     QUERY.get_or_init(|| {
         let script = topiary_tree_sitter_facade::Query::new(ts_lang(), SCRIPT_QUERY).unwrap();
         let style = topiary_tree_sitter_facade::Query::new(ts_lang(), STYLE_QUERY).unwrap();
-        let impl_close = topiary_tree_sitter_facade::Query::new(ts_lang(), IMPLICID_CLOSE_QUERY).unwrap();
+        let impl_close =
+            topiary_tree_sitter_facade::Query::new(ts_lang(), IMPLICID_CLOSE_QUERY).unwrap();
         let remove = topiary_tree_sitter_facade::Query::new(ts_lang(), REMOVE).unwrap();
+        let shift = topiary_tree_sitter_facade::Query::new(ts_lang(), SHIFT).unwrap();
+        let keep = topiary_tree_sitter_facade::Query::new(ts_lang(), KEEP).unwrap();
         Query {
             script,
             style,
             impl_close,
             remove,
+            shift,
+            keep,
         }
     })
 }

@@ -38,9 +38,13 @@ pub fn format(input: &[u8], output: &mut Vec<u8>) -> Result<(), topiary_core::Fo
     let root = tree.root_node();
     let scripts = init::query().scripts(&root, formatted_gox.as_slice());
     let styles = init::query().styles(&root, formatted_gox.as_slice());
+    let keep = init::query().keep(&root, formatted_gox.as_slice());
+    let shift = init::query().shift(&root, formatted_gox.as_slice());
     let mut proc = PostProcessor::new(formatted_gox, output);
-    proc.add_externals(scripts, format_js);
-    proc.add_externals(styles, format_css);
+    proc.add_externals(scripts, format_js, true);
+    proc.add_externals(styles, format_css, true);
+    proc.add_externals(keep, format_keep, false);
+    proc.add_externals(shift, format_shift, false);
     proc.write_out();
     Ok(())
 }
@@ -98,24 +102,45 @@ fn cure(input: &[u8], root: &topiary_tree_sitter_facade::Node) -> Option<Vec<u8>
     Some(buf)
 }
 
+type Formatter = fn(
+    output: &mut Vec<u8>,
+    code: &str,
+    indent: Indent,
+    intent_str: &str,
+) -> Result<(), Box<dyn std::error::Error>>;
+
 struct External {
     code: String,
     indent_pos: tree_sitter::Point,
     start_pos: tree_sitter::Point,
     end_pos: tree_sitter::Point,
+    formatter: Formatter,
 }
 
 impl External {
-    fn write_out(&self, output: &mut Vec<u8>, indent: String) {
+    fn write_out(&self, output: &mut Vec<u8>, indent: Indent, indent_str: &str) {
+        if (self.formatter)(output, &self.code, indent, indent_str).is_err() {
+            write!(output, "{}", &self.code).unwrap();
+        }
+        /*
         for line in self.code.lines() {
             write!(output, "{}{}\n", &indent, line).unwrap();
-        }
+        } */
     }
-    fn create(
-        text: &[u8],
-        node: Node<'_>,
-        formatter: fn(&str) -> Result<String, Box<dyn std::error::Error>>,
-    ) -> Option<Self> {
+    fn create(text: &[u8], node: Node<'_>, formatter: Formatter, head: bool) -> Option<Self> {
+        if !head {
+            let code = node.utf8_text(text).unwrap();
+            if code.is_empty() {
+                return None;
+            }
+            return Some(External {
+                code: code.to_string(),
+                formatter: formatter,
+                indent_pos: node.start_position(),
+                start_pos: node.start_position(),
+                end_pos: node.end_position(),
+            });
+        }
         let content = node.child_by_field_name("content")?;
         let open = node.child_by_field_name("open")?;
         let close = node.child_by_field_name("close")?;
@@ -123,12 +148,9 @@ impl External {
         if code.is_empty() {
             return None;
         }
-        let code = formatter(code).ok()?;
-        if code.is_empty() {
-            return None;
-        }
         Some(External {
-            code,
+            code: code.to_string(),
+            formatter: formatter,
             indent_pos: open.start_position(),
             start_pos: open.end_position(),
             end_pos: close.start_position(),
@@ -165,7 +187,7 @@ impl Indent {
 
 struct PostProcessor<'a> {
     text: Option<Vec<u8>>,
-    externals: HashMap<usize, External>,
+    externals: HashMap<usize, Vec<External>>,
     output: &'a mut Vec<u8>,
     indents: Vec<Indent>,
     state: ProcessorState,
@@ -189,14 +211,16 @@ impl<'a> PostProcessor<'a> {
             indent: indent().to_string(),
         }
     }
-    fn add_externals(
-        &mut self,
-        nodes: Vec<Node<'_>>,
-        formatter: fn(&str) -> Result<String, Box<dyn std::error::Error>>,
-    ) {
+    fn add_externals(&mut self, nodes: Vec<Node<'_>>, formatter: Formatter, head: bool) {
         for node in nodes {
-            if let Some(ext) = External::create(self.text.as_ref().unwrap(), node, formatter) {
-                self.externals.insert(ext.indent_pos.row, ext);
+            if let Some(ext) = External::create(self.text.as_ref().unwrap(), node, formatter, head)
+            {
+                if let Some(extenals) = self.externals.get_mut(&ext.indent_pos.row) {
+                    extenals.push(ext);
+                    extenals.sort_by_key(|x| std::cmp::Reverse(x.indent_pos.column));
+                } else {
+                    self.externals.insert(ext.indent_pos.row, vec![ext]);
+                }
             }
         }
     }
@@ -222,32 +246,66 @@ impl<'a> PostProcessor<'a> {
 
     fn look(&mut self, index: usize, line: &str) {
         if let Some((indent, rest)) = self.process_indent(line) {
-            if self.externals.contains_key(&index) {
-                self.state = ProcessorState::Enter(index, indent);
-                self.on_line(index, line);
-                return;
-            }
-            indent.write_out(&mut self.output, &self.indent, rest);
+            write!(&mut self.output, "{}", &indent.indent(&self.indent)).unwrap();
+            self.examine(index, line, rest, indent);
             return;
         }
         self.write_empty_line();
     }
 
+    fn examine(&mut self, index: usize, line: &str, rest: &str, indent: Indent) {
+        if let Some(v) = self.externals.get(&index) {
+            let ext = v.last().unwrap();
+            if ext.start_pos.row == index {
+                let end = ext.start_pos.column + rest.len() - line.len();
+                write!(&mut self.output, "{}", &rest[..end]).unwrap();
+                self.state = ProcessorState::Exit(index, indent);
+                self.on_line(index, line);
+                return;
+            }
+            self.state = ProcessorState::Enter(index, indent);
+        }
+        write!(&mut self.output, "{}\n", rest).unwrap();
+    }
+
     fn enter(&mut self, ext_index: usize, ext_indent: Indent, line_index: usize, line: &str) {
         if let Some((indent, mut rest)) = self.process_indent(line) {
-            let ext = self.externals.get(&ext_index).unwrap();
+            let v = self.externals.get(&ext_index).unwrap();
+            let ext = v.last().unwrap();
             if line_index != ext.start_pos.row {
-                indent.write_out(&mut self.output, &self.indent, rest);
+                write!(
+                    &mut self.output,
+                    "{}{}\n",
+                    indent.indent(&self.indent),
+                    rest
+                )
+                .unwrap();
                 return;
             }
             self.state = ProcessorState::Exit(ext_index, ext_indent);
             let end = ext.start_pos.column + rest.len() - line.len();
             rest = &rest[..end];
-            indent.write_out(&mut self.output, &self.indent, rest);
+            write!(&mut self.output, "{}{}", indent.indent(&self.indent), rest).unwrap();
             self.on_line(line_index, line);
             return;
         }
         self.write_empty_line();
+    }
+
+    fn exit(&mut self, ext_index: usize, indent: Indent, line_index: usize, line: &str) {
+        let v = self.externals.get_mut(&ext_index).unwrap();
+        let ext = v.pop().unwrap();
+        if line_index != ext.end_pos.row {
+            v.push(ext);
+            return;
+        }
+        if v.len() == 0 {
+            self.externals.remove(&ext_index);
+        }
+        ext.write_out(&mut self.output, indent.clone(), &self.indent);
+        let rest = &line[ext.end_pos.column..];
+        self.state = ProcessorState::Look;
+        self.examine(line_index, line, rest, indent);
     }
 
     fn write_empty_line(&mut self) {
@@ -257,20 +315,9 @@ impl<'a> PostProcessor<'a> {
             .write_out(&mut self.output, &self.indent, "");
     }
 
-    fn exit(&mut self, ext_index: usize, indent: Indent, line_index: usize, line: &str) {
-        let ext = self.externals.get(&ext_index).unwrap();
-        if line_index != ext.end_pos.row {
-            return;
-        }
-        let line = &line[ext.end_pos.column..];
-        ext.write_out(&mut self.output, indent.advance().indent(&self.indent));
-        write!(self.output, "{}{}\n", indent.indent(&self.indent), line).unwrap();
-        self.state = ProcessorState::Look;
-    }
-
     fn process_indent<'b>(&mut self, line: &'b str) -> Option<(Indent, &'b str)> {
         let mut last = self.indents.last().unwrap();
-        let (indent_count, rest) = self.calc_indent(line)?;
+        let (indent_count, rest) = calc_indent(&self.indent, line)?;
         if indent_count > last.actual {
             let new_ind = Indent {
                 actual: indent_count,
@@ -287,22 +334,22 @@ impl<'a> PostProcessor<'a> {
             last = self.indents.last().unwrap();
         }
     }
+}
 
-    fn calc_indent<'b>(&self, line: &'b str) -> Option<(usize, &'b str)> {
-        if line.len() == 0 {
-            return None;
-        }
-        let mut indent_count = 0usize;
-        let mut rest = line;
-        while let Some(r) = rest.strip_prefix(self.indent.as_str()) {
-            indent_count += 1;
-            rest = r;
-        }
-        if rest.len() == 0 {
-            return None;
-        }
-        Some((indent_count, rest))
+fn calc_indent<'b>(indent: &str, line: &'b str) -> Option<(usize, &'b str)> {
+    if line.len() == 0 {
+        return None;
     }
+    let mut indent_count = 0usize;
+    let mut rest = line;
+    while let Some(r) = rest.strip_prefix(indent) {
+        indent_count += 1;
+        rest = r;
+    }
+    if rest.len() == 0 {
+        return None;
+    }
+    Some((indent_count, rest))
 }
 
 /*
@@ -315,7 +362,12 @@ fn dump(content: &[u8]) -> io::Result<()> {
     Ok(())
 } */
 
-fn format_js(code: &str) -> Result<String, Box<dyn std::error::Error>> {
+fn format_js(
+    out: &mut Vec<u8>,
+    code: &str,
+    indent: Indent,
+    indent_str: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     let source_type = biome_js_syntax::JsFileSource::js_script();
     let parsed = biome_js_parser::parse(
         code,
@@ -328,10 +380,21 @@ fn format_js(code: &str) -> Result<String, Box<dyn std::error::Error>> {
     init::indent().apply_js(&mut options);
     let formatted = biome_js_formatter::format_node(options, &root)?;
     let printed = formatted.print()?;
-    Ok(printed.into_code())
+    write!(out, "\n").unwrap();
+    let advanced = indent.advance();
+    for line in printed.into_code().lines() {
+        write!(out, "{}{}\n", advanced.indent(indent_str), line).unwrap();
+    }
+    write!(out, "{}", indent.indent(indent_str)).unwrap();
+    Ok(())
 }
 
-fn format_css(code: &str) -> Result<String, Box<dyn std::error::Error>> {
+fn format_css(
+    out: &mut Vec<u8>,
+    code: &str,
+    indent: Indent,
+    indent_str: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     let source_type = biome_css_syntax::CssFileSource::css();
     let parsed = biome_css_parser::parse_css(code, biome_css_parser::CssParserOptions::default());
     let root = parsed.syntax();
@@ -339,5 +402,53 @@ fn format_css(code: &str) -> Result<String, Box<dyn std::error::Error>> {
     init::indent().apply_css(&mut options);
     let formatted = biome_css_formatter::format_node(options, &root)?;
     let printed = formatted.print()?;
-    Ok(printed.into_code())
+    write!(out, "\n").unwrap();
+    let advanced = indent.advance();
+    for line in printed.into_code().lines() {
+        write!(out, "{}{}\n", advanced.indent(indent_str), line).unwrap();
+    }
+    write!(out, "{}", indent.indent(indent_str)).unwrap();
+    Ok(())
+}
+
+fn format_keep(
+    out: &mut Vec<u8>,
+    code: &str,
+    _indent: Indent,
+    _indent_str: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    write!(out, "{}", code).unwrap();
+    Ok(())
+}
+
+fn format_shift(
+    out: &mut Vec<u8>,
+    code: &str,
+    indent: Indent,
+    indent_str: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if code.len() == 0 {
+        return Ok(())
+    }
+    for line in code.lines() {
+        if let Some((actual, rest)) = calc_indent(indent_str, line) {
+            let output = if actual < indent.actual {
+                if indent.output >= (indent.actual - actual) {
+                    indent.output - (indent.actual - actual)
+                } else {
+                    0
+                }
+            } else {
+                indent.output + (actual - indent.actual)
+            };
+            let indent = Indent { actual, output };
+            write!(out, "{}{}\n", indent.indent(indent_str), rest).unwrap();
+            continue;
+        }
+        write!(out, "{}\n", indent.indent(indent_str)).unwrap();
+    }
+    if !code.ends_with('\n') {
+        out.pop();
+    }
+    Ok(())
 }

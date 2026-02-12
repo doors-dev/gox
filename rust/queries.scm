@@ -443,7 +443,8 @@ _
 
 [
  (gox_comment)
- ] @leaf
+ (gox_tilde_comment)
+ ] @leaf @multi_line_indent_all
 
 
 
@@ -466,6 +467,25 @@ _
  open: (_) @append_empty_softline
  close: (_) @prepend_empty_softline
  .
+)
+
+(_
+  (gox_tilde_comment)  
+  .
+  [
+   (gox_head) 
+   (gox_container_head)
+   (gox_void_head)
+   (gox_plain_text)
+   (gox_space_filler)
+   (gox_self_closing_head)
+   (gox_doctype)
+   (gox_raw_head)
+   (gox_tilde)
+   (gox_comment)
+   (gox_script_head)
+   (gox_style_head)
+  ] @prepend_input_softline  @allow_blank_line_before
 )
 
 (_
@@ -528,6 +548,8 @@ _
    (gox_raw_head)
    (gox_tilde)
    (gox_comment)
+   (gox_script_head)
+   (gox_style_head)
   ] 
   .
   [
@@ -554,6 +576,8 @@ _
    (gox_tilde)
    (gox_tilde_proxy)
    (gox_comment)
+   (gox_script_head)
+   (gox_style_head)
   ] @allow_blank_line_before
 )
 
