@@ -74,7 +74,8 @@ func (d Doc) Load() error {
 }
 
 func (d Doc) Parse() error {
-	d.tree = d.parser.Parse(d.source.Source(), nil)
+	// \n is hack to make sure that the parser will not fail in certain cases (probably a bug in the parser)
+	d.tree = d.parser.Parse(append(d.source.Source(), '\n'), nil)
 	if d.tree.RootNode().HasError() {
 		return errors.New("Parser detected ERROR nodes, please ensure that syntax is correct.")
 	}

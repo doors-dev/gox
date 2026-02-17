@@ -9,6 +9,8 @@ type Starter interface {
 	Default() error
 	Serve(args ServeArgs) error
 	Format(args GenericArgs) error
+	Client(args ClientArgs) error
+	Host(args HostArgs) error
 	Generate(args GenericArgs) error
 }
 
@@ -33,6 +35,18 @@ func Execute(s Starter) (error, error) {
 		println()
 		println(help)
 		return nil, nil
+	case "host":
+		args, err := parseHostArgs(args)
+		if err != nil {
+			return errors.New("client arguments parse error: " + err.Error()), nil
+		}
+		return nil, s.Host(args)
+	case "client":
+		args, err := parseClientArgs(args)
+		if err != nil {
+			return errors.New("client arguments parse error: " + err.Error()), nil
+		}
+		return nil, s.Client(args)
 	case "fmt", "format":
 		args, err := parseGenericArgs(args, "format")
 		if err != nil {

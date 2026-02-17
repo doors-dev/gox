@@ -1,8 +1,8 @@
 package lsp
 
 import (
+
 	"github.com/doors-dev/gox/internal/common"
-	"github.com/doors-dev/gox/internal/jsonrpc"
 	jsonrpc2 "github.com/doors-dev/gox/internal/jsonrpc"
 	"github.com/doors-dev/gox/internal/workspace"
 )
@@ -19,7 +19,11 @@ func initClientCalls(on func(h onCall, m ...method)) {
 		for _, uri := range uris {
 			c.session().addWorkspace(uri)
 		}
+		isVscode := jsonInit.isVscodeExtension(j)
 		c.proxy(j, func(res Json) {
+			if isVscode {
+				jsonInit.prepeareForVscodeExtension(res)
+			}
 			enc, err := jsonInit.readEncoding(res)
 			if err != nil {
 				c.err(common.FromErr(jsonrpc2.ErrInternal, err))
@@ -209,7 +213,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 				c.err(common.FromErr(jsonrpc2.ErrUnknown, doc.Err()))
 				return
 			}
-			err = jsonPos.convertRangeToTarget(c.enc(), doc, j, workspace.Approximate)
+			err = jsonPos.convertRangeToTarget(c.enc(), doc, j, workspace.Edge)
 			if err != nil {
 				c.res(jsonGenerator.newEmptyArray())
 				return
@@ -403,7 +407,7 @@ func initClientCalls(on func(h onCall, m ...method)) {
 			c.forward()
 			return
 		}
-		c.err(common.NewErr(jsonrpc.ErrUnknown, "folding range not supported for gox, rely on tree sitter"))
+		c.res(jsonGenerator.newEmptyArray())
 	}, foldingRange)
 
 	on(func(c caller, j Json) {
@@ -442,11 +446,15 @@ func initClientCalls(on func(h onCall, m ...method)) {
 			c.err(common.FromErr(jsonrpc2.ErrUnknown, doc.Err()))
 			return
 		}
+		if err = jsonPos.convertRangeToTarget(c.enc(), doc, j, workspace.Edge); err != nil {
+			c.res(jsonGenerator.newEmptyArray())
+			return
+		}
 		jsonDoc.setAsTarget(j, doc)
 		c.proxy(j, func(res Json) {
 			err := jsonChanges.convertInlayHints(c.enc(), doc, res)
 			if err != nil {
-				c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert inlay hints response"))
+				c.err(common.NewErr(jsonrpc2.ErrInternal, err.Error()))
 				return
 			}
 			c.res(res)

@@ -73,7 +73,9 @@ func (s *server) connect(clientRwc io.ReadWriteCloser) {
 		return
 	}
 	defer s.onDisconnect()
-	goplsRwc, err := s.goplsDialer.Dial(s.ctx)
+	ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
+	goplsRwc, err := s.goplsDialer.Dial(ctx)
+	cancel()
 	if err != nil {
 		clientRwc.Close()
 		slog.Error("server connect error: " + err.Error())

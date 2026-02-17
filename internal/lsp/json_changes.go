@@ -47,6 +47,9 @@ func (r jsonChangesDriver) convertCompletions(enc common.Encoding, doc workspace
 }
 
 func (r jsonChangesDriver) convertInlayHints(enc common.Encoding, doc workspace.Doc, j Json) (err error) {
+	if j.TypeSafe() == ast.V_NULL{
+		return nil
+	}
 	j.ForEach(func(path ast.Sequence, node *ast.Node) bool {
 		if path.Index == -1 || path.Key != nil {
 			err = errors.New("inlay hints gopls reponse format error")
@@ -96,6 +99,9 @@ func (r jsonChangesDriver) convertCodeAction(enc common.Encoding, doc workspace.
 }
 
 func (r jsonChangesDriver) convertCodeActions(enc common.Encoding, doc workspace.Doc, j Json) error {
+	if j.TypeSafe() == ast.V_NULL{
+		return nil
+	}
 	arr, err := j.ArrayUseNode()
 	if err != nil {
 		return errors.New("code actions not found or invalid")

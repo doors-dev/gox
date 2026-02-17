@@ -10,6 +10,8 @@ require (
 	golang.org/x/sync v0.19.0
 )
 
+require github.com/gofrs/flock v0.13.0
+
 require (
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic v1.14.2
@@ -21,6 +23,6 @@ require (
 	github.com/mattn/go-pointer v0.0.1 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	golang.org/x/arch v0.0.0-20210923205945-b76863e36670 // indirect
-	golang.org/x/sys v0.39.0 // indirect
+	golang.org/x/sys v0.41.0 // indirect
 	golang.org/x/term v0.38.0
 )

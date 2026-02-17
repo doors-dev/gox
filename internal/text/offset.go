@@ -8,12 +8,12 @@ import (
 
 func (d Text) offset(pos common.Pos) int {
 	if pos.Line() >= len(d.lineOffsets) {
-		return -1
+		return len(d.source)
 	}
 	offsets := d.lineOffsets[pos.Line()]
 	offset := offsets[0] + pos.Column()
 	if offset > offsets[1] {
-		return -1
+		return offsets[1]
 	}
 	return offset
 }

@@ -20,6 +20,7 @@ func getLogLevel(level string) slog.Level {
 	}
 }
 
+
 func parseServeArgs(args []string) (ServeArgs, error) {
 	set := flag.NewFlagSet("serve", flag.ContinueOnError)
 	listen := set.String("listen", "", "address on which to listen for remote connections. If ommitted, defaults to stdio. If prefixed by 'unix;', the subsequent address is assumed to be a unix domain socket, otherwise, TCP is used")

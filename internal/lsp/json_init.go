@@ -2,7 +2,7 @@ package lsp
 
 import (
 	"errors"
-
+	"strings"
 	"github.com/bytedance/sonic/ast"
 	"github.com/doors-dev/gox/internal/common"
 )
@@ -10,6 +10,31 @@ import (
 var jsonInit jsonInitDriver
 
 type jsonInitDriver struct{}
+
+func (r jsonInitDriver) prepeareForVscodeExtension(j Json) {
+	caps := j.Get("capabilities")
+	if !caps.Exists() {
+		return
+	}
+	caps.Unset("foldingRangeProvider")
+	caps.Unset("semanticTokensProvider")
+}
+
+func (r jsonInitDriver) isVscodeExtension(j Json) bool {
+	clientInfo := j.Get("clientInfo")
+	if !clientInfo.Exists() {
+		return false
+	}
+	name := clientInfo.Get("name")
+	if !name.Exists() {
+		return false
+	}
+	str, err := name.String()
+	if err != nil {
+		return false
+	}
+	return strings.HasSuffix(str, "[GOX_EXT]")
+}
 
 func (r jsonInitDriver) getWorkspaceDirsFromArray(j Json) ([]string, error) {
 	a, err := j.ArrayUseNode()

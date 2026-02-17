@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net"
+	"time"
 
 	"github.com/doors-dev/gox/cmd/gox/internal/server"
 )
@@ -22,9 +23,15 @@ type socketDialer struct {
 
 func (s socketDialer) Dial(ctx context.Context) (io.ReadWriteCloser, error) {
 	var d net.Dialer
-	conn, err := d.DialContext(ctx, s.network, s.address)
-	if err != nil {
-		return nil, err
+	for {
+		conn, err := d.DialContext(ctx, s.network, s.address)
+		if err != nil {
+			if ctx.Err() != nil {
+				return nil, err
+			}
+			<-time.After(50 * time.Millisecond)
+			continue
+		}
+		return conn, nil
 	}
-	return conn, nil
 }
