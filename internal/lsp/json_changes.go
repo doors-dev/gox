@@ -47,7 +47,7 @@ func (r jsonChangesDriver) convertCompletions(enc common.Encoding, doc workspace
 }
 
 func (r jsonChangesDriver) convertInlayHints(enc common.Encoding, doc workspace.Doc, j Json) (err error) {
-	if j.TypeSafe() == ast.V_NULL{
+	if j.TypeSafe() == ast.V_NULL {
 		return nil
 	}
 	j.ForEach(func(path ast.Sequence, node *ast.Node) bool {
@@ -79,9 +79,9 @@ func (r jsonChangesDriver) convertInlayHints(enc common.Encoding, doc workspace.
 	return
 }
 
-func (r jsonChangesDriver) convertCodeAction(enc common.Encoding, doc workspace.Doc, j Json) (err error) {
+func (r jsonChangesDriver) convertCodeAction(man workspace.Manager, enc common.Encoding, doc workspace.Doc, j Json) (err error) {
 	if doc != nil && j.Get("diagnostics").Exists() {
-		jsonPos.convertDiagnosticsToSource(enc, doc, j)
+		jsonPos.convertDiagnosticsToSource(man, enc, doc, j)
 		/*
 			kind, err := node.Get("kind").String()
 			if err != nil {
@@ -93,13 +93,13 @@ func (r jsonChangesDriver) convertCodeAction(enc common.Encoding, doc workspace.
 	}
 	edit := j.Get("edit")
 	if edit.Exists() {
-		err = jsonChanges.convertEdit(enc, edit)
+		err = jsonChanges.convertEdit(man, enc, edit)
 	}
 	return
 }
 
-func (r jsonChangesDriver) convertCodeActions(enc common.Encoding, doc workspace.Doc, j Json) error {
-	if j.TypeSafe() == ast.V_NULL{
+func (r jsonChangesDriver) convertCodeActions(man workspace.Manager, enc common.Encoding, doc workspace.Doc, j Json) error {
+	if j.TypeSafe() == ast.V_NULL {
 		return nil
 	}
 	arr, err := j.ArrayUseNode()
@@ -108,7 +108,7 @@ func (r jsonChangesDriver) convertCodeActions(enc common.Encoding, doc workspace
 	}
 	var newActions = make([]ast.Node, 0, len(arr))
 	for _, node := range arr {
-		err := r.convertCodeAction(enc, doc, &node)
+		err := r.convertCodeAction(man, enc, doc, &node)
 		if err != nil {
 			continue
 		}
@@ -129,7 +129,7 @@ func (r jsonChangesDriver) setUpdate(j Json, text string) {
 	}
 }
 
-func (r jsonChangesDriver) convertEdit(enc common.Encoding, j Json) (err error) {
+func (r jsonChangesDriver) convertEdit(man workspace.Manager, enc common.Encoding, j Json) (err error) {
 	changes := j.Get("changes")
 	if changes.Exists() {
 		newChanges := ast.NewObject(nil)
@@ -185,7 +185,7 @@ func (r jsonChangesDriver) convertEdit(enc common.Encoding, j Json) (err error) 
 		if textDoc.Exists() {
 			var doc workspace.Doc
 			var kind workspace.FileKind
-			doc, kind, err = jsonDoc.get(&node)
+			doc, kind, err = jsonDoc.get(man, &node)
 			if err != nil {
 				return
 			}

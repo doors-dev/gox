@@ -1,14 +1,12 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"log"
 	"log/slog"
 	"os"
 	"os/exec"
-	"sync"
 	"time"
 
 	"github.com/doors-dev/gox/cmd/gox/command"
@@ -17,7 +15,6 @@ import (
 	"github.com/doors-dev/gox/cmd/gox/internal/listeners"
 	"github.com/doors-dev/gox/cmd/gox/internal/processor"
 	"github.com/doors-dev/gox/cmd/gox/internal/server"
-	"github.com/gofrs/flock"
 )
 
 func initLogger(file string, level slog.Level, enable bool) {
@@ -48,27 +45,6 @@ func (s starter) Generate(args command.GenericArgs) error {
 
 func (s starter) Default() error {
 	return s.Serve(command.ServeArgs{})
-}
-
-func (s starter) Host(args command.HostArgs) error {
-	lockPath, err := args.LockPath()
-	if err != nil {
-		return nil
-	}
-	serveArgs, err := args.ServeArgs()
-	if err != nil {
-		return nil
-	}
-	lock := flock.New(lockPath)
-	locked, err := lock.TryLock()
-	if err != nil {
-		return err
-	}
-	if !locked {
-		return nil
-	}
-	defer lock.Unlock()
-	return s.Serve(serveArgs)
 }
 
 func (s starter) Serve(args command.ServeArgs) error {
@@ -110,61 +86,3 @@ func (s starter) Serve(args command.ServeArgs) error {
 	return nil
 }
 
-func appendLine(filename, line string) error {
-	f, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	_, err = f.WriteString(line + "\n")
-	return err
-}
-
-
-func (s starter) Client(args command.ClientArgs) error {
-	dir, err := os.Getwd()
-	if err != nil {
-		panic(err)
-	}
-	appendLine("/tmp/gox.pwd", dir)
-	transport, address, err := args.Socket()
-	if err != nil {
-		return err
-	}
-	command, commandArgs := args.HostCommand()
-	var goxConn io.ReadWriteCloser
-	var clientConn io.ReadWriteCloser
-	for range 3 {
-		if err = common.Spawn(command, commandArgs...); err != nil {
-			return err
-		}
-		dialer := dialers.NewNetDialer(transport, address)
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		goxConn, err = dialer.Dial(ctx)
-		cancel()
-		if err != nil {
-			continue
-		}
-		listener := listeners.NewStdioListener()
-		clientConn, err = listener.Accept()
-		if err != nil {
-			goxConn.Close()
-		}
-		break
-	}
-	if err != nil {
-		return err
-	}
-	wg := sync.WaitGroup{}
-	wg.Go(func() {
-		io.Copy(goxConn, clientConn)
-	})
-	wg.Go(func() {
-		io.Copy(clientConn, goxConn)
-	})
-	wg.Wait()
-	goxConn.Close()
-	clientConn.Close()
-	return nil
-}

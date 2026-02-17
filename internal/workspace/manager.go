@@ -30,6 +30,23 @@ func (m *manager) Unlock() {
 	m.mu.Unlock()
 }
 
+func (m *manager) EnsureWorkspaces(uris []string) {
+	m.Lock()
+	defer m.Unlock()
+	toRemove := make([]string, 0)
+	for _, existingUri := range m.workspaces {
+		if !slices.Contains(uris, existingUri.Root()) {
+			toRemove = append(toRemove, existingUri.Root())
+		}
+	}
+	for _, uri := range toRemove {
+		m.RemoveWorkspace(uri)
+	}
+	for _, uri := range uris {
+		m.AddWorkspace(uri)
+	}
+}
+
 func (m *manager) RemoveWorkspace(uri string) {
 	url, err := url.Parse(uri)
 	if err != nil {
@@ -40,10 +57,7 @@ func (m *manager) RemoveWorkspace(uri string) {
 		if ws.Root() != url.Path {
 			continue
 		}
-		ws.hit()
-		if !ws.isAlive() {
-			m.workspaces = slices.Delete(m.workspaces, i, i+1)
-		}
+		m.workspaces = slices.Delete(m.workspaces, i, i+1)
 		return
 	}
 }
@@ -56,7 +70,6 @@ func (m *manager) AddWorkspace(uri string) {
 	}
 	for _, ws := range m.workspaces {
 		if ws.Root() == url.Path {
-			ws.heal()
 			return
 		}
 	}

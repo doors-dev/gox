@@ -4,9 +4,9 @@ import (
 	"github.com/doors-dev/gox/internal/workspace"
 )
 
-func initServerNotifs(on func(on onNotif, m ...method)) {
+func initServerNotifs(sess *session, on func(on onNotif, m ...method)) {
 	on(func(n notifier, j Json) {
-		doc, kind, err := jsonDoc.get(j)
+		doc, kind, err := jsonDoc.get(sess.man(), j)
 		if err != nil {
 			return
 		}
@@ -21,7 +21,7 @@ func initServerNotifs(on func(on onNotif, m ...method)) {
 			return
 		}
 		jsonDoc.setAsSource(j, doc)
-		jsonPos.convertDiagnosticsToSource(n.enc(), doc, j)
+		jsonPos.convertDiagnosticsToSource(sess.man(), sess.enc(), doc, j)
 		n.notify(j)
 	}, publishDiagnostics)
 }

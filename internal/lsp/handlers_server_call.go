@@ -5,14 +5,14 @@ import (
 	jsonrpc2 "github.com/doors-dev/gox/internal/jsonrpc"
 )
 
-func initServerCalls(on func(on onCall, m ...method)) {
+func initServerCalls(sess *session, on func(on onCall, m ...method)) {
 	on(func(c caller, j Json) {
 		edit := j.Get("edit")
 		if !edit.Exists() {
 			c.forward()
 			return
 		}
-		err := jsonChanges.convertEdit(c.enc(), edit)
+		err := jsonChanges.convertEdit(sess.man(), sess.enc(), edit)
 		if err != nil {
 			c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert edit"))
 			return
@@ -29,7 +29,7 @@ func initServerCalls(on func(on onCall, m ...method)) {
 				c.res(res)
 				return
 			}
-			c.session().ensureWorkspaces(workspace)
+			sess.ensureWorkspaces(workspace)
 			c.res(res)
 		})
 	}, workspaceFolders)

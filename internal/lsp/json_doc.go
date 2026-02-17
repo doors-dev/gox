@@ -25,7 +25,7 @@ func (r jsonDocDriver) getText(j Json) (string, error) {
 	return str, nil
 }
 
-func (r jsonDocDriver) get(j Json) (workspace.Doc, workspace.FileKind, error) {
+func (r jsonDocDriver) get(man workspace.Manager, j Json) (workspace.Doc, workspace.FileKind, error) {
 	uri := func() Json {
 		uri := j.Get("uri")
 		if uri.Exists() {

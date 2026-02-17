@@ -113,10 +113,10 @@ const (
 	convertToTarget
 )
 
-func (r jsonPosDriver) convertLocations(enc common.Encoding, origin workspace.Doc, j Json) (err error) {
+func (r jsonPosDriver) convertLocations(man workspace.Manager, enc common.Encoding, origin workspace.Doc, j Json) (err error) {
 	if j.TypeSafe() == ast.V_ARRAY {
 		j.ForEach(func(path ast.Sequence, node *ast.Node) bool {
-			err = jsonPos.convertLocations(enc, origin, node)
+			err = jsonPos.convertLocations(man, enc, origin, node)
 			if err != nil {
 				return false
 			}
@@ -144,14 +144,14 @@ func (r jsonPosDriver) convertLocations(enc common.Encoding, origin workspace.Do
 	}
 	location := j.Get("location")
 	if location.Exists() {
-		err = r.convertLocations(enc, origin, location)
+		err = r.convertLocations(man, enc, origin, location)
 		if err != nil {
 			return
 		}
 	}
 	var doc workspace.Doc
 	var kind workspace.FileKind
-	doc, kind, err = jsonDoc.get(j)
+	doc, kind, err = jsonDoc.get(man, j)
 	if err != nil {
 		return
 	}
@@ -185,14 +185,14 @@ func (r jsonPosDriver) convertLocations(enc common.Encoding, origin workspace.Do
 	return
 }
 
-func (r jsonPosDriver) convertCalls(enc common.Encoding, j Json) (err error) {
+func (r jsonPosDriver) convertCalls(man workspace.Manager, enc common.Encoding, j Json) (err error) {
 	j.ForEach(func(path ast.Sequence, node *ast.Node) bool {
 		if path.Index == -1 {
 			return false
 		}
 		var doc workspace.Doc
 		var kind workspace.FileKind
-		doc, kind, err = jsonDoc.get(node)
+		doc, kind, err = jsonDoc.get(man, node)
 		if err != nil {
 			return false
 		}
@@ -214,15 +214,15 @@ func (r jsonPosDriver) convertCalls(enc common.Encoding, j Json) (err error) {
 	return
 }
 
-func (r jsonPosDriver) convertDiagnosticsToTarget(enc common.Encoding, doc workspace.Doc, j Json) error {
-	return r.convertDiagnostics(enc, doc, j, convertToTarget)
+func (r jsonPosDriver) convertDiagnosticsToTarget(man workspace.Manager, enc common.Encoding, doc workspace.Doc, j Json) error {
+	return r.convertDiagnostics(man, enc, doc, j, convertToTarget)
 }
 
-func (r jsonPosDriver) convertDiagnosticsToSource(enc common.Encoding, doc workspace.Doc, j Json) error {
-	return r.convertDiagnostics(enc, doc, j, convertToSource)
+func (r jsonPosDriver) convertDiagnosticsToSource(man workspace.Manager, enc common.Encoding, doc workspace.Doc, j Json) error {
+	return r.convertDiagnostics(man, enc, doc, j, convertToSource)
 }
 
-func (r jsonPosDriver) convertDiagnostics(enc common.Encoding, doc workspace.Doc, j Json, direction convertTo) error {
+func (r jsonPosDriver) convertDiagnostics(man workspace.Manager, enc common.Encoding, doc workspace.Doc, j Json, direction convertTo) error {
 	key := "diagnostics"
 	var diagnostics = j.Get(key)
 	if !diagnostics.Exists() {
@@ -283,7 +283,7 @@ func (r jsonPosDriver) convertDiagnostics(enc common.Encoding, doc workspace.Doc
 			err = errors.New("diagnostics is not expected for source file")
 			return false
 		}
-		err = r.convertDiagnostics(enc, doc, node, direction)
+		err = r.convertDiagnostics(man, enc, doc, node, direction)
 		if err != nil {
 			return false
 		}

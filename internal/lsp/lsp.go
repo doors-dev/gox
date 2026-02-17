@@ -3,7 +3,7 @@ package lsp
 import (
 	"encoding/json"
 	"log/slog"
-	"slices"
+	"sync"
 
 	"github.com/bytedance/sonic"
 	"github.com/bytedance/sonic/ast"
@@ -11,8 +11,6 @@ import (
 	"github.com/doors-dev/gox/internal/jsonrpc"
 	"github.com/doors-dev/gox/internal/workspace"
 )
-
-var man = workspace.NewManager()
 
 type Json = *ast.Node
 
@@ -62,9 +60,7 @@ type router struct {
 
 type caller interface {
 	forward()
-	enc() common.Encoding
 	method() method
-	session() *session
 	proxy(params Json, handler func(res Json))
 	res(result Json)
 	err(err *common.Err)
@@ -72,10 +68,8 @@ type caller interface {
 
 type notifier interface {
 	forward()
-	enc() common.Encoding
 	method() method
 	notify(params Json)
-	session() *session
 	err(err *common.Err)
 }
 
@@ -85,18 +79,12 @@ type request struct {
 	sess *session
 	m    method
 	role Role
+	locker sync.Locker
 }
+
 
 func (c *request) method() method {
 	return c.m
-}
-
-func (c *request) enc() common.Encoding {
-	return c.sess.enc()
-}
-
-func (c *request) session() *session {
-	return c.sess
 }
 
 func (c *request) notify(params Json) {
@@ -158,8 +146,8 @@ func (c *request) proxy(params Json, handler func(res Json)) {
 		Method: string(c.m),
 		Params: data,
 	}, func(r Response) {
-		man.Lock()
-		defer man.Unlock()
+		c.locker.Lock()
+		defer c.locker.Unlock()
 		if r.Err != nil {
 			slog.Error("Got error response to call", "method", c.m, "from", c.role.Revert(), "error", r.Err.Error())
 			c.cb(r)
@@ -180,8 +168,8 @@ type onNotif func(n notifier, j Json)
 type onCall func(c caller, j Json)
 
 func (r Router) Notification(role Role, n Request) {
-	man.Lock()
-	defer man.Unlock()
+	r.session.man().Lock()
+	defer r.session.man().Unlock()
 	m := method(n.Method)
 	slog.Debug("Notification", "method", m, "from", role)
 	var handler onNotif
@@ -195,28 +183,29 @@ func (r Router) Notification(role Role, n Request) {
 		panic("unknown role")
 	}
 	if ok {
-		r := &request{
+		req := &request{
 			data: n.Params,
 			sess: r.session,
 			role: role,
 			m:    m,
+			locker: r.session.man(),
 		}
 		node, err := sonic.Get(n.Params)
 		if err != nil {
 			slog.Error("Notification parsing error", "method", m, "from", role, "error", err.Error())
-			r.session().logError("Notification parsing error: [method=" + string(m) + ", from=" + string(role) + ", error=" + err.Error() + "]")
-			r.err(common.FromErr(jsonrpc.ErrParse, err))
+			r.session.logError("Notification parsing error: [method=" + string(m) + ", from=" + string(role) + ", error=" + err.Error() + "]")
+			req.err(common.FromErr(jsonrpc.ErrParse, err))
 			return
 		}
-		handler(r, &node)
+		handler(req, &node)
 		return
 	}
 	r.session.bridge.Notify(role.Revert(), n)
 }
 
 func (r Router) Call(role Role, call Request, cb Callback) {
-	man.Lock()
-	defer man.Unlock()
+	r.session.man().Lock()
+	defer r.session.man().Unlock()
 	m := method(call.Method)
 	slog.Debug("Call", "method", m, "from", role)
 	var handler onCall
@@ -230,21 +219,22 @@ func (r Router) Call(role Role, call Request, cb Callback) {
 		panic("unknown role")
 	}
 	if ok {
-		r := &request{
+		req := &request{
 			sess: r.session,
 			role: role,
 			m:    m,
 			data: call.Params,
 			cb:   cb,
+			locker: r.session.man(),
 		}
 		node, err := sonic.Get(call.Params)
 		if err != nil {
 			slog.Error("Call parsing error ", "method", m, "from", role, "error", err.Error())
-			r.session().logError("Call parsing error: [method=" + string(m) + ", from=" + string(role) + ", error=" + err.Error() + "]")
-			r.err(common.FromErr(jsonrpc.ErrParse, err))
+			r.session.logError("Call parsing error: [method=" + string(m) + ", from=" + string(role) + ", error=" + err.Error() + "]")
+			req.err(common.FromErr(jsonrpc.ErrParse, err))
 			return
 		}
-		handler(r, &node)
+		handler(req, &node)
 		return
 	}
 	r.session.bridge.Call(role.Revert(), call, cb)
@@ -268,14 +258,16 @@ type builder struct {
 }
 
 func (b *builder) build(br Bridge) Router {
-	initClientCalls(b.clientCall)
-	initClientNotifs(b.clientNotif)
-	initServerCalls(b.serverCall)
-	initServerNotifs(b.serverNotif)
+	session := &session{
+		bridge: br,
+		manager:    workspace.NewManager(),
+	}
+	initClientCalls(session, b.clientCall)
+	initClientNotifs(session, b.clientNotif)
+	initServerCalls(session, b.serverCall)
+	initServerNotifs(session, b.serverNotif)
 	return &router{
-		session: &session{
-			bridge: br,
-		},
+		session:      session,
 		clientNotifs: b.clientNotifs,
 		serverNotifs: b.serverNotifs,
 		clientCalls:  b.clientCalls,
@@ -333,119 +325,4 @@ func (b *builder) serverCall(on onCall, m ...method) {
 		}
 		b.serverCalls[method] = on
 	}
-}
-
-type session struct {
-	bridge     Bridge
-	encoding   common.Encoding
-	workspaces []string
-}
-
-func (s *session) ensureWorkspaces(uris []string) {
-	toRemove := make([]string, 0)
-	for _, existingUri := range s.workspaces {
-		if !slices.Contains(uris, existingUri) {
-			toRemove = append(toRemove, existingUri)
-		}
-	}
-	for _, uri := range toRemove {
-		s.removeWorkspace(uri)
-	}
-	for _, uri := range uris {
-		s.addWorkspace(uri)
-	}
-}
-
-func (s *session) addWorkspace(uri string) {
-	if slices.Contains(s.workspaces, uri) {
-		return
-	}
-	s.workspaces = append(s.workspaces, uri)
-	man.AddWorkspace(uri)
-}
-
-func (s *session) removeWorkspace(uri string) {
-	index := slices.Index(s.workspaces, uri)
-	if index == -1 {
-		return
-	}
-	s.workspaces = slices.Delete(s.workspaces, index, index+1)
-	man.RemoveWorkspace(uri)
-}
-
-func (s *session) enc() common.Encoding {
-	return s.encoding
-}
-
-func (s *session) setEnc(e common.Encoding) {
-	s.encoding = e
-}
-
-func (s *session) notifGo(m method, params Json) {
-	data, err := params.MarshalJSON()
-	if err != nil {
-		panic("param marshaling error - should not happen")
-	}
-	s.bridge.Notify(Gopls, Request{
-		Method: string(m),
-		Params: data,
-	})
-}
-
-func (s *session) notifClient(m method, params Json) {
-	data, err := params.MarshalJSON()
-	if err != nil {
-		panic("param marshaling error - should not happen")
-	}
-	s.bridge.Notify(Client, Request{
-		Method: string(m),
-		Params: data,
-	})
-}
-
-func (s *session) callClient(m method, params Json) {
-	data, err := params.MarshalJSON()
-	if err != nil {
-		panic("param marshaling error - should not happen")
-	}
-
-	s.bridge.Call(Client, Request{
-		Method: string(m),
-		Params: data,
-	}, func(r Response) {
-		if r.Err != nil {
-			slog.Error("Call client result error", "method", m, "error", r.Err.Error())
-			s.logError("Call client result error: [method=" + string(m) + ", error=" + r.Err.Error() + "]")
-		}
-	})
-}
-
-func (s *session) showInfo(msg string) {
-	s.show(msg, 3)
-}
-
-func (s *session) showWarn(msg string) {
-	s.show(msg, 2)
-}
-
-func (s *session) showError(msg string) {
-	s.show(msg, 1)
-}
-
-func (s *session) logError(msg string) {
-	s.log(msg, 1)
-}
-
-func (s *session) log(msg string, typ int) {
-	message := ast.NewPair("message", ast.NewString(msg))
-	typNode := ast.NewPair("type", ast.NewAny(typ))
-	node := ast.NewObject([]ast.Pair{message, typNode})
-	s.notifClient(logMessage, &node)
-}
-
-func (s *session) show(msg string, typ int) {
-	message := ast.NewPair("message", ast.NewString(msg))
-	typNode := ast.NewPair("type", ast.NewAny(typ))
-	node := ast.NewObject([]ast.Pair{message, typNode})
-	s.notifClient(showMessage, &node)
 }
