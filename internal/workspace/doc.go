@@ -74,8 +74,7 @@ func (d Doc) Load() error {
 }
 
 func (d Doc) Parse() error {
-	// \n is hack to make sure that the parser will not fail in certain cases (probably a bug in the parser)
-	d.tree = d.parser.Parse(append(d.source.Source(), '\n'), nil)
+	d.tree = d.parser.Parse(d.source.Source(), nil)
 	if d.tree.RootNode().HasError() {
 		return errors.New("Parser detected ERROR nodes, please ensure that syntax is correct.")
 	}
@@ -99,7 +98,12 @@ func (d Doc) Init() {
 	d.Parse()
 	d.Assemble()
 	d.resetDraft()
-	if d.TargetIsUpToDate() {
+	needsUpdate, err := d.CheckTarget()
+	if err != nil {
+		d.err = err
+		return
+	}
+	if !needsUpdate {
 		return
 	}
 	err = d.TargetWrite()
@@ -110,18 +114,23 @@ func (d Doc) Init() {
 }
 
 func (d Doc) Save() error {
-	if d.TargetIsUpToDate() {
+	needsUpdate, err := d.CheckTarget()
+	if err != nil {
+		d.err = err
+		return err
+	}
+	if !needsUpdate {
 		return nil
 	}
-	err := d.TargetWrite()
+	err = d.TargetWrite()
 	if err != nil && !d.TargetIsOpened() {
 		d.resetDraft()
 	}
 	return err
 }
 
-func (d Doc) TargetIsUpToDate() bool {
-	return d.TargetFile().IsEqual(d.target.Source())
+func (d Doc) CheckTarget() (needsUpdate bool, err error) {
+	return d.TargetFile().ValidateTarget(d.target.Source())
 }
 
 func (d Doc) TargetWrite() error {

@@ -10,11 +10,10 @@ type Listener interface {
 	Close() error
 }
 
-
 type Dialer interface {
 	Dial(context.Context) (io.ReadWriteCloser, error)
 }
 
 type Server interface {
-	Wait() 
+	Wait()
 }

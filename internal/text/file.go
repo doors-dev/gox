@@ -6,17 +6,17 @@ import (
 	"os"
 )
 
-func (l Text) Print() {
-	os.Stdout.Write(l.source)
+func (t Text) Print() {
+	os.Stdout.Write(t.Source())
 }
 
-func (l Text) Save(path string) error {
+func (t Text) Save(path string) error {
 	f, err := os.Create(path)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
-	_, err = f.Write(l.source)
+	_, err = f.Write(t.Source())
 	return err
 }
 

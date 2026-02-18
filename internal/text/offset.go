@@ -6,11 +6,11 @@ import (
 	"github.com/doors-dev/gox/internal/common"
 )
 
-func (d Text) offset(pos common.Pos) int {
-	if pos.Line() >= len(d.lineOffsets) {
-		return len(d.source)
+func (t Text) offset(pos common.Pos) int {
+	if pos.Line() >= len(t.lineOffsets) {
+		return len(t.source)
 	}
-	offsets := d.lineOffsets[pos.Line()]
+	offsets := t.lineOffsets[pos.Line()]
 	offset := offsets[0] + pos.Column()
 	if offset > offsets[1] {
 		return offsets[1]
@@ -18,25 +18,25 @@ func (d Text) offset(pos common.Pos) int {
 	return offset
 }
 
-func (d Text) IntoRange(enc common.Encoding, rang common.Range) common.Range {
-	beg := d.IntoPos(enc, rang.Beg())
-	end := d.IntoPos(enc, rang.End())
+func (t Text) IntoRange(enc common.Encoding, rang common.Range) common.Range {
+	beg := t.IntoPos(enc, rang.Beg())
+	end := t.IntoPos(enc, rang.End())
 	return common.NewRange(beg, end)
 }
 
-func (d Text) FromRange(enc common.Encoding, rang common.Range) common.Range {
-	beg := d.FromPos(enc, rang.Beg())
-	end := d.FromPos(enc, rang.End())
+func (t Text) FromRange(enc common.Encoding, rang common.Range) common.Range {
+	beg := t.FromPos(enc, rang.Beg())
+	end := t.FromPos(enc, rang.End())
 	return common.NewRange(beg, end)
 }
 
-func (d Text) IntoPos(enc common.Encoding, pos common.Pos) common.Pos {
-	if len(d.lineOffsets) <= pos.Line() {
+func (t Text) IntoPos(enc common.Encoding, pos common.Pos) common.Pos {
+	if len(t.lineOffsets) <= pos.Line() {
 		return pos
 	}
 	switch enc {
 	case common.UTF16:
-		l := d.MustLine(pos.Line())
+		l := t.MustLine(pos.Line())
 		return common.NewPos(pos.Line(), Utf16to8(l, pos.Column()))
 	case common.UTF8:
 		return pos
@@ -45,13 +45,13 @@ func (d Text) IntoPos(enc common.Encoding, pos common.Pos) common.Pos {
 	}
 }
 
-func (d Text) FromPos(enc common.Encoding, pos common.Pos) common.Pos {
-	if len(d.lineOffsets) <= pos.Line() {
+func (t Text) FromPos(enc common.Encoding, pos common.Pos) common.Pos {
+	if len(t.lineOffsets) <= pos.Line() {
 		return pos
 	}
 	switch enc {
 	case common.UTF16:
-		l := d.MustLine(pos.Line())
+		l := t.MustLine(pos.Line())
 		return common.NewPos(pos.Line(), Utf8to16(l, pos.Column()))
 	case common.UTF8:
 		return pos

@@ -36,7 +36,6 @@ type workspace struct {
 	lock   sync.Locker
 }
 
-
 func (w *workspace) Load(file File) Doc {
 	return w.load(file)
 }

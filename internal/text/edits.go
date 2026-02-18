@@ -118,36 +118,36 @@ func (t *text) lastPos() common.Pos {
 	return common.NewPos(line, last.Len())
 }
 
-func (d Text) Update(content string) (tree_sitter.InputEdit, bool, error) {
+func (t Text) Update(content string) (tree_sitter.InputEdit, bool, error) {
 	b := common.Bytes(content)
 	for i := len(b) - 1; i >= 0 && b[i] == '\n'; i-- {
 		b = b[:i]
 	}
-	if slices.Equal(b, d.source) {
+	if slices.Equal(b, t.source) {
 		return tree_sitter.InputEdit{}, false, nil
 	}
-	rang := common.Range{common.Pos{0, 0}, d.lastPos()}
-	return d.Patch(rang, content)
+	rang := common.Range{common.Pos{0, 0}, t.lastPos()}
+	return t.Patch(rang, content)
 }
 
-func (d Text) Patch(ran common.Range, content string) (tree_sitter.InputEdit, bool, error) {
-	defer d.ensureLineOffsets()
-	patch, err := d.preparePatch(ran, content)
+func (t Text) Patch(ran common.Range, content string) (tree_sitter.InputEdit, bool, error) {
+	defer t.ensureLineOffsets()
+	patch, err := t.preparePatch(ran, content)
 	if err != nil {
 		return tree_sitter.InputEdit{}, false, err
 	}
 	if !patch.isValid() {
 		return tree_sitter.InputEdit{}, false, nil
 	}
-	d.source = slices.Replace(d.source, patch.beg, patch.end, patch.content...)
-	for i := patch.ran.End().Line() + 1; i < len(d.lineOffsets); i++ {
-		d.lineOffsets[i].Shift(patch.diff())
+	t.source = slices.Replace(t.source, patch.beg, patch.end, patch.content...)
+	for i := patch.ran.End().Line() + 1; i < len(t.lineOffsets); i++ {
+		t.lineOffsets[i].Shift(patch.diff())
 	}
 	endLine := patch.ran.End().Line()
-	if endLine < len(d.lineOffsets) {
+	if endLine < len(t.lineOffsets) {
 		endLine += 1
 	}
-	d.lineOffsets = slices.Replace(d.lineOffsets, patch.ran.Beg().Line(), endLine, patch.offsets...)
+	t.lineOffsets = slices.Replace(t.lineOffsets, patch.ran.Beg().Line(), endLine, patch.offsets...)
 	return tree_sitter.InputEdit{
 		StartByte:      uint(patch.beg),
 		OldEndByte:     uint(patch.end),
@@ -158,9 +158,9 @@ func (d Text) Patch(ran common.Range, content string) (tree_sitter.InputEdit, bo
 	}, true, nil
 }
 
-func (d Text) preparePatch(ran common.Range, content string) (patch, error) {
-	beg := d.offset(ran.Beg())
-	end := d.offset(ran.End())
+func (t Text) preparePatch(ran common.Range, content string) (patch, error) {
+	beg := t.offset(ran.Beg())
+	end := t.offset(ran.End())
 	offsets := []offset{}
 	buf := bytes.Buffer{}
 	if beg == -1 {
@@ -168,9 +168,9 @@ func (d Text) preparePatch(ran common.Range, content string) (patch, error) {
 		if ran.Beg().Column() != 0 {
 			return patch{}, errors.New("invalid range")
 		}
-		begLine := len(d.lineOffsets) - 1
-		begCol := d.lineOffsets[begLine].Len()
-		beg = len(d.source)
+		begLine := len(t.lineOffsets) - 1
+		begCol := t.lineOffsets[begLine].Len()
+		beg = len(t.source)
 		missingLines := ran.Beg().Line() - begLine
 		for range missingLines {
 			offset := buf.Len()
@@ -181,9 +181,9 @@ func (d Text) preparePatch(ran common.Range, content string) (patch, error) {
 		ran = common.NewRange(pos, pos)
 		end = beg
 	} else if end == -1 {
-		end = len(d.source)
-		endLine := len(d.lineOffsets) - 1
-		endCol := d.lineOffsets[endLine].Len()
+		end = len(t.source)
+		endLine := len(t.lineOffsets) - 1
+		endCol := t.lineOffsets[endLine].Len()
 		ran = common.NewRange(ran.Beg(), common.NewPos(endLine, endCol))
 	}
 	scanner := bufio.NewScanner(strings.NewReader(content))
@@ -199,7 +199,7 @@ func (d Text) preparePatch(ran common.Range, content string) (patch, error) {
 	if err := scanner.Err(); err != nil {
 		return patch{}, err
 	}
-	if end != len(d.source) && strings.HasSuffix(content, "\n") {
+	if end != len(t.source) && strings.HasSuffix(content, "\n") {
 		offsets = append(offsets, newOffset(buf.Len(), buf.Len()))
 	} else {
 		if buf.Len() != 0 {
@@ -209,7 +209,7 @@ func (d Text) preparePatch(ran common.Range, content string) (patch, error) {
 	if len(offsets) == 0 {
 		offsets = append(offsets, newOffset(0, 0))
 	}
-	if end == len(d.source) {
+	if end == len(t.source) {
 		for i := len(offsets) - 1; i > 0 && offsets[i].Len() == 0; i-- {
 			offsets = offsets[:i]
 			buf.Truncate(buf.Len() - 1)
@@ -218,9 +218,9 @@ func (d Text) preparePatch(ran common.Range, content string) (patch, error) {
 	if buf.Len() == 0 && (len(offsets) != 1 || offsets[0].Len() != 0) {
 		panic("invalid offsets")
 	}
-	if buf.Len() == 0 && end == len(d.source) && ran.Beg().Column() == 0 {
-		for i := ran.Beg().Line(); i > 0 && d.lineOffsets[i].Len() == 0; i-- {
-			o := d.lineOffsets[i-1]
+	if buf.Len() == 0 && end == len(t.source) && ran.Beg().Column() == 0 {
+		for i := ran.Beg().Line(); i > 0 && t.lineOffsets[i].Len() == 0; i-- {
+			o := t.lineOffsets[i-1]
 			beg = o.End()
 			ran = common.NewRange(common.NewPos(i-1, o.Len()), ran.End())
 		}
@@ -230,8 +230,8 @@ func (d Text) preparePatch(ran common.Range, content string) (patch, error) {
 	}
 	leftExpanstion := ran.Beg().Column()
 	rightExpansion := 0
-	if end < len(d.source) {
-		rightExpansion = d.lineOffsets[ran.End().Line()].Len() - ran.End().Column()
+	if end < len(t.source) {
+		rightExpansion = t.lineOffsets[ran.End().Line()].Len() - ran.End().Column()
 	}
 	offsets[0].ExpandLeft(leftExpanstion)
 	newEndColumn := offsets[len(offsets)-1].Len()

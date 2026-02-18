@@ -9,28 +9,32 @@ func (t Text) String() string {
 }
 
 func (t Text) Source() []byte {
-	return t.source
+	source := t.source
+	if len(source) > 0 && source[len(source)-1] != '\n' {
+		source = append(source, '\n')
+	}
+	return source
 }
 
-func (d Text) MustLine(n int) []byte {
-	return d.source[d.lineOffsets[n].Beg():d.lineOffsets[n].End()]
+func (t Text) MustLine(n int) []byte {
+	return t.source[t.lineOffsets[n].Beg():t.lineOffsets[n].End()]
 }
 
-func (d Text) Slice(rang common.Range) []byte {
+func (t Text) Slice(rang common.Range) []byte {
 	if rang.IsCursor() {
 		return nil
 	}
-	startOffset := d.offset(rang.Beg())
-	endOffset := d.offset(rang.End())
+	startOffset := t.offset(rang.Beg())
+	endOffset := t.offset(rang.End())
 	if startOffset == -1 || endOffset == -1 {
 		panic("invalid range")
 	}
-	return d.source[startOffset:endOffset]
+	return t.source[startOffset:endOffset]
 }
 
-func (d Text) Rune(offset int) (rune, bool) {
-	if offset < 0 || offset >= len(d.source) {
+func (t Text) Rune(offset int) (rune, bool) {
+	if offset < 0 || offset >= len(t.source) {
 		return 0, false
 	}
-	return rune(d.source[offset]), true
+	return rune(t.source[offset]), true
 }

@@ -28,6 +28,7 @@ const (
 
 type processor struct {
 	ignore    gitignore.Matcher
+	force     bool
 	root      string
 	task      task
 	wg        errgroup.Group
@@ -99,9 +100,16 @@ func (p *processor) genFile(file workspace.File) {
 		return
 	}
 	doc.Assemble()
-	if doc.TargetIsUpToDate() {
-		p.skipped.Add(1)
-		return
+	if !p.force {
+		needsUpdate, err := doc.CheckTarget()
+		if !needsUpdate {
+			p.skipped.Add(1)
+			return
+		}
+		if err != nil {
+			p.addError(err, "Target file ", target.Path(), " checking error")
+			return
+		}
 	}
 	err = doc.TargetWrite()
 	if err != nil {
@@ -261,7 +269,7 @@ func (p *processor) run() error {
 	}
 }
 
-func newProcessor(path string, noIgnore bool, task task) *processor {
+func newProcessor(path string, noIgnore bool, force bool, task task) *processor {
 	var ignore gitignore.Matcher = nil
 	if !noIgnore {
 		fs := osfs.New(path)
@@ -275,15 +283,16 @@ func newProcessor(path string, noIgnore bool, task task) *processor {
 		ignore: ignore,
 		root:   path,
 		task:   task,
+		force:  force,
 	}
 	p.wg.SetLimit(runtime.GOMAXPROCS(0) * 2)
 	return &p
 }
 
-func Generate(path string, noIgnore bool) error {
-	return newProcessor(path, noIgnore, generation).run()
+func Generate(path string, noIgnore bool, force bool) error {
+	return newProcessor(path, noIgnore, force, generation).run()
 }
 
-func Format(path string, noIgnore bool) error {
-	return newProcessor(path, noIgnore, formatting).run()
+func Format(path string, noIgnore bool, force bool) error {
+	return newProcessor(path, noIgnore, force, formatting).run()
 }

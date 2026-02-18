@@ -8,7 +8,7 @@ import (
 
 func initClientNotifs(sess *session, on func(on onNotif, m ...method)) {
 	on(func(n notifier, j Json) {
-		doc, kind, err := jsonDoc.get(sess.man(),j)
+		doc, kind, err := jsonDoc.get(sess.man(), j)
 		if err != nil {
 			n.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
@@ -64,7 +64,7 @@ func initClientNotifs(sess *session, on func(on onNotif, m ...method)) {
 	}, didOpen)
 
 	on(func(n notifier, j Json) {
-		doc, kind, err := jsonDoc.get(sess.man(),j)
+		doc, kind, err := jsonDoc.get(sess.man(), j)
 		if err != nil {
 			n.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
@@ -131,7 +131,7 @@ func initClientNotifs(sess *session, on func(on onNotif, m ...method)) {
 	}, didChange)
 
 	on(func(n notifier, j Json) {
-		doc, kind, err := jsonDoc.get(sess.man(),j)
+		doc, kind, err := jsonDoc.get(sess.man(), j)
 		if err != nil {
 			n.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
@@ -157,7 +157,7 @@ func initClientNotifs(sess *session, on func(on onNotif, m ...method)) {
 	}, didSave)
 
 	on(func(n notifier, j Json) {
-		doc, kind, err := jsonDoc.get(sess.man(),j)
+		doc, kind, err := jsonDoc.get(sess.man(), j)
 		if err != nil {
 			n.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return

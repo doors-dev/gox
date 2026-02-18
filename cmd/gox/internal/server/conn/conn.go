@@ -60,4 +60,3 @@ func (c *Conn) Read() <-chan jsonrpc2.Message {
 func (c *Conn) Write(m jsonrpc2.Message) error {
 	return c.writer.Write(c.ctx, m)
 }
-

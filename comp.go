@@ -43,6 +43,5 @@ type Editor interface {
 	Edit(cur Cursor) error
 }
 
-
 var _ Comp = Elem(nil)
 var _ Templ = Elem(nil)

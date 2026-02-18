@@ -74,14 +74,13 @@ type notifier interface {
 }
 
 type request struct {
-	data json.RawMessage
-	cb   Callback
-	sess *session
-	m    method
-	role Role
+	data   json.RawMessage
+	cb     Callback
+	sess   *session
+	m      method
+	role   Role
 	locker sync.Locker
 }
-
 
 func (c *request) method() method {
 	return c.m
@@ -184,10 +183,10 @@ func (r Router) Notification(role Role, n Request) {
 	}
 	if ok {
 		req := &request{
-			data: n.Params,
-			sess: r.session,
-			role: role,
-			m:    m,
+			data:   n.Params,
+			sess:   r.session,
+			role:   role,
+			m:      m,
 			locker: r.session.man(),
 		}
 		node, err := sonic.Get(n.Params)
@@ -220,11 +219,11 @@ func (r Router) Call(role Role, call Request, cb Callback) {
 	}
 	if ok {
 		req := &request{
-			sess: r.session,
-			role: role,
-			m:    m,
-			data: call.Params,
-			cb:   cb,
+			sess:   r.session,
+			role:   role,
+			m:      m,
+			data:   call.Params,
+			cb:     cb,
 			locker: r.session.man(),
 		}
 		node, err := sonic.Get(call.Params)
@@ -259,8 +258,8 @@ type builder struct {
 
 func (b *builder) build(br Bridge) Router {
 	session := &session{
-		bridge: br,
-		manager:    workspace.NewManager(),
+		bridge:  br,
+		manager: workspace.NewManager(),
 	}
 	initClientCalls(session, b.clientCall)
 	initClientNotifs(session, b.clientNotif)

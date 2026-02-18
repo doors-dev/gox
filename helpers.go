@@ -1,6 +1,5 @@
 package gox
 
-
 type EditorFunc func(cur Cursor) error
 
 func (e EditorFunc) Edit(cur Cursor) error {

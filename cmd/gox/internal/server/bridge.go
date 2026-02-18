@@ -9,9 +9,9 @@ import (
 	"log/slog"
 	"sync"
 
+	"github.com/doors-dev/gox/cmd/gox/internal/server/conn"
 	jsonrpc2 "github.com/doors-dev/gox/internal/jsonrpc"
 	"github.com/doors-dev/gox/internal/lsp"
-	"github.com/doors-dev/gox/cmd/gox/internal/server/conn"
 )
 
 func newBridge(ctx context.Context, client io.ReadWriteCloser, gopls io.ReadWriteCloser) *bridge {

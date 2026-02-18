@@ -36,11 +36,11 @@ func initLogger(file string, level slog.Level, enable bool) {
 type starter struct{}
 
 func (s starter) Format(args command.GenericArgs) error {
-	return processor.Format(args.Path(), args.NoIgnore())
+	return processor.Format(args.Path(), args.NoIgnore(), args.Force())
 }
 
 func (s starter) Generate(args command.GenericArgs) error {
-	return processor.Generate(args.Path(), args.NoIgnore())
+	return processor.Generate(args.Path(), args.NoIgnore(), args.Force())
 }
 
 func (s starter) Default() error {
@@ -85,4 +85,3 @@ func (s starter) Serve(args command.ServeArgs) error {
 	server.Wait()
 	return nil
 }
-

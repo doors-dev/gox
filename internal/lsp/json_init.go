@@ -2,9 +2,9 @@ package lsp
 
 import (
 	"errors"
-	"strings"
 	"github.com/bytedance/sonic/ast"
 	"github.com/doors-dev/gox/internal/common"
+	"strings"
 )
 
 var jsonInit jsonInitDriver

@@ -10,14 +10,14 @@ import (
 type session struct {
 	bridge   Bridge
 	encoding common.Encoding
-	manager      workspace.Manager
+	manager  workspace.Manager
 }
 
 func (s *session) man() workspace.Manager {
 	return s.manager
 }
 
-func (s *session) ensureWorkspaces(uris []string)  {
+func (s *session) ensureWorkspaces(uris []string) {
 	s.manager.EnsureWorkspaces(uris)
 }
 

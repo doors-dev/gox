@@ -28,4 +28,3 @@ func Jitter(min, max time.Duration) {
 	}
 	time.Sleep(min + time.Duration(n.Int64()))
 }
-

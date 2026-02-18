@@ -48,11 +48,11 @@ const (
 	GOX_OPEN_HEAD                 = "gox_open_head"
 
 	// gox.Attr
-	GOX_ATTR               = "gox_attr"
-	GOX_ATTR_NAME          = "gox_attr_name"
-	GOX_LITERAL_ATTR       = "gox_literal_attr"
-	GOX_BOOL_ATTR          = "gox_bool_attr"
-	GOX_ATTR_MOD           = "gox_attr_mod"
+	GOX_ATTR         = "gox_attr"
+	GOX_ATTR_NAME    = "gox_attr_name"
+	GOX_LITERAL_ATTR = "gox_literal_attr"
+	GOX_BOOL_ATTR    = "gox_bool_attr"
+	GOX_ATTR_MOD     = "gox_attr_mod"
 
 	// MISC
 	GOX_SINGLE_ARG            = "gox_single_arg"
