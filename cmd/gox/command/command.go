@@ -3,6 +3,8 @@ package command
 import (
 	"errors"
 	"os"
+
+	"github.com/doors-dev/gox/internal/assembler"
 )
 
 type Starter interface {
@@ -15,8 +17,9 @@ type Starter interface {
 const header = `GoX - syntax extension to Go.`
 const help = `Commands:
   srv		Starts the GoX Language Server (default)
-  gen		Generates .x.go files from .gox files, removes orphaned .x.go files.
-  fmt		Formats .go and .gox files`
+  gen		Generates .x.go files from .gox files and removes orphaned .x.go files
+  fmt		Formats .go and .gox files
+  ver		Prints the version`
 
 func Execute(s Starter) (error, error) {
 	args := os.Args[1:]
@@ -51,6 +54,9 @@ func Execute(s Starter) (error, error) {
 			return errors.New("serve arguments parse error: " + err.Error()), nil
 		}
 		return nil, s.Serve(args)
+	case "ver", "version":
+		println(assembler.Version())
+		return nil, nil
 	default:
 		return errors.New("unknown command: " + command + "\n\n" + help), nil
 	}
