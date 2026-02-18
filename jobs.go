@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/doors-dev/gox/utils"
+	"github.com/doors-dev/gox/internal/utils"
 )
 
 type Releaser interface {

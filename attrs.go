@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/doors-dev/gox/utils"
+	"github.com/doors-dev/gox/internal/utils"
 )
 
 type Attrs = *attrs

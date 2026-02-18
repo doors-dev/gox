@@ -4,7 +4,7 @@ import (
 	"context"
 	"io"
 
-	"github.com/doors-dev/gox/utils"
+	"github.com/doors-dev/gox/internal/utils"
 )
 
 type Printer interface {
