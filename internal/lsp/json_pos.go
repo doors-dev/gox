@@ -114,6 +114,9 @@ const (
 )
 
 func (r jsonPosDriver) convertLocations(man workspace.Manager, enc common.Encoding, origin workspace.Doc, j Json) (err error) {
+	if j.TypeSafe() == ast.V_NULL {
+		return nil
+	}
 	if j.TypeSafe() == ast.V_ARRAY {
 		j.ForEach(func(path ast.Sequence, node *ast.Node) bool {
 			err = jsonPos.convertLocations(man, enc, origin, node)
@@ -148,6 +151,9 @@ func (r jsonPosDriver) convertLocations(man workspace.Manager, enc common.Encodi
 		if err != nil {
 			return
 		}
+	}
+	if !j.Get("uri").Exists() {
+		return
 	}
 	var doc workspace.Doc
 	var kind workspace.FileKind

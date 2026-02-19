@@ -139,14 +139,14 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 		}
 		err = jsonPos.convertPosToTarget(sess.enc(), doc, j, workspace.Strict)
 		if err != nil {
-			c.err(common.NewErr(jsonrpc2.ErrInvalidParams, "nothing to rename"))
+			c.err(common.NewErr(jsonrpc2.ErrInvalidParams, "Nothing to rename"))
 			return
 		}
 		jsonDoc.setAsTarget(j, doc)
 		c.proxy(j, func(res Json) {
 			err := jsonPos.convertRangeToSource(sess.enc(), doc, res, workspace.Strict)
 			if err != nil {
-				c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert rename response to source"))
+				c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert rename response to source: "+err.Error()))
 				return
 			}
 			c.res(res)
@@ -170,7 +170,7 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 		c.proxy(j, func(res Json) {
 			err := jsonChanges.convertEdit(sess.man(), sess.enc(), res)
 			if err != nil {
-				c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert edit response"))
+				c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert edit response: "+err.Error()))
 				return
 			}
 			c.res(res)
@@ -194,7 +194,7 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 		c.proxy(j, func(res Json) {
 			err = jsonPos.convertLocations(sess.man(), sess.enc(), doc, res)
 			if err != nil {
-				c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert locations response"))
+				c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert locations response "+err.Error()))
 				return
 			}
 			c.res(res)
@@ -229,7 +229,7 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 			}
 			err := jsonChanges.convertCodeActions(sess.man(), sess.enc(), doc, res)
 			if err != nil {
-				c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert code actions response"))
+				c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert code actions response: "+err.Error()))
 				return
 			}
 			c.res(res)
@@ -240,13 +240,13 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 		j.Unset("diagnostics")
 		err := jsonChanges.convertCodeAction(sess.man(), sess.enc(), nil, j)
 		if err != nil {
-			c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert code action"))
+			c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert code action: "+err.Error()))
 			return
 		}
 		c.proxy(j, func(res Json) {
 			err := jsonChanges.convertCodeAction(sess.man(), sess.enc(), nil, res)
 			if err != nil {
-				c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert code action response"))
+				c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert code action response: "+err.Error()))
 				return
 			}
 			c.res(res)
@@ -291,7 +291,7 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 		c.proxy(j, func(res Json) {
 			err := jsonPos.convertCalls(sess.man(), sess.enc(), res)
 			if err != nil {
-				c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert calls response"))
+				c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert calls response: "+err.Error()))
 				return
 			}
 			c.res(res)
@@ -321,7 +321,7 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 		c.proxy(j, func(res Json) {
 			err = jsonPos.convertAllToSource(sess.enc(), doc, res, workspace.Approximate)
 			if err != nil {
-				c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert document highlight response"))
+				c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert document highlight response: "+err.Error()))
 				return
 			}
 			c.res(res)
@@ -346,7 +346,7 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 		c.proxy(j, func(res Json) {
 			err := jsonPos.convertDiagnosticsToSource(sess.man(), sess.enc(), doc, j)
 			if err != nil {
-				c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert diagnostics response"))
+				c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert diagnostics response: "+err.Error()))
 				return
 			}
 			c.res(res)
@@ -371,7 +371,7 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 		c.proxy(j, func(res Json) {
 			err := jsonPos.convertLocations(sess.man(), sess.enc(), doc, j)
 			if err != nil {
-				c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert document link response"))
+				c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert document link response: "+err.Error()))
 				return
 			}
 			c.res(res)
@@ -483,7 +483,7 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 		c.proxy(j, func(res Json) {
 			err := jsonPos.convertAllToSource(sess.enc(), doc, res, workspace.Approximate)
 			if err != nil {
-				c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert selection response"))
+				c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert selection response: "+err.Error()))
 				return
 			}
 			c.res(res)
@@ -519,7 +519,7 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 		c.proxy(j, func(res Json) {
 			err := jsonPos.convertLocations(sess.man(), sess.enc(), nil, res)
 			if err != nil {
-				c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert locations response"))
+				c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert locations response: "+err.Error()))
 				return
 			}
 			c.res(res)
