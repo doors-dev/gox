@@ -24,7 +24,6 @@ var _ Proxy = ProxyFunc(nil)
 
 func Noop(any) {}
 
-
 func NewEscapedWriter(w io.Writer) io.Writer {
 	return utils.NewEscapedWriter(w)
 }
