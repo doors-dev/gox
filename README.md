@@ -1,4 +1,4 @@
-![gox](./logo.png)
+![gox](https://github.com/doors-dev/gox/raw/main/logo.png)
 
 ## A Go language extension that makes HTML templates a first-class expression.
 
