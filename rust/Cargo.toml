@@ -3,6 +3,11 @@ name = "gox"
 version = "0.1.0"
 edition = "2024"
 
+[profile.release]
+panic = "abort"
+lto = true
+codegen-units = 1
+
 [lib]
 crate-type = ["staticlib"]
 
