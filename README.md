@@ -243,6 +243,8 @@ elem block(id: string, content: any) {
 
 Any value is accepted. If the value is `false` or `nil`, the attribute is omitted.
 
+> Attribute names are case-sensitive! Always use the same case.
+
 #### Advanced attribute behavior
 
 During rendering, the default formatter is used unless the value implements `gox.Output`:
@@ -374,7 +376,7 @@ type Job interface {
 
 Then render via `Print(ctx context.Context, printer Printer) error`.
 
-> Templates are compiled into a stream of meaningful `Job`s that you can post-process and handle in custom pipelines. More details will be available in Go docs.
+> Templates are compiled into a stream of meaningful `Job`s that you can post-process and handle in custom pipelines. More details are available in Go docs.
 
 ---
 
