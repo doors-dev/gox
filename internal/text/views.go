@@ -24,8 +24,8 @@ func (t Text) Slice(rang common.Range) []byte {
 	if rang.IsCursor() {
 		return nil
 	}
-	startOffset := t.offset(rang.Beg())
-	endOffset := t.offset(rang.End())
+	startOffset := t.offset(rang.Beg(), false)
+	endOffset := t.offset(rang.End(), false)
 	if startOffset == -1 || endOffset == -1 {
 		panic("invalid range")
 	}

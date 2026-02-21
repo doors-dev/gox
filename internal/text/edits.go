@@ -132,7 +132,7 @@ func (t Text) Update(content string) (tree_sitter.InputEdit, bool, error) {
 
 func (t Text) Patch(ran common.Range, content string) (tree_sitter.InputEdit, bool, error) {
 	defer t.ensureLineOffsets()
-	patch, err := t.preparePatch(ran, content)
+	patch, err := t.preparePatch(ran, content) 
 	if err != nil {
 		return tree_sitter.InputEdit{}, false, err
 	}
@@ -159,8 +159,8 @@ func (t Text) Patch(ran common.Range, content string) (tree_sitter.InputEdit, bo
 }
 
 func (t Text) preparePatch(ran common.Range, content string) (patch, error) {
-	beg := t.offset(ran.Beg())
-	end := t.offset(ran.End())
+	beg := t.offset(ran.Beg(), true)
+	end := t.offset(ran.End(), true)
 	offsets := []offset{}
 	buf := bytes.Buffer{}
 	if beg == -1 {

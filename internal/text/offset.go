@@ -6,13 +6,19 @@ import (
 	"github.com/doors-dev/gox/internal/common"
 )
 
-func (t Text) offset(pos common.Pos) int {
+func (t Text) offset(pos common.Pos, strict bool) int {
 	if pos.Line() >= len(t.lineOffsets) {
+		if strict {
+			return -1 
+		}
 		return len(t.source)
 	}
 	offsets := t.lineOffsets[pos.Line()]
 	offset := offsets[0] + pos.Column()
 	if offset > offsets[1] {
+		if strict {
+			return -1
+		}
 		return offsets[1]
 	}
 	return offset
