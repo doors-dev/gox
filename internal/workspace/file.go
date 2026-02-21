@@ -3,12 +3,14 @@ package workspace
 import (
 	"bytes"
 	"errors"
-	"golang.org/x/mod/semver"
 	"io"
-	"net/url"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/doors-dev/gox/internal/docpath"
+	"golang.org/x/mod/semver"
 )
 
 type FileKind string
@@ -36,11 +38,12 @@ func NewFile(path string) (File, bool) {
 }
 
 func NewFileFromURI(uri string) (File, bool) {
-	path, err := url.Parse(uri)
+	docuri, err := docpath.ParseDocumentURI(uri)
 	if err != nil {
+		slog.Error("Document URI parsing error", "error", err.Error())
 		return File{}, false
 	}
-	return NewFile(path.Path)
+	return NewFile(docuri.Path())
 }
 
 type File struct {
@@ -87,11 +90,7 @@ func (f FileKind) String() string {
 }
 
 func (f File) URI() string {
-	u := url.URL{
-		Scheme: "file",
-		Path:   f.Path(),
-	}
-	return u.String()
+	return string(docpath.URIFromPath(f.Path()))
 }
 
 func (f File) Reverse() File {

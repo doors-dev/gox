@@ -2,10 +2,11 @@ package workspace
 
 import (
 	"log/slog"
-	"net/url"
 	"slices"
 	"strings"
 	"sync"
+
+	"github.com/doors-dev/gox/internal/docpath"
 )
 
 type Manager = *manager
@@ -34,27 +35,46 @@ func (m *manager) EnsureWorkspaces(uris []string) {
 	m.Lock()
 	defer m.Unlock()
 	toRemove := make([]string, 0)
-	for _, existingUri := range m.workspaces {
-		if !slices.Contains(uris, existingUri.Root()) {
-			toRemove = append(toRemove, existingUri.Root())
+	pathes := make([]string, 0, len(uris))
+	for _, uri := range uris {
+		docuri, err := docpath.ParseDocumentURI(uri)
+		if err != nil {
+			slog.Error("Workspace uri parse error: " + err.Error())
+			continue
+		}
+		pathes = append(pathes, docuri.Path())
+	}
+	for _, ws := range m.workspaces {
+		i := slices.Index(pathes, ws.Root())
+		if i == -1 {
+			toRemove = append(toRemove, ws.Root())
+		} else {
+			pathes = slices.Delete(pathes, i, i+1)
 		}
 	}
-	for _, uri := range toRemove {
-		m.RemoveWorkspace(uri)
+	for _, path := range toRemove {
+		for i, ws := range m.workspaces {
+			if ws.Root() != path {
+				continue
+			}
+			m.workspaces = slices.Delete(m.workspaces, i, i+1)
+			return
+		}
 	}
-	for _, uri := range uris {
-		m.AddWorkspace(uri)
+	for _, path := range pathes {
+		ws := newWs(path, m.mu)
+		m.workspaces = append(m.workspaces, ws)
 	}
 }
 
 func (m *manager) RemoveWorkspace(uri string) {
-	url, err := url.Parse(uri)
+	docuri, err := docpath.ParseDocumentURI(uri)
 	if err != nil {
 		slog.Error("Workspace uri parse error: " + err.Error())
 		return
 	}
 	for i, ws := range m.workspaces {
-		if ws.Root() != url.Path {
+		if ws.Root() != docuri.Path() {
 			continue
 		}
 		m.workspaces = slices.Delete(m.workspaces, i, i+1)
@@ -63,17 +83,17 @@ func (m *manager) RemoveWorkspace(uri string) {
 }
 
 func (m *manager) AddWorkspace(uri string) {
-	url, err := url.Parse(uri)
+	docuri, err := docpath.ParseDocumentURI(uri)
 	if err != nil {
 		slog.Error("Workspace uri parse error: " + err.Error())
 		return
 	}
 	for _, ws := range m.workspaces {
-		if ws.Root() == url.Path {
+		if ws.Root() == docuri.Path() {
 			return
 		}
 	}
-	ws := newWs(url.Path, m.mu)
+	ws := newWs(docuri.Path(), m.mu)
 	m.workspaces = append(m.workspaces, ws)
 }
 
