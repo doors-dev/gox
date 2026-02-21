@@ -4,9 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [profile.release]
+lto = "fat"
 panic = "abort"
-lto = true
-codegen-units = 1
+strip = true
 
 [lib]
 crate-type = ["staticlib"]

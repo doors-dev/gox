@@ -42,6 +42,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-go@v5
+        if: runner.os != 'Windows'
         with:
           go-version: "stable"
           cache: true
@@ -64,63 +65,34 @@ jobs:
           install: >-
             make
             mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-go
+            mingw-w64-x86_64-rust
             
       - name: Setup MSYS2 (Windows arm64)
         if: matrix.goos == 'Windows' && matrix.goarch == 'arm64'
         uses: msys2/setup-msys2@v2
         with:
-          msystem: MINGW64
+          msystem: CLANGARM64
           update: true
           path-type: inherit
           install: >-
             make
             mingw-w64-clang-aarch64-toolchain
-            
-      - name: Install Rust (Windows amd64)
-        if: matrix.goos == 'Windows' && matrix.goarch == 'amd64'
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable-x86_64-pc-windows-gnu
-
-      - name: Install Rust (Windows arm64)
-        if: matrix.goos == 'Windows' && matrix.goarch == 'arm64'
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable-aarch64-pc-windows-gnullvm
-
-      - name: Capture Go bin dir (Windows)
-        if: matrix.goos == 'Windows'
-        shell: pwsh
-        run: |
-          $go = (Get-Command go).Source
-          "GO_BIN_DIR=$([System.IO.Path]::GetDirectoryName($go))" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            mingw-w64-clang-aarch64-go
+            mingw-w64-clang-aarch64-rust
 
       - name: Build (Linux/macOS)
         if: matrix.goos != 'Windows'
         run: make build
-
-      - name: Build (Windows amd64)
-        if: matrix.goos == 'Windows' && matrix.goarch == 'amd64'
-        shell: msys2 {0}
-        run: |
-          export PATH="$(cygpath -u "$USERPROFILE")/.cargo/bin:$PATH"
-          export PATH="$(cygpath -u "$GO_BIN_DIR"):$PATH"
-          make build
           
-      - name: Build (Windows arm64)
-        if: matrix.goos == 'Windows' && matrix.goarch == 'arm64'
+      - name: Build (Windows)
+        if: matrix.goos == 'Windows'
         shell: msys2 {0}
         env:
-          GOOS: windows
-          GOARCH: arm64
           CGO_ENABLED: "1"
-          CC: clang
-          CXX: clang++
-          AR: llvm-ar
+          CARGO_NET_GIT_FETCH_WITH_CLI: "true"
         run: |
-          export PATH="$(cygpath -u "$USERPROFILE")/.cargo/bin:$PATH"
-          export PATH="$(cygpath -u "$GO_BIN_DIR"):$PATH"
-          export PATH="/clangarm64/bin:$PATH"
+          set -euxo pipefail
           make build
           
       - name: Stage output
