@@ -645,23 +645,14 @@ _
   .
 )
 
-(gox_tilde_job
-  "(" @append_indent_start @append_input_softline @append_antispace
-  (_)+
-  ")" @prepend_indent_end @prepend_input_softline @prepend_antispace
-  )
 
-
-(gox_attr_mod
-  "(" @append_indent_start @append_input_softline @append_antispace
-  (_)+
-  ")" @prepend_indent_end @prepend_input_softline @prepend_antispace
-  )
+(_
+  (gox_lparen) @append_indent_start @append_input_softline @append_antispace
+  (gox_rparen) @prepend_indent_end @prepend_input_softline @prepend_antispace
+) 
 
 (gox_multi_arg
   "," @append_input_softline
   .
   ")"* @do_nothing
 )
-
-

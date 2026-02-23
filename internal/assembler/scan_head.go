@@ -21,11 +21,7 @@ func scanContent(coll collector, root *tree_sitter.Node) {
 		case grammer.GOX_SPACE_FILLER, grammer.GOX_ERRONEOUS_CLOSE_HEAD, grammer.GOX_TILDE_COMMENT:
 			continue
 		case grammer.GOX_TILDE_PROXY:
-			body := child.ChildByFieldName("body")
-			if body == nil {
-				continue
-			}
-			arg := body.ChildByFieldName("arg")
+			arg := child.ChildByFieldName("value")
 			if arg == nil {
 				continue
 			}
@@ -75,6 +71,8 @@ func scanContent(coll collector, root *tree_sitter.Node) {
 				scanRaw(coll, &child)
 			case grammer.GOX_TILDE:
 				scanTilde(coll, &child)
+			case grammer.GOX_TILDE_BLOCK:
+				scanTildeBlock(coll, &child)
 			}
 			if proxyLevel != 0 {
 				coll.indentEnd()
@@ -201,20 +199,14 @@ func scanAttributes(coll collector, root *tree_sitter.Node) {
 		case grammer.GOX_ATTR:
 			coll.cr()
 			coll.append(r("__e = __c.AttrSet("), s(name), r(", "))
-			scanValue(coll, value)
-			coll.append(r("); "), r(ERR_CHECK))
-		case grammer.GOX_LITERAL_ATTR:
-			coll.cr()
-			coll.append(r("__e = __c.AttrSet("), s(name), r(", "), s(value), r("); "), r(ERR_CHECK))
-		case grammer.GOX_BOOL_ATTR:
-			coll.cr()
-			if value == nil {
-				coll.append(r("__e = __c.AttrSet("), s(name), r(", true);"), r(ERR_CHECK))
+			if value != nil {
+				scanValue(coll, value)
 			} else {
-				coll.append(r("__e = __c.AttrSet("), s(name), r(", "), p(value), r("); "), r(ERR_CHECK))
+				coll.append(r("true"))
 			}
+			coll.append(r("); "), r(ERR_CHECK))
 		case grammer.GOX_ATTR_MOD:
-			arg := child.ChildByFieldName("arg")
+			arg := child.ChildByFieldName("value")
 			if arg == nil {
 				continue
 			}
@@ -225,14 +217,7 @@ func scanAttributes(coll collector, root *tree_sitter.Node) {
 		}
 	}
 }
-
-func scanFunc(coll collector, root *tree_sitter.Node) {
-	body := root.ChildByFieldName("body")
-	coll.append(r("func() any "))
-	scanGoSnippet(coll, body)
-	coll.append(r("()"))
-}
-
+/*
 func scanValue(coll collector, root *tree_sitter.Node) {
 	kind := root.Kind()
 	if kind == grammer.GOX_FUNC {
@@ -241,3 +226,10 @@ func scanValue(coll collector, root *tree_sitter.Node) {
 	}
 	scanGoSnippet(coll, root)
 }
+
+func scanFunc(coll collector, root *tree_sitter.Node) {
+	body := root.ChildByFieldName("body")
+	coll.append(r("func() any "))
+	scanGoSnippet(coll, body)
+	coll.append(r("()"))
+}*/

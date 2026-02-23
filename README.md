@@ -219,6 +219,14 @@ Values are rendered using default formatting, with special handling for:
 - `gox.Job`, `[]gox.Job`
 - `gox.Editor`
 
+> For simple literals you can omit the parentheses. Strings, numbers, composite literals (struct/array/slice/map):
+> ```gox
+> ~// render user card component
+> ~UserCard{
+>     Id: id,
+> }
+> ```
+
 #### Advanced placeholder types
 
 `gox.Job` writes directly to the output stream:
@@ -356,7 +364,9 @@ In attributes:
 
 ---
 
-### 7. Code blocks and comments
+### 7. Go code, raw blocks, and comments
+
+#### Go code
 
 To run Go code during rendering (without rendering output), use `~{ ... }`:
 
@@ -367,6 +377,8 @@ To run Go code during rendering (without rendering output), use `~{ ... }`:
 <div>~(user.name)</div>
 ```
 
+#### Comment
+
 To comment inside templates, use `~//` or `~/* ... */`:
 
 ```gox
@@ -374,6 +386,19 @@ To comment inside templates, use `~//` or `~/* ... */`:
 ```
 
 > HTML comments are also supported.
+
+#### Raw block tag
+
+To output HTML **verbatim** (without escaping or template processing), wrap it in the special raw tag: `<:>...</:>`.
+
+```gox
+<:>
+    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="..." />
+    </svg>
+</:>
+
+>Recommended for large static fragments—especially inline SVG—to reduce rendering overhead.
 
 ---
 
@@ -426,6 +451,7 @@ type Printer interface {
     Send(j Job) error
 }
 ```
+> Jobs produced by GoX are pooled for performance. The default job types release themselves back to an internal pool after `Output(...)` completes.  
 
 #### Working with concrete job types
 
@@ -452,11 +478,10 @@ func (p *MyPrinter) Send(j gox.Job) error {
 ```
 
 Notes:
+- Treat incoming job objects as **single-use**: do not store them, do not reuse them, and do not keep references to their fields beyond the scope of `Send`.
 - The default `NewPrinter` implementation checks `j.Context().Err()` before calling `j.Output(...)`. Custom printers should apply their own cancellation policy if needed.
 - The open and close jobs for the same head share the same `ID` (useful for pairing and tracing).
 - Container heads produce no HTML output, but still emit open/close jobs.
-
-Notes:
 - Element “open” and “close” jobs for the same head share the same ID.
 - “Container” heads exist for grouping in the job stream and produce no HTML output, but still have open/close jobs.
 

@@ -37,7 +37,6 @@ const (
 	GOX_ERRONEOUS_CLOSE_HEAD      = "gox_erroneous_close_head"
 	GOX_ERRONEOUS_CLOSE_HEAD_NAME = "gox_erroneous_close_head_name"
 	GOX_DOCTYPE                   = "gox_doctype"
-	GOX_TILDE                     = "gox_tilde"
 	GOX_TILDE_PROXY               = "gox_tilde_proxy"
 	GOX_TILDE_COMMENT             = "gox_tilde_comment"
 	GOX_COMMENT                   = "gox_comment"
@@ -48,11 +47,9 @@ const (
 	GOX_OPEN_HEAD                 = "gox_open_head"
 
 	// gox.Attr
-	GOX_ATTR         = "gox_attr"
-	GOX_ATTR_NAME    = "gox_attr_name"
-	GOX_LITERAL_ATTR = "gox_literal_attr"
-	GOX_BOOL_ATTR    = "gox_bool_attr"
-	GOX_ATTR_MOD     = "gox_attr_mod"
+	GOX_ATTR      = "gox_attr"
+	GOX_ATTR_NAME = "gox_attr_name"
+	GOX_ATTR_MOD  = "gox_attr_mod"
 
 	// MISC
 	GOX_SINGLE_ARG            = "gox_single_arg"
@@ -65,10 +62,9 @@ const (
 	GOX_SPACE_FILLER          = "gox_space_filler"
 
 	// GOX_TILDE
-	GOX_TILDE_IF            = "gox_tilde_if"
-	GOX_TILDE_FOR           = "gox_tilde_for"
-	GOX_TILDE_JOB           = "gox_tilde_job"
-	GOX_TILDE_LITERAL_VALUE = "gox_tilde_literal_value"
-	GOX_TIDE_BLOCK          = "gox_tilde_block"
-	GOX_TILDE_MARKER        = "gox_tilde_marker"
+	GOX_TILDE        = "gox_tilde"
+	GOX_TILDE_IF     = "gox_tilde_if"
+	GOX_TILDE_FOR    = "gox_tilde_for"
+	GOX_TILDE_BLOCK   = "gox_tilde_block"
+	GOX_TILDE_MARKER = "gox_tilde_marker"
 )

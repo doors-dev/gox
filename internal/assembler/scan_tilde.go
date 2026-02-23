@@ -5,51 +5,42 @@ import (
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-func scanComment(coll collector, root *tree_sitter.Node) {
+func scanTildeComment(coll collector, root *tree_sitter.Node) {
 	comment := root.ChildByFieldName("comment")
 	coll.cr()
 	coll.append(p(comment))
 }
 
+func scanTildeBlock(coll collector, root *tree_sitter.Node) {
+	root = root.ChildByFieldName("body")
+	if root == nil {
+		return
+	}
+	coll.cr()
+	scanGoSnippet(coll, root)
+}
+
 func scanTilde(coll collector, root *tree_sitter.Node) {
-	body := root.ChildByFieldName("body")
-	kind := body.Kind()
+	value := root.ChildByFieldName("value")
+	kind := value.Kind()
 	coll.cr()
 	switch kind {
 	case grammer.GOX_TILDE_IF:
-		scanIf(coll, body)
+		scanTildeIf(coll, value)
 	case grammer.GOX_TILDE_FOR:
-		scanFor(coll, body)
-	case grammer.GOX_FUNC:
+		scanTildeFor(coll, value)
+	case grammer.GOX_SINGLE_ARG:
 		coll.append(r("__e = __c.Any("))
-		scanFunc(coll, body)
+		scanValue(coll, value)
 		coll.append(r("); " + ERR_CHECK))
-	case grammer.GOX_TILDE_JOB:
-		arg := body.ChildByFieldName("arg")
-		if arg == nil {
-			return
-		}
-		switch arg.Kind() {
-		case grammer.GOX_SINGLE_ARG:
-			coll.append(r("__e = __c.Any("))
-		case grammer.GOX_MULTI_ARG:
-			coll.append(r("__e = __c.Many("))
-		default:
-			return
-		}
-		scanGoSnippet(coll, arg)
+	case grammer.GOX_MULTI_ARG:
+		coll.append(r("__e = __c.Many("))
+		scanValue(coll, value)
 		coll.append(r("); " + ERR_CHECK))
-	case grammer.GOX_TILDE_LITERAL_VALUE:
-		coll.append(r("__e = __c.Text("), s(body), r("); "+ERR_CHECK))
-	case grammer.GOX_TIDE_BLOCK:
-		body = body.ChildByFieldName("body")
-		if body != nil {
-			scanGoSnippet(coll, body)
-		}
 	}
 }
 
-func scanFor(coll collector, root *tree_sitter.Node) {
+func scanTildeFor(coll collector, root *tree_sitter.Node) {
 	setup := root.ChildByFieldName("setup")
 	body := root.ChildByFieldName("body")
 	if body != nil {
@@ -65,7 +56,7 @@ func scanFor(coll collector, root *tree_sitter.Node) {
 	coll.append(r("}"))
 }
 
-func scanIf(coll collector, root *tree_sitter.Node) {
+func scanTildeIf(coll collector, root *tree_sitter.Node) {
 	setup := root.ChildByFieldName("setup")
 	cons := root.ChildByFieldName("consequence")
 	if cons != nil {
@@ -85,7 +76,7 @@ func scanIf(coll collector, root *tree_sitter.Node) {
 	}
 	coll.append(r(" else "))
 	if alternative.Kind() == grammer.GOX_TILDE_IF {
-		scanIf(coll, alternative)
+		scanTildeIf(coll, alternative)
 		return
 	}
 	coll.append(r(" {"))
