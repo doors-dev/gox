@@ -22,6 +22,9 @@ func scanTildeBlock(coll collector, root *tree_sitter.Node) {
 
 func scanTilde(coll collector, root *tree_sitter.Node) {
 	value := root.ChildByFieldName("value")
+	if value == nil {
+		return
+	}
 	kind := value.Kind()
 	coll.cr()
 	switch kind {
