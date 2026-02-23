@@ -397,6 +397,7 @@ To output HTML **verbatim** (without escaping or template processing), wrap it i
         <path d="..." />
     </svg>
 </:>
+```
 
 >Recommended for large static fragments—especially inline SVG—to reduce rendering overhead.
 
