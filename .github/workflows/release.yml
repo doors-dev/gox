@@ -94,6 +94,8 @@ jobs:
           CARGO_NET_GIT_FETCH_WITH_CLI: "true"
         run: |
           set -euxo pipefail
+          git reset --hard
+          git clean -fdx
           make build
           
       - name: Stage output
