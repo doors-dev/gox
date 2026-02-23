@@ -46,6 +46,14 @@ pub fn format(input: &[u8], output: &mut Vec<u8>) -> Result<(), topiary_core::Fo
     proc.add_externals(keep, format_keep, false);
     proc.add_externals(shift, format_shift, false);
     proc.write_out();
+    let append_line = if let Some(b) = output.last() && *b == b'\n'{
+        false
+    } else {
+        true
+    };
+    if append_line {
+        output.push(b'\n');
+    }
     Ok(())
 }
 
@@ -428,7 +436,7 @@ fn format_shift(
     indent_str: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if code.len() == 0 {
-        return Ok(())
+        return Ok(());
     }
     for line in code.lines() {
         if let Some((actual, rest)) = calc_indent(indent_str, line) {
