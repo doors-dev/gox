@@ -537,6 +537,7 @@ _
    (gox_raw_head)
    (gox_tilde)
    (gox_tilde_block)
+   (gox_tilde_proxy)
    (gox_comment)
   ] @prepend_input_softline @prepend_antispace @allow_blank_line_before
 )

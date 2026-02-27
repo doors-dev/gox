@@ -94,14 +94,13 @@ func initClientNotifs(sess *session, on func(on onNotif, m ...method)) {
 					updated = updated || upd
 				}
 			}
-			if !updated {
-				return
+			if updated {
+				doc.Assemble()
 			}
-			doc.Assemble()
 			jsonDoc.setAsTarget(j, doc)
 			jsonChanges.setUpdate(j, doc.TargetContent())
 			n.notify(j)
-			if doc.TargetIsOpened() {
+			if updated && doc.TargetIsOpened() {
 				sess.callClient(
 					applyEdit,
 					jsonGenerator.newUpdateEdit(doc.TargetFile().URI(), doc.TargetContent(), ""),

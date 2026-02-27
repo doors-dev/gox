@@ -1,6 +1,7 @@
 package gox
 
 import (
+	"context"
 	"io"
 
 	"github.com/doors-dev/gox/internal/utils"
@@ -27,3 +28,11 @@ func Noop(any) {}
 func NewEscapedWriter(w io.Writer) io.Writer {
 	return utils.NewEscapedWriter(w)
 }
+
+type AttrModFunc func(ctx context.Context, tag string, attrs Attrs) error
+
+func (a AttrModFunc) Modify(ctx context.Context, tag string, attrs Attrs) error {
+	return a(ctx, tag, attrs)
+}
+
+var _ AttrMod = AttrModFunc(nil)
