@@ -645,11 +645,9 @@ _
 
 
 (gox_tilde_block
-  .
   "{" @append_indent_start @append_hardline 
   (_)+
   "}" @prepend_indent_end
-  .
 )
 
 
