@@ -6,7 +6,7 @@ import (
 
 func initServerNotifs(sess *session, on func(on onNotif, m ...method)) {
 	on(func(n notifier, j Json) {
-		doc, kind, err := jsonDoc.get(sess.man(), j)
+		doc, kind, err := jsonDoc.get(sess.man(), j, false)
 		if err != nil {
 			return
 		}

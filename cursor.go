@@ -464,7 +464,7 @@ func (c Cursor) AttrSet(name string, value any) error {
 //
 // Attribute modifiers run right before rendering and can inspect or modify the
 // full attribute set for the element.
-func (c Cursor) AttrMod(mods ...AttrMod) error {
+func (c Cursor) AttrMod(mods ...Modify) error {
 	attrs, err := c.stack.Attrs()
 	if err != nil {
 		return err

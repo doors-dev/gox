@@ -157,7 +157,7 @@ func (r jsonPosDriver) convertLocations(man workspace.Manager, enc common.Encodi
 	}
 	var doc workspace.Doc
 	var kind workspace.FileKind
-	doc, kind, err = jsonDoc.get(man, j)
+	doc, kind, err = jsonDoc.get(man, j, false)
 	if err != nil {
 		return
 	}
@@ -198,7 +198,7 @@ func (r jsonPosDriver) convertCalls(man workspace.Manager, enc common.Encoding, 
 		}
 		var doc workspace.Doc
 		var kind workspace.FileKind
-		doc, kind, err = jsonDoc.get(man, node)
+		doc, kind, err = jsonDoc.get(man, node, false)
 		if err != nil {
 			return false
 		}

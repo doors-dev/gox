@@ -39,7 +39,7 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 	}, initialize)
 
 	on(func(c caller, j Json) {
-		doc, kind, err := jsonDoc.get(sess.man(), j)
+		doc, kind, err := jsonDoc.get(sess.man(), j, false)
 		if err != nil {
 			c.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
@@ -79,7 +79,7 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 	}, hover)
 
 	on(func(c caller, j Json) {
-		doc, kind, err := jsonDoc.get(sess.man(), j)
+		doc, kind, err := jsonDoc.get(sess.man(), j, false)
 		if err != nil {
 			c.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
@@ -111,7 +111,7 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 	}, completion)
 
 	on(func(c caller, j Json) {
-		_, kind, err := jsonDoc.get(sess.man(), j)
+		_, kind, err := jsonDoc.get(sess.man(), j, false)
 		if err != nil {
 			c.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
@@ -124,7 +124,7 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 	}, semanticTokensFull, semanticTokensRange)
 
 	on(func(c caller, j Json) {
-		doc, kind, err := jsonDoc.get(sess.man(), j)
+		doc, kind, err := jsonDoc.get(sess.man(), j, false)
 		if err != nil {
 			c.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
@@ -154,7 +154,7 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 	}, prepareRename)
 
 	on(func(c caller, j Json) {
-		doc, kind, err := jsonDoc.get(sess.man(), j)
+		doc, kind, err := jsonDoc.get(sess.man(), j, false)
 		if kind == workspace.KindSource {
 			if doc.Err() != nil {
 				c.err(common.FromErr(jsonrpc2.ErrUnknown, doc.Err()))
@@ -178,7 +178,7 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 	}, rename)
 
 	on(func(c caller, j Json) {
-		doc, kind, err := jsonDoc.get(sess.man(), j)
+		doc, kind, err := jsonDoc.get(sess.man(), j, false)
 		if kind == workspace.KindSource {
 			if doc.Err() != nil {
 				c.err(common.FromErr(jsonrpc2.ErrUnknown, doc.Err()))
@@ -202,7 +202,7 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 	}, references, definition, typeDefinition, implementation, prepareTypeHierarchy)
 
 	on(func(c caller, j Json) {
-		doc, kind, err := jsonDoc.get(sess.man(), j)
+		doc, kind, err := jsonDoc.get(sess.man(), j, false)
 		if err != nil {
 			c.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
@@ -254,7 +254,7 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 	}, resolveCodeAction)
 
 	on(func(c caller, j Json) {
-		doc, kind, err := jsonDoc.get(sess.man(), j)
+		doc, kind, err := jsonDoc.get(sess.man(), j, false)
 		if err != nil {
 			c.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
@@ -275,7 +275,7 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 	}, codeLens)
 
 	on(func(c caller, j Json) {
-		doc, kind, err := jsonDoc.get(sess.man(), j)
+		doc, kind, err := jsonDoc.get(sess.man(), j, false)
 		if err != nil {
 			c.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
@@ -299,7 +299,7 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 	}, incomingCalls, outgoingCalls, prepareCallHierarchy)
 
 	on(func(c caller, j Json) {
-		doc, kind, err := jsonDoc.get(sess.man(), j)
+		doc, kind, err := jsonDoc.get(sess.man(), j, false)
 		if err != nil {
 			c.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
@@ -329,7 +329,7 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 	}, documentHighlight)
 
 	on(func(c caller, j Json) {
-		doc, kind, err := jsonDoc.get(sess.man(), j)
+		doc, kind, err := jsonDoc.get(sess.man(), j, false)
 		if err != nil {
 			c.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
@@ -354,7 +354,7 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 	}, diagnostic)
 
 	on(func(c caller, j Json) {
-		doc, kind, err := jsonDoc.get(sess.man(), j)
+		doc, kind, err := jsonDoc.get(sess.man(), j, false)
 		if err != nil {
 			c.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
@@ -379,7 +379,7 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 	}, documentLink)
 
 	on(func(c caller, j Json) {
-		doc, kind, err := jsonDoc.get(sess.man(), j)
+		doc, kind, err := jsonDoc.get(sess.man(), j, false)
 		if err != nil {
 			c.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
@@ -397,7 +397,7 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 	}, documentSymbol)
 
 	on(func(c caller, j Json) {
-		_, kind, err := jsonDoc.get(sess.man(), j)
+		_, kind, err := jsonDoc.get(sess.man(), j, false)
 		if err != nil {
 			c.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
@@ -410,7 +410,7 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 	}, foldingRange)
 
 	on(func(c caller, j Json) {
-		doc, kind, err := jsonDoc.get(sess.man(), j)
+		doc, kind, err := jsonDoc.get(sess.man(), j, false)
 		if err != nil {
 			c.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
@@ -432,7 +432,7 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 	}, formatting)
 
 	on(func(c caller, j Json) {
-		doc, kind, err := jsonDoc.get(sess.man(), j)
+		doc, kind, err := jsonDoc.get(sess.man(), j, false)
 		if err != nil {
 			c.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
@@ -461,7 +461,7 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 	}, inlayHint)
 
 	on(func(c caller, j Json) {
-		doc, kind, err := jsonDoc.get(sess.man(), j)
+		doc, kind, err := jsonDoc.get(sess.man(), j, false)
 		if err != nil {
 			c.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
@@ -491,7 +491,7 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 	}, selectionRange)
 
 	on(func(c caller, j Json) {
-		doc, kind, err := jsonDoc.get(sess.man(), j)
+		doc, kind, err := jsonDoc.get(sess.man(), j, false)
 		if err != nil {
 			c.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return

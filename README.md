@@ -303,18 +303,18 @@ type Output interface {
 }
 ```
 
-To compute a new attribute value from the previous one, implement `gox.Mutate`:
+To compute a new attribute value from the previous one or consider attribute name when assigning, implement `gox.Mutate`:
 
 ```go
 type Mutate interface {
-    Mutate(prev any) (new any)
+    Mutate(attributeName string, attributeValue any) (new any)
 }
 ```
 
-To inspect or modify all attributes of an element right before it’s rendered, implement `gox.AttrMod`:
+To inspect or modify all attributes of an element right before it’s rendered, implement `gox.Modify`:
 
 ```go
-type AttrMod interface {
+type Modify interface {
     Modify(ctx context.Context, tag string, attrs Attrs) error
 }
 ```

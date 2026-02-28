@@ -185,7 +185,7 @@ func (r jsonChangesDriver) convertEdit(man workspace.Manager, enc common.Encodin
 		if textDoc.Exists() {
 			var doc workspace.Doc
 			var kind workspace.FileKind
-			doc, kind, err = jsonDoc.get(man, &node)
+			doc, kind, err = jsonDoc.get(man, &node, true)
 			if err != nil {
 				return
 			}

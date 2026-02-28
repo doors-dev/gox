@@ -30,13 +30,13 @@ import (
 //   - Attrs is not safe for concurrent use.
 type Attrs = *attrs
 
-// AttrMod can inspect and/or mutate element attributes right before the element
+// Modify can inspect and/or mutate element attributes right before the element
 // is rendered.
 //
 // Modifiers are executed by Attrs.ApplyMods (typically triggered during head
 // rendering). They run in the order they were added and are one-shot: after
 // execution, they are removed from the modifier queue.
-type AttrMod interface {
+type Modify interface {
 	Modify(ctx context.Context, tag string, attrs Attrs) error
 }
 
@@ -53,7 +53,7 @@ func NewAttrs() Attrs {
 }
 
 type attrs struct {
-	mods    []AttrMod
+	mods    []Modify
 	entries []Attr
 }
 
@@ -61,10 +61,9 @@ type attrs struct {
 // based on the previous value.
 //
 // Attr.Set has special handling for Mutate: if the provided value implements
-// Mutate, Set calls value.Mutate(prev) where prev is the attribute’s current value,
-// and stores the returned value.
+// Mutate, Set calls value.Mutate(attributeName, currentValue) and stores the returned value.
 type Mutate interface {
-	Mutate(any) any
+	Mutate(name string, value any) any
 }
 
 // Inherit copies all “set” attributes from attrs into a.
@@ -110,7 +109,7 @@ func (a Attrs) ApplyMods(ctx context.Context, tag string) error {
 // AddMod queues a modifier to be applied by ApplyMods.
 //
 // Modifiers are executed in the order they are added.
-func (a Attrs) AddMod(m AttrMod) {
+func (a Attrs) AddMod(m Modify) {
 	a.mods = append(a.mods, m)
 }
 
@@ -248,7 +247,7 @@ func (a Attr) Name() string {
 // in the attribute being considered “unset” (see IsSet), though the stored value is false.
 func (a Attr) Set(value any) {
 	if v, ok := value.(Mutate); ok {
-		value = v.Mutate(a.value)
+		value = v.Mutate(a.name, a.value)
 	}
 	a.value = value
 }

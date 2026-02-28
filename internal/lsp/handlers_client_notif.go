@@ -8,7 +8,7 @@ import (
 
 func initClientNotifs(sess *session, on func(on onNotif, m ...method)) {
 	on(func(n notifier, j Json) {
-		doc, kind, err := jsonDoc.get(sess.man(), j)
+		doc, kind, err := jsonDoc.get(sess.man(), j, false)
 		if err != nil {
 			n.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
@@ -64,12 +64,17 @@ func initClientNotifs(sess *session, on func(on onNotif, m ...method)) {
 	}, didOpen)
 
 	on(func(n notifier, j Json) {
-		doc, kind, err := jsonDoc.get(sess.man(), j)
+		doc, kind, err := jsonDoc.get(sess.man(), j, true)
 		if err != nil {
 			n.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
 		}
 		if kind == workspace.KindUnknown {
+			n.forward()
+			return
+		}
+		if doc == nil && kind == workspace.KindTarget {
+			sess.showWarn("editing generated file that does not belong current workspace")
 			n.forward()
 			return
 		}
@@ -130,9 +135,14 @@ func initClientNotifs(sess *session, on func(on onNotif, m ...method)) {
 	}, didChange)
 
 	on(func(n notifier, j Json) {
-		doc, kind, err := jsonDoc.get(sess.man(), j)
+		doc, kind, err := jsonDoc.get(sess.man(), j, true)
 		if err != nil {
 			n.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
+			return
+		}
+		if doc == nil && kind == workspace.KindTarget {
+			sess.showWarn("saving generated file that does not belong current workspace")
+			n.forward()
 			return
 		}
 		if kind == workspace.KindUnknown {
@@ -156,7 +166,7 @@ func initClientNotifs(sess *session, on func(on onNotif, m ...method)) {
 	}, didSave)
 
 	on(func(n notifier, j Json) {
-		doc, kind, err := jsonDoc.get(sess.man(), j)
+		doc, kind, err := jsonDoc.get(sess.man(), j, false)
 		if err != nil {
 			n.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return

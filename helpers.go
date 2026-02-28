@@ -35,4 +35,4 @@ func (a AttrModFunc) Modify(ctx context.Context, tag string, attrs Attrs) error 
 	return a(ctx, tag, attrs)
 }
 
-var _ AttrMod = AttrModFunc(nil)
+var _ Modify = AttrModFunc(nil)
