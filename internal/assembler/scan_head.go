@@ -52,33 +52,20 @@ func scanContent(coll collector, root *tree_sitter.Node) {
 			scanHead(coll, &child)
 		case grammer.GOX_SELF_CLOSING_HEAD:
 			scanSelfClosingHead(coll, &child)
-		default:
-			if proxyLevel != 0 {
-				coll.cr()
-				coll.append(r("__e = __c.InitContainer(); " + ERR_CHECK))
-				coll.indentFake()
-			}
-			switch name {
-			case grammer.GOX_RAW_HEAD:
-				scanRawHead(coll, &child)
-			case grammer.GOX_DOCTYPE:
-				scanRaw(coll, &child)
-			case grammer.GOX_COMMENT:
-				scanRaw(coll, &child)
-			case grammer.GOX_PLAIN_TEXT:
-				scanPlain(coll, &child)
-			case grammer.GOX_RAW_TEXT:
-				scanRaw(coll, &child)
-			case grammer.GOX_TILDE:
-				scanTilde(coll, &child)
-			case grammer.GOX_TILDE_BLOCK:
-				scanTildeBlock(coll, &child)
-			}
-			if proxyLevel != 0 {
-				coll.indentEnd()
-				coll.cr()
-				coll.append(r("__e = __c.Close(); " + ERR_CHECK))
-			}
+		case grammer.GOX_RAW_HEAD:
+			scanRawHead(coll, &child)
+		case grammer.GOX_DOCTYPE:
+			scanRaw(coll, &child)
+		case grammer.GOX_COMMENT:
+			scanRaw(coll, &child)
+		case grammer.GOX_PLAIN_TEXT:
+			scanPlain(coll, &child)
+		case grammer.GOX_RAW_TEXT:
+			scanRaw(coll, &child)
+		case grammer.GOX_TILDE:
+			scanTilde(coll, &child)
+		case grammer.GOX_TILDE_BLOCK:
+			scanTildeBlock(coll, &child)
 		}
 		for range proxyLevel {
 			coll.indentEnd()
@@ -217,19 +204,3 @@ func scanAttributes(coll collector, root *tree_sitter.Node) {
 		}
 	}
 }
-/*
-func scanValue(coll collector, root *tree_sitter.Node) {
-	kind := root.Kind()
-	if kind == grammer.GOX_FUNC {
-		scanFunc(coll, root)
-		return
-	}
-	scanGoSnippet(coll, root)
-}
-
-func scanFunc(coll collector, root *tree_sitter.Node) {
-	body := root.ChildByFieldName("body")
-	coll.append(r("func() any "))
-	scanGoSnippet(coll, body)
-	coll.append(r("()"))
-}*/
