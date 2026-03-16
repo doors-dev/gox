@@ -97,6 +97,7 @@ pub struct Query {
     remove: topiary_tree_sitter_facade::Query,
     shift: topiary_tree_sitter_facade::Query,
     keep: topiary_tree_sitter_facade::Query,
+    align: topiary_tree_sitter_facade::Query,
 }
 
 impl Query {
@@ -163,6 +164,16 @@ impl Query {
             .filter(|n| n.start_position().row != n.end_position().row)
             .collect()
     }
+    pub fn align<'a>(
+        &self,
+        node: &'a topiary_tree_sitter_facade::Node,
+        source: &[u8],
+    ) -> Vec<Node<'a>> {
+        Self::query(&self.align, node, source)
+            .into_iter()
+            .filter(|n| n.start_position().row != n.end_position().row)
+            .collect()
+    }
 }
 
 static QUERY: OnceLock<Query> = OnceLock::new();
@@ -187,6 +198,10 @@ const SHIFT: &str = r#"
 [(comment) (gox_comment) (gox_tilde_comment)] @cap
 "#;
 
+const ALIGN: &str = r#"
+[(gox_plain_text)] @cap
+"#;
+
 const KEEP: &str = r#"
 [(raw_string_literal) (gox_raw_head)] @cap
 "#;
@@ -200,6 +215,7 @@ pub fn query() -> &'static Query {
         let remove = topiary_tree_sitter_facade::Query::new(ts_lang(), REMOVE).unwrap();
         let shift = topiary_tree_sitter_facade::Query::new(ts_lang(), SHIFT).unwrap();
         let keep = topiary_tree_sitter_facade::Query::new(ts_lang(), KEEP).unwrap();
+        let align = topiary_tree_sitter_facade::Query::new(ts_lang(), ALIGN).unwrap();
         Query {
             script,
             style,
@@ -207,6 +223,7 @@ pub fn query() -> &'static Query {
             remove,
             shift,
             keep,
+            align,
         }
     })
 }

@@ -40,13 +40,17 @@ pub fn format(input: &[u8], output: &mut Vec<u8>) -> Result<(), topiary_core::Fo
     let styles = init::query().styles(&root, formatted_gox.as_slice());
     let keep = init::query().keep(&root, formatted_gox.as_slice());
     let shift = init::query().shift(&root, formatted_gox.as_slice());
+    let align = init::query().align(&root, formatted_gox.as_slice());
     let mut proc = PostProcessor::new(formatted_gox, output);
     proc.add_externals(scripts, format_js, true);
     proc.add_externals(styles, format_css, true);
     proc.add_externals(keep, format_keep, false);
     proc.add_externals(shift, format_shift, false);
+    proc.add_externals(align, format_align, false);
     proc.write_out();
-    let append_line = if let Some(b) = output.last() && *b == b'\n'{
+    let append_line = if let Some(b) = output.last()
+        && *b == b'\n'
+    {
         false
     } else {
         true
@@ -454,6 +458,31 @@ fn format_shift(
             continue;
         }
         write!(out, "{}\n", indent.indent(indent_str)).unwrap();
+    }
+    if !code.ends_with('\n') {
+        out.pop();
+    }
+    Ok(())
+}
+
+fn format_align(
+    out: &mut Vec<u8>,
+    code: &str,
+    indent: Indent,
+    indent_str: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if code.is_empty() {
+        return Ok(());
+    }
+    for (i, line) in code.lines().enumerate() {
+        if i == 0 {
+            write!(out, "{}\n", line).unwrap();
+        }
+        if let Some((_, rest)) = calc_indent(indent_str, line) {
+            write!(out, "{}{}\n", indent.indent(indent_str), rest.trim_start()).unwrap();
+        } else {
+            write!(out, "{}\n", indent.indent(indent_str)).unwrap();
+        }
     }
     if !code.ends_with('\n') {
         out.pop();
