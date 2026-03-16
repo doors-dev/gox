@@ -34,9 +34,6 @@ const (
 	KindVoid
 )
 
-// IsVoid reports whether k represents a void/self-closing element kind.
-func (k HeadKind) IsVoid() bool { return k == KindVoid }
-
 type head struct {
 	id   uint64
 	kind HeadKind
