@@ -38,7 +38,7 @@ var headOpenPool = utils.NewStructPool[JobHeadOpen]()
 //
 // The returned job is pooled and must be treated as single-use. Typical usage
 // is to send the job to a Printer; the job will release itself after Output.
-func NewJobHeadOpen(id uint64, kind HeadKind, tag string, ctx context.Context, attrs Attrs) *JobHeadOpen {
+func NewJobHeadOpen(ctx context.Context, id uint64, kind HeadKind, tag string, attrs Attrs) *JobHeadOpen {
 	job := headOpenPool.Get()
 	job.ID = id
 	job.Kind = kind
@@ -115,7 +115,7 @@ var headClosePool = utils.NewStructPool[JobHeadClose]()
 // NewJobHeadClose constructs a JobHeadClose.
 //
 // The returned job is pooled and must be treated as single-use.
-func NewJobHeadClose(id uint64, kind HeadKind, tag string, ctx context.Context) *JobHeadClose {
+func NewJobHeadClose(ctx context.Context, id uint64, kind HeadKind, tag string) *JobHeadClose {
 	job := headClosePool.Get()
 	job.ID = id
 	job.Kind = kind

@@ -89,7 +89,7 @@ func (s *stack) Submit(p Printer) error {
 	if last.kind == KindVoid {
 		s.heads = s.heads[:len(s.heads)-1]
 	}
-	err := p.Send(NewJobHeadOpen(last.id, last.kind, last.tag, s.ctx, s.attrs))
+	err := p.Send(NewJobHeadOpen(s.ctx, last.id, last.kind, last.tag, s.attrs))
 	s.submitted = true
 	s.attrs = nil
 	return err
@@ -105,7 +105,7 @@ func (s *stack) Close(p Printer) error {
 	}
 	s.submitted = true
 	s.heads = s.heads[:len(s.heads)-1]
-	return p.Send(NewJobHeadClose(last.id, last.kind, last.tag, s.ctx))
+	return p.Send(NewJobHeadClose(s.ctx, last.id, last.kind, last.tag))
 }
 
 func (s *stack) Init(name string) error {
