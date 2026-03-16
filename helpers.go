@@ -36,3 +36,14 @@ func (a AttrModFunc) Modify(ctx context.Context, tag string, attrs Attrs) error 
 }
 
 var _ Modify = AttrModFunc(nil)
+
+type PrinterFunc func(j Job) error
+
+func (p PrinterFunc) Send(j Job) error {
+	return p(j)
+}
+
+var _ Printer = PrinterFunc(nil)
+
+
+
