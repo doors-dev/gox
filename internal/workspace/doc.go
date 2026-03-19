@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/doors-dev/gox/internal/assembler"
+	"github.com/doors-dev/gox/internal/common"
 	"github.com/doors-dev/gox/internal/text"
 	"github.com/doors-dev/gox/internal/translator"
 	tree_sitter_gox "github.com/doors-dev/tree-sitter-gox/bindings/go"
@@ -47,6 +48,18 @@ type doc struct {
 
 func (d Doc) PrintTarget() {
 	d.target.Print()
+}
+
+func (d Doc) GoxImportPos(enc common.Encoding) (common.Pos, bool) {
+	if !assembler.NeedsGoxImport(d.source.Source(), d.tree.RootNode()) {
+		return common.NoPos(), false
+	}
+	pos, ok := assembler.WhereToImport(d.source.Source(), d.tree.RootNode())
+	if !ok {
+		return common.NoPos(), false
+	}
+	pos = d.source.IntoPos(enc, pos)
+	return pos, true
 }
 
 func (d Doc) Err() error {

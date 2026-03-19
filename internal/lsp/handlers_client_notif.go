@@ -111,6 +111,22 @@ func initClientNotifs(sess *session, on func(on onNotif, m ...method)) {
 					jsonGenerator.newUpdateEdit(doc.TargetFile().URI(), doc.TargetContent(), ""),
 				)
 			}
+			if updated {
+				pos, do := doc.GoxImportPos(sess.enc())
+				if !do {
+					return
+				}
+				edit := jsonGenerator.newInsertEdit(
+					doc.SourceFile().URI(),
+					pos,
+					"\n\nimport \"github.com/doors-dev/gox\"",
+					"GoX imported",
+				)
+				sess.callClient(
+					applyEdit,
+					edit,
+				)
+			}
 		case workspace.KindTarget:
 			changes, err := jsonChanges.getChanges(j)
 			if err != nil {

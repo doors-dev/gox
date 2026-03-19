@@ -56,12 +56,9 @@ func (r jsonGeneratorDriver) newTextEdits(rang common.Range, content string) Jso
 	return &arr
 }
 
-func (r jsonGeneratorDriver) newUpdateEdit(uri string, content string, message string) Json {
+func (r jsonGeneratorDriver) newEdit(uri string, ran common.Range, content string, message string) Json {
 	messageNode := ast.NewPair("label", ast.NewString(message))
-	rang := ast.NewPair("range", jsonPos.fromRange(common.NewRange(
-		common.NewPos(0, 0),
-		common.NewPos(int(math.MaxInt32), 0),
-	)))
+	rang := ast.NewPair("range", jsonPos.fromRange(ran))
 	text := ast.NewPair("newText", ast.NewString(content))
 	textEdit := ast.NewObject([]ast.Pair{rang, text})
 	docEdits := ast.NewPair(uri, ast.NewArray([]ast.Node{textEdit}))
@@ -69,6 +66,19 @@ func (r jsonGeneratorDriver) newUpdateEdit(uri string, content string, message s
 	edit := ast.NewPair("edit", ast.NewObject([]ast.Pair{changes}))
 	node := ast.NewObject([]ast.Pair{messageNode, edit})
 	return &node
+}
+func (r jsonGeneratorDriver) newInsertEdit(uri string, pos common.Pos, content string, message string) Json {
+	return r.newEdit(uri, common.NewRange(
+		pos,
+		pos,
+	), content, message)
+}
+
+func (r jsonGeneratorDriver) newUpdateEdit(uri string, content string, message string) Json {
+	return r.newEdit(uri, common.NewRange(
+		common.NewPos(0, 0),
+		common.NewPos(int(math.MaxInt32), 0),
+	), content, message)
 }
 
 func (r jsonGeneratorDriver) newHover(ran common.Range, message string) Json {

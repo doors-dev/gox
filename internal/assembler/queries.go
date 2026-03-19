@@ -1,6 +1,7 @@
 package assembler
 
 import (
+	"github.com/doors-dev/gox/internal/common"
 	tree_sitter_gox "github.com/doors-dev/tree-sitter-gox/bindings/go"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -9,8 +10,8 @@ type query int
 
 const (
 	QueryElemKeyword query = iota
+	QueryPackage
 	QueryElementOrBlock
-	QueryContextImport
 	QueryGoXImport
 	QueryFields
 	QueryInterfaceMethods
@@ -18,22 +19,8 @@ const (
 
 var queries = [...]string{
 	QueryElementOrBlock: `(gox_element) (gox_block)`,
+	QueryPackage:        `(package_clause) @package`,
 	QueryElemKeyword:    `("elem")`,
-	QueryContextImport: `
-(
-  (import_spec
-    path: (raw_string_literal) @path
-  ) @import
-  (#eq? @path "` + "`context`" + `")
-)
-
-(
-  (import_spec
-    path: (interpreted_string_literal) @path
-  ) @import
-  (#eq? @path "\"context\"")
-)
-	`,
 	QueryGoXImport: `
 (
   (import_spec
@@ -126,14 +113,26 @@ func goxIsImported(content []byte, root *tree_sitter.Node) (result bool) {
 	return result
 }
 
-func needsGoxImport(content []byte, root *tree_sitter.Node) (gox bool) {
+func NeedsGoxImport(content []byte, root *tree_sitter.Node) (gox bool) {
+	if goxIsImported(content, root) {
+		return false
+	}
+	if QueryElemKeyword.Exists(content, root) {
+		return true
+	}
 	if QueryElementOrBlock.Exists(content, root) {
-		gox = true
-	} else {
-		gox = QueryElemKeyword.Exists(content, root)
+		return true
 	}
-	if gox {
-		gox = !goxIsImported(content, root)
+	return false
+}
+
+func WhereToImport(content []byte, root *tree_sitter.Node) (common.Pos, bool) {
+	m, c := QueryPackage.Matches(content, root)
+	defer c.Close()
+	p := m.Next()
+	if p == nil {
+		return common.NoPos(), false
 	}
-	return
+	pos := common.NewTSPos(p.Captures[0].Node.EndPosition())
+	return pos, true
 }
