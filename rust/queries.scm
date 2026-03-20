@@ -521,7 +521,6 @@ _
    (gox_self_closing_head)
    (gox_doctype)
    (gox_raw_head)
-   (gox_tilde)
    (gox_tilde_block)
    (gox_comment)
   ] 
@@ -680,3 +679,10 @@ _
   .
   ")"* @do_nothing
 )
+
+(_
+  (gox_tilde) 
+  .
+  (gox_tilde) @prepend_input_softline @allow_blank_line_before
+)
+
