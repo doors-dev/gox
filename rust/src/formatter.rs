@@ -477,6 +477,7 @@ fn format_align(
     for (i, line) in code.lines().enumerate() {
         if i == 0 {
             write!(out, "{}\n", line).unwrap();
+            continue;
         }
         if let Some((_, rest)) = calc_indent(indent_str, line) {
             write!(out, "{}{}\n", indent.indent(indent_str), rest.trim_start()).unwrap();
