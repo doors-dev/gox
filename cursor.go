@@ -412,6 +412,8 @@ func (c Cursor) Any(any any) error {
 			}
 		}
 		return nil
+	case Editor:
+		return c.Editor(v)
 	case Comp:
 		return c.Comp(v)
 	case []Comp:
@@ -430,8 +432,6 @@ func (c Cursor) Any(any any) error {
 			}
 		}
 		return nil
-	case Editor:
-		return c.Editor(v)
 	case Templ:
 		return c.Templ(v)
 	case []interface{}:

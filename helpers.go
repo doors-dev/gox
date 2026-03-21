@@ -7,6 +7,21 @@ import (
 	"github.com/doors-dev/gox/internal/utils"
 )
 
+type EditorComp interface {
+	Editor
+	Comp
+}
+
+type EditorCompFunc func(cur Cursor) error
+
+func (e EditorCompFunc) Edit(cur Cursor) error {
+	return e(cur)
+}
+
+func (e EditorCompFunc) Main() Elem {
+	return Elem(e)
+}
+
 type EditorFunc func(cur Cursor) error
 
 func (e EditorFunc) Edit(cur Cursor) error {
@@ -44,6 +59,3 @@ func (p PrinterFunc) Send(j Job) error {
 }
 
 var _ Printer = PrinterFunc(nil)
-
-
-
