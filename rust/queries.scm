@@ -521,6 +521,7 @@ _
    (gox_self_closing_head)
    (gox_doctype)
    (gox_raw_head)
+   (gox_tilde)
    (gox_tilde_block)
    (gox_comment)
   ] 
@@ -534,7 +535,6 @@ _
    (gox_self_closing_head)
    (gox_doctype)
    (gox_raw_head)
-   (gox_tilde)
    (gox_tilde_block)
    (gox_tilde_proxy)
    (gox_comment)
