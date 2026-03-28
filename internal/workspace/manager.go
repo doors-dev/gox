@@ -2,6 +2,7 @@ package workspace
 
 import (
 	"log/slog"
+	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -58,7 +59,7 @@ func (m *manager) EnsureWorkspaces(uris []string) {
 				continue
 			}
 			m.workspaces = slices.Delete(m.workspaces, i, i+1)
-			return
+			break
 		}
 	}
 	for _, path := range pathes {
@@ -103,7 +104,9 @@ func (m *manager) Doc(uri string) (Doc, FileKind) {
 		return nil, KindUnknown
 	}
 	for _, ws := range m.workspaces {
-		if strings.HasPrefix(file.Path(), ws.Root()) {
+		root := ws.Root()
+		path := file.Path()
+		if path == root || strings.HasPrefix(path, root+string(os.PathSeparator)) {
 			doc := ws.Load(file)
 			return doc, file.Kind()
 		}

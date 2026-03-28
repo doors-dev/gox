@@ -8,36 +8,31 @@ import (
 	"github.com/doors-dev/gox/internal/utils"
 )
 
-// Releaser is implemented by pooled Job types that can return themselves to an
-// internal pool.
+// Releaser returns a pooled value to its internal pool.
 //
-// Implementations are expected to be single-use: once released, the object must
-// not be accessed again.
+// Released values are single-use and must not be touched again.
 type Releaser interface {
 	release()
 }
 
-// Release returns r back to its pool.
+// Release returns r to its pool.
 //
-// Release is primarily useful when a Job is created but not sent/rendered.
-// Most Job implementations in this package call release automatically from
-// Output via a deferred call.
+// Most callers never need Release because the standard Job implementations
+// release themselves from Output.
 func Release(r Releaser) {
 	r.release()
 }
 
-// OutputError is returned when a Job cannot be rendered due to invalid state
-// (for example, missing tag name, or attempting to close a void element).
+// OutputError reports invalid job state during rendering.
 type OutputError string
 
 func (e OutputError) Error() string { return string(e) }
 
 var headOpenPool = utils.NewStructPool[JobHeadOpen]()
 
-// NewJobHeadOpen constructs a JobHeadOpen.
+// NewJobHeadOpen returns a pooled JobHeadOpen.
 //
-// The returned job is pooled and must be treated as single-use. Typical usage
-// is to send the job to a Printer; the job will release itself after Output.
+// The returned job is single-use and is usually sent straight to a Printer.
 func NewJobHeadOpen(ctx context.Context, id uint64, kind HeadKind, tag string, attrs Attrs) *JobHeadOpen {
 	job := headOpenPool.Get()
 	job.ID = id
@@ -48,12 +43,9 @@ func NewJobHeadOpen(ctx context.Context, id uint64, kind HeadKind, tag string, a
 	return job
 }
 
-// JobHeadOpen represents an "open head" job.
+// JobHeadOpen writes the opening half of a head.
 //
-// When rendered, it emits the opening tag and attributes for a regular/void
-// element. For KindContainer it produces no output.
-//
-// JobHeadOpen is pooled. It releases itself at the end of Output.
+// Regular and void heads emit `<tag ...>`. Container heads emit no HTML.
 type JobHeadOpen struct {
 	// ID is the head identifier associated with this element/container.
 	// The opening and closing jobs for the same head share the same ID.
@@ -87,7 +79,7 @@ func (j *JobHeadOpen) release() {
 	headOpenPool.Put(j)
 }
 
-// Output writes the opening tag + attributes to w.
+// Output writes the opening tag and attributes to w.
 //
 // Behavior by kind:
 //   - KindContainer: writes nothing and returns nil
@@ -112,9 +104,7 @@ func (j *JobHeadOpen) Output(w io.Writer) error {
 
 var headClosePool = utils.NewStructPool[JobHeadClose]()
 
-// NewJobHeadClose constructs a JobHeadClose.
-//
-// The returned job is pooled and must be treated as single-use.
+// NewJobHeadClose returns a pooled JobHeadClose.
 func NewJobHeadClose(ctx context.Context, id uint64, kind HeadKind, tag string) *JobHeadClose {
 	job := headClosePool.Get()
 	job.ID = id
@@ -124,12 +114,10 @@ func NewJobHeadClose(ctx context.Context, id uint64, kind HeadKind, tag string) 
 	return job
 }
 
-// JobHeadClose represents a "close head" job.
+// JobHeadClose writes the closing half of a head.
 //
-// When rendered, it emits the closing tag for a regular element. For
-// KindContainer it produces no output. Closing a void element is an error.
-//
-// JobHeadClose is pooled. It releases itself at the end of Output.
+// Regular heads emit `</tag>`. Container heads emit no HTML. Closing a void
+// head is an error.
 type JobHeadClose struct {
 	// ID is the head identifier associated with this element/container.
 	// The opening and closing jobs for the same head share the same ID.
@@ -179,9 +167,7 @@ func (j *JobHeadClose) Output(w io.Writer) error {
 
 var compPool = utils.NewStructPool[JobComp]()
 
-// NewJobComp constructs a JobComp.
-//
-// The returned job is pooled and must be treated as single-use.
+// NewJobComp returns a pooled JobComp.
 func NewJobComp(ctx context.Context, comp Comp) *JobComp {
 	j := compPool.Get()
 	j.Ctx = ctx
@@ -189,11 +175,10 @@ func NewJobComp(ctx context.Context, comp Comp) *JobComp {
 	return j
 }
 
-// JobComp renders a GoX component.
+// JobComp renders a Comp.
 //
-// Output calls Comp.Main() and, if it returns a non-nil Elem, renders it into w.
-//
-// JobComp is pooled. It releases itself at the end of Output.
+// Output calls Comp.Main and, when it returns a non-nil Elem, renders that Elem
+// into the output stream.
 type JobComp struct {
 	Comp Comp
 	Ctx  context.Context
@@ -220,9 +205,7 @@ func (j *JobComp) Output(w io.Writer) error {
 
 var textPool = utils.NewStructPool[JobText]()
 
-// NewJobText constructs a JobText.
-//
-// The returned job is pooled and must be treated as single-use.
+// NewJobText returns a pooled JobText.
 func NewJobText(ctx context.Context, text string) *JobText {
 	j := textPool.Get()
 	j.Ctx = ctx
@@ -231,8 +214,6 @@ func NewJobText(ctx context.Context, text string) *JobText {
 }
 
 // JobText writes escaped text.
-//
-// JobText is pooled. It releases itself at the end of Output.
 type JobText struct {
 	Ctx  context.Context
 	Text string
@@ -255,9 +236,7 @@ func (j *JobText) Output(w io.Writer) error {
 
 var rawPool = utils.NewStructPool[JobRaw]()
 
-// NewJobRaw constructs a JobRaw.
-//
-// The returned job is pooled and must be treated as single-use.
+// NewJobRaw returns a pooled JobRaw.
 func NewJobRaw(ctx context.Context, text string) *JobRaw {
 	j := rawPool.Get()
 	j.Ctx = ctx
@@ -265,9 +244,7 @@ func NewJobRaw(ctx context.Context, text string) *JobRaw {
 	return j
 }
 
-// JobRaw writes raw (unescaped) text.
-//
-// JobRaw is pooled. It releases itself at the end of Output.
+// JobRaw writes unescaped text.
 type JobRaw struct {
 	Ctx  context.Context
 	Text string
@@ -290,9 +267,7 @@ func (j *JobRaw) Output(w io.Writer) error {
 
 var templPool = utils.NewStructPool[JobTempl]()
 
-// NewJobTempl constructs a JobTempl.
-//
-// The returned job is pooled and must be treated as single-use.
+// NewJobTempl returns a pooled JobTempl.
 func NewJobTempl(ctx context.Context, templ Templ) *JobTempl {
 	j := templPool.Get()
 	j.Ctx = ctx
@@ -300,9 +275,7 @@ func NewJobTempl(ctx context.Context, templ Templ) *JobTempl {
 	return j
 }
 
-// JobTempl renders a templ component (github.com/a-h/templ compatible).
-//
-// JobTempl is pooled. It releases itself at the end of Output.
+// JobTempl renders a templ-compatible value.
 type JobTempl struct {
 	Ctx   context.Context
 	Templ Templ
@@ -325,9 +298,7 @@ func (j *JobTempl) Output(w io.Writer) error {
 
 var fprintPool = utils.NewStructPool[JobFprint]()
 
-// NewJobFprint constructs a JobFprint.
-//
-// The returned job is pooled and must be treated as single-use.
+// NewJobFprint returns a pooled JobFprint.
 func NewJobFprint(ctx context.Context, v any) *JobFprint {
 	j := fprintPool.Get()
 	j.Ctx = ctx
@@ -335,12 +306,10 @@ func NewJobFprint(ctx context.Context, v any) *JobFprint {
 	return j
 }
 
-// JobFprint formats a value with fmt.Fprint, writing to an escaping writer.
+// JobFprint formats a value with fmt.Fprint and GoX escaping.
 //
-// This is the default fallback for values that do not have specialized rendering
-// behavior in Cursor.Any.
-//
-// JobFprint is pooled. It releases itself at the end of Output.
+// It is the default fallback for values that do not have specialized handling
+// in Cursor.Any.
 type JobFprint struct {
 	Ctx context.Context
 	Any any
@@ -366,9 +335,7 @@ func (j *JobFprint) Output(w io.Writer) error {
 
 var errorPool = utils.NewStructPool[JobError]()
 
-// NewJobError constructs a JobError.
-//
-// The returned job is pooled and must be treated as single-use.
+// NewJobError returns a pooled JobError.
 func NewJobError(ctx context.Context, err error) *JobError {
 	j := errorPool.Get()
 	j.Ctx = ctx
@@ -376,11 +343,7 @@ func NewJobError(ctx context.Context, err error) *JobError {
 	return j
 }
 
-// JobError represents a job that fails rendering with a stored error.
-//
-// Output returns Err as-is.
-//
-// JobError is pooled. It releases itself at the end of Output.
+// JobError fails rendering with a stored error.
 type JobError struct {
 	Ctx context.Context
 	Err error
@@ -403,9 +366,7 @@ func (j *JobError) Output(w io.Writer) error {
 
 var bytesPool = utils.NewStructPool[JobBytes]()
 
-// NewJobBytes constructs a JobBytes.
-//
-// The returned job is pooled and must be treated as single-use.
+// NewJobBytes returns a pooled JobBytes.
 func NewJobBytes(ctx context.Context, b []byte) *JobBytes {
 	j := bytesPool.Get()
 	j.Ctx = ctx
@@ -413,9 +374,7 @@ func NewJobBytes(ctx context.Context, b []byte) *JobBytes {
 	return j
 }
 
-// JobBytes writes raw bytes.
-//
-// JobBytes is pooled. It releases itself at the end of Output.
+// JobBytes writes bytes without escaping.
 type JobBytes struct {
 	Ctx   context.Context
 	Bytes []byte

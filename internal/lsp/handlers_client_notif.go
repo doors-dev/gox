@@ -91,13 +91,21 @@ func initClientNotifs(sess *session, on func(on onNotif, m ...method)) {
 			}
 			updated := false
 			for _, change := range changes {
+				var upd bool
 				if change.Range.IsValid() {
-					upd, _ := doc.SourcePatch(sess.enc(), change.Range, change.Text)
+					upd, err = doc.SourcePatch(sess.enc(), change.Range, change.Text)
 					updated = updated || upd
 				} else {
-					upd, _ := doc.SourceUpdate(change.Text)
+					upd, err = doc.SourceUpdate(change.Text)
 					updated = updated || upd
 				}
+				if err != nil {
+					break
+				}
+			}
+			if err != nil {
+				n.err(common.FromErr(jsonrpc2.ErrInternal, err))
+				return
 			}
 			if updated {
 				doc.Assemble()
@@ -135,10 +143,17 @@ func initClientNotifs(sess *session, on func(on onNotif, m ...method)) {
 			}
 			for _, change := range changes {
 				if change.Range.IsValid() {
-					doc.TargetDraftPatch(sess.enc(), change.Range, change.Text)
+					err = doc.TargetDraftPatch(sess.enc(), change.Range, change.Text)
 				} else {
-					doc.TargetDraftUpdate(change.Text)
+					err = doc.TargetDraftUpdate(change.Text)
 				}
+				if err != nil {
+					break
+				}
+			}
+			if err != nil {
+				n.err(common.FromErr(jsonrpc2.ErrInternal, err))
+				return
 			}
 			if doc.SubmitTargetDraft() {
 				return

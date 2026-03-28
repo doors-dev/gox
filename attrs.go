@@ -9,33 +9,32 @@ import (
 	"github.com/doors-dev/gox/internal/utils"
 )
 
-// Attrs is a mutable collection of element attributes.
+// Attrs stores the attributes attached to one element head.
 //
-// Attrs stores attributes keyed by name and keeps entries sorted lexicographically
-// (by attribute name). Lookups are performed with binary search.
+// Example:
 //
-// Attribute names are case-sensitive. For example, "class" and "Class" are
-// distinct entries and are stored/queried independently.
+//	attrs := gox.NewAttrs()
+//	attrs.Get("class").Set("badge")
+//	attrs.Get("hidden").Set(false)
 //
-// Attribute presence rules (used by Attr.IsSet and Attrs.Has):
-//   - nil  => not set
-//   - bool => set only when true (false means “unset”)
-//   - any other non-nil value => set
+// Attrs keeps entries sorted by name for stable output and binary-search
+// lookups. Names are case-sensitive, so "class" and "Class" are different
+// attributes.
 //
-// Lifecycle notes:
-//   - Attrs is intended to be built and used while constructing an element head,
-//     then rendered as part of that head.
-//   - Attr handles returned by Get/Find/List are references to entries inside Attrs;
-//     mutating an Attr mutates the owning Attrs.
-//   - Attrs is not safe for concurrent use.
+// Presence follows these rules:
+//   - nil means unset
+//   - bool is set only when true
+//   - any other non-nil value is set
+//
+// Attr handles returned by Get, Find, and List point into the owning Attrs.
+// Attrs is not safe for concurrent use.
 type Attrs = *attrs
 
-// Modify can inspect and/or mutate element attributes right before the element
-// is rendered.
+// Modify can inspect and mutate an element's full attribute set
+// right before rendering.
 //
-// Modifiers are executed by Attrs.ApplyMods (typically triggered during head
-// rendering). They run in the order they were added and are one-shot: after
-// execution, they are removed from the modifier queue.
+// Modifiers run in the order they were added. They are one-shot: after
+// ApplyMods succeeds, the queue is cleared.
 type Modify interface {
 	Modify(ctx context.Context, tag string, attrs Attrs) error
 }
@@ -44,9 +43,7 @@ var attrsPool = utils.NewPool(func() Attrs {
 	return &attrs{}
 })
 
-// NewAttrs allocates a new attribute set.
-//
-// The returned Attrs starts empty (no modifiers, no entries).
+// NewAttrs returns an empty attribute set.
 func NewAttrs() Attrs {
 	a := attrsPool.Get()
 	return a
@@ -57,16 +54,15 @@ type attrs struct {
 	entries []Attr
 }
 
-// Mutate is implemented by values that want to compute the new attribute value
-// based on the previous value.
+// Mutate computes a new attribute value from the previous one.
 //
-// Attr.Set has special handling for Mutate: if the provided value implements
-// Mutate, Set calls value.Mutate(attributeName, currentValue) and stores the returned value.
+// Attr.Set detects Mutate values and stores the result of
+// value.Mutate(attributeName, currentValue).
 type Mutate interface {
 	Mutate(name string, value any) any
 }
 
-// Inherit copies all “set” attributes from attrs into a.
+// Inherit copies all set attributes from attrs into a.
 //
 // For each attribute in attrs:
 //   - if it is not set (per Attr.IsSet), it is ignored
@@ -84,14 +80,10 @@ func (a Attrs) Inherit(attrs Attrs) {
 	}
 }
 
-// ApplyMods executes all queued modifiers on this attribute set.
+// ApplyMods runs all queued modifiers on this attribute set.
 //
-// Modifiers are executed in the order they were added. Each modifier is called
-// at most once; after successful completion, the modifier queue is cleared.
-//
-// If a modifier returns an error, ApplyMods stops immediately and returns that
-// error. Modifiers that were already executed are discarded; modifiers that were
-// not yet executed remain queued (until the Attrs is discarded/released).
+// Modifiers run in insertion order. If one returns an error, ApplyMods stops
+// immediately. Modifiers that already ran are discarded.
 func (a Attrs) ApplyMods(ctx context.Context, tag string) error {
 	if a == nil {
 		return nil
@@ -106,24 +98,22 @@ func (a Attrs) ApplyMods(ctx context.Context, tag string) error {
 	return nil
 }
 
-// AddMod queues a modifier to be applied by ApplyMods.
-//
-// Modifiers are executed in the order they are added.
+// AddMod queues m to run during ApplyMods.
 func (a Attrs) AddMod(m Modify) {
 	a.mods = append(a.mods, m)
 }
 
 // Clone returns an independent copy of the attribute set.
 //
-// The returned Attrs has:
-//   - a copy of the attribute entries (name/value pairs)
-//   - a shallow copy of the modifier list (slice is copied; modifier values are not deep-copied)
-//
-// Modifying the returned Attrs does not affect the original.
+// Clone copies only attributes that are currently set. The modifier slice is
+// copied too, but modifier values are shared.
 func (a Attrs) Clone() Attrs {
-	entries := make([]Attr, len(a.entries))
-	for i := range a.entries {
-		entries[i] = a.entries[i].clone()
+	entries := make([]Attr, 0, len(a.entries))
+	for _, e := range a.entries {
+		if !e.IsSet() {
+			continue
+		}
+		entries = append(entries, e.clone())
 	}
 	mods := slices.Clone(a.mods)
 	return &attrs{
@@ -132,18 +122,17 @@ func (a Attrs) Clone() Attrs {
 	}
 }
 
-// List returns a snapshot slice of all attribute entries currently tracked.
+// List returns a snapshot of all tracked attribute entries.
 //
-// The returned slice is a copy of the internal slice, but the Attr values inside
-// are the same entry handles as the original Attrs. Mutating an Attr from the
-// returned slice mutates the original Attrs.
+// The slice itself is copied, but each Attr still points at the original entry.
+// List includes unset attributes.
 func (a Attrs) List() []Attr {
 	return slices.Clone(a.entries)
 }
 
 var attrPool = utils.NewStructPool[attr]()
 
-// Has reports whether an attribute exists and is set (per Attr.IsSet).
+// Has reports whether name exists and is currently set.
 func (a Attrs) Has(name string) bool {
 	index, ok := a.search(name)
 	if !ok {
@@ -153,12 +142,9 @@ func (a Attrs) Has(name string) bool {
 	return attr.IsSet()
 }
 
-// Get returns the attribute entry for name, creating it if it does not exist.
+// Get returns the entry for name, creating it when needed.
 //
-// Entries are kept sorted lexicographically by name; Get inserts a new entry in
-// the correct position.
-//
-// The returned Attr is a handle into this Attrs; calling Set/Unset mutates this Attrs.
+// The returned Attr is a live handle into this Attrs.
 func (a Attrs) Get(name string) Attr {
 	index, ok := a.search(name)
 	if !ok {
@@ -176,16 +162,18 @@ func (a *attrs) search(name string) (int, bool) {
 	})
 }
 
-// Find returns the attribute entry for name and whether it exists.
+// Find returns the set attribute named name.
 //
-// Find does not create a new entry when the name is missing. If the attribute exists,
-// it may be set or unset; use Attr.IsSet to distinguish.
+// Find does not create missing entries and returns false for unset ones.
 func (a Attrs) Find(name string) (Attr, bool) {
 	index, ok := a.search(name)
 	if !ok {
 		return nil, false
 	}
 	attr := a.entries[index]
+	if !attr.IsSet() {
+		return nil, false
+	}
 	return attr, true
 }
 
@@ -223,9 +211,9 @@ func (a Attrs) output(ctx context.Context, tag string, w io.Writer) error {
 	return nil
 }
 
-// Attr is a handle to a single attribute entry (name + value).
+// Attr is a handle to one attribute entry.
 //
-// Attr values are typically obtained from Attrs.Get/Find/List.
+// Attr values usually come from Attrs.Get, Attrs.Find, or Attrs.List.
 type Attr = *attr
 
 type attr struct {
@@ -238,13 +226,11 @@ func (a Attr) Name() string {
 	return a.name
 }
 
-// Set sets the attribute value.
+// Set stores value in the attribute.
 //
-// Special case: if value implements Mutate, Set computes the stored value as
-// value.Mutate(prev), where prev is the current stored value.
-//
-// Setting the value to nil unsets the attribute. Setting a bool false also results
-// in the attribute being considered “unset” (see IsSet), though the stored value is false.
+// If value implements Mutate, Set stores the result of
+// value.Mutate(attributeName, currentValue). Nil unsets the attribute. A bool
+// false is stored but still treated as unset by IsSet.
 func (a Attr) Set(value any) {
 	if v, ok := value.(Mutate); ok {
 		value = v.Mutate(a.name, a.value)
@@ -252,17 +238,17 @@ func (a Attr) Set(value any) {
 	a.value = value
 }
 
-// Unset clears the attribute value (equivalent to Set(nil)).
+// Unset clears the attribute value.
 func (a Attr) Unset() {
 	a.value = nil
 }
 
-// Value returns the stored value (may be nil).
+// Value returns the stored value, which may be nil.
 func (a Attr) Value() any {
 	return a.value
 }
 
-// IsSet reports whether this attribute should be considered present.
+// IsSet reports whether this attribute should be rendered.
 //
 // Rules:
 //   - nil Attr => false
@@ -298,16 +284,14 @@ func (a *attr) output(w io.Writer) error {
 
 // OutputName writes only the attribute name to w.
 //
-// This is a low-level helper for custom rendering pipelines. Formatting/escaping
-// are defined by GoX’s internal attribute writer.
+// This is a low-level helper for custom rendering pipelines.
 func (a Attr) OutputName(w io.Writer) error {
 	return utils.WriteAttrName(w, a.name)
 }
 
 // OutputValue writes only the attribute value to w.
 //
-// This is a low-level helper for custom rendering pipelines. Formatting/escaping
-// are defined by GoX’s internal attribute writer.
+// This is a low-level helper for custom rendering pipelines.
 func (a Attr) OutputValue(w io.Writer) error {
 	return utils.WriteAttrValue(w, a.value)
 }

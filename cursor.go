@@ -6,18 +6,18 @@ import (
 	"sync/atomic"
 )
 
-// HeadError is returned when Cursor element-head operations are performed
-// in an invalid state (for example, writing node content before submitting
-// the current head, or mutating attributes after submission).
+// HeadError reports an invalid Cursor state transition.
 //
-// It is used to distinguish "render state machine" errors from other failures.
+// Examples include emitting child content before Submit or mutating attributes
+// after a head has already been submitted.
 type HeadError string
 
 func (e HeadError) Error() string { return string(e) }
 
-// HeadKind describes the kind of an element head currently being built/rendered.
+// HeadKind identifies what kind of head Cursor is building.
 //
-// The kind affects how the head is submitted and whether it can have children.
+// The kind controls whether the head emits a real tag and whether it may have
+// children.
 type HeadKind int
 
 const (
@@ -152,11 +152,23 @@ func (s *stack) Attrs() (*attrs, error) {
 	return s.attrs, nil
 }
 
-// Cursor is the low-level rendering cursor used by GoX.
+// Cursor builds output by streaming Jobs to a Printer.
 //
-// Cursor streams rendering operations to a Printer as a sequence of Jobs.
-// It maintains a stack of active element “heads” to validate nesting and enforce
-// a simple state machine:
+// Most `.gox` users never construct a Cursor directly because generated code
+// does it for them. Reach for Cursor when you need manual rendering, custom
+// editors, or proxy/printer integrations.
+//
+// Example:
+//
+//	cur := gox.NewCursor(ctx, gox.NewPrinter(w))
+//	_ = cur.Init("span")
+//	_ = cur.AttrSet("class", "badge")
+//	_ = cur.Submit()
+//	_ = cur.Text("New")
+//	_ = cur.Close()
+//
+// Cursor maintains a stack of active heads to validate nesting and enforce a
+// small state machine:
 //
 // Regular element lifecycle:
 //  1. Init(tag)
@@ -186,11 +198,11 @@ func (s *stack) Attrs() (*attrs, error) {
 // Cursor is not safe for concurrent use.
 type Cursor = *cursor
 
-// NewCursor constructs a Cursor that emits jobs to printer.
-// ctx is used as the default context for jobs that accept a context.
+// NewCursor returns a Cursor that emits jobs to printer.
 //
-// The returned cursor starts in an “opened” state at top-level: it is valid to
-// emit content immediately, or to begin a new element via Init methods.
+// ctx becomes the default context for jobs created through this cursor. The
+// returned cursor starts at top level, so callers may emit content immediately
+// or begin a new head with Init, InitVoid, or InitContainer.
 func NewCursor(ctx context.Context, printer Printer) Cursor {
 	return &cursor{
 		printer: printer,
@@ -205,72 +217,58 @@ type cursor struct {
 	ctx     context.Context
 }
 
-// Context returns the default context associated with this cursor.
+// Context returns the default context for jobs emitted by this cursor.
 func (c Cursor) Context() context.Context {
 	return c.ctx
 }
 
-// NewID returns a globally unique id suitable for associating external state
-// with emitted jobs.
+// NewID returns a process-unique id for correlating render-time state.
 //
-// IDs are globally unique across cursors created in the same process and are
-// monotonically increasing per cursor.
+// IDs increase monotonically within one cursor.
 func (c Cursor) NewID() uint64 {
 	return c.stack.headID()
 }
 
-// Init begins a new regular (non-void) element head with the given tag name.
+// Init starts a regular element head.
 //
-// After Init, the element is in “initialization” state:
-//   - attributes may be set via AttrSet/AttrMod,
-//   - node content must not be emitted until Submit is called.
+// After Init, callers may set attributes with AttrSet or AttrMod. Child content
+// must wait until Submit succeeds.
 func (c Cursor) Init(tag string) error {
 	return c.stack.Init(tag)
 }
 
-// InitVoid begins a new void (self-closing) element head with the given tag name.
+// InitVoid starts a void element head.
 //
-// After InitVoid, the element is in “initialization” state (attributes may be set).
-// Call Submit to emit the head-open job. Void elements cannot have children and
-// must not be closed.
+// Void heads may receive attributes before Submit, but they never accept
+// children and must not be closed.
 func (c Cursor) InitVoid(tag string) error {
 	return c.stack.InitVoid(tag)
 }
 
-// InitContainer begins a synthetic container head and submits it immediately.
+// InitContainer starts a synthetic container head and submits it immediately.
 //
-// Containers do not emit an HTML tag. They exist to group a sequence of jobs
-// under a distinct head id/kind in the job stream.
-//
-// After InitContainer, the container head is active and must be closed with Close()
+// Containers do not emit an HTML tag. They group a range of child jobs under a
+// shared head id and must still be closed with Close.
 func (c Cursor) InitContainer() error {
 	return c.stack.InitSubmitContainer(c.printer)
 }
 
-// Submit emits an opening head job for the current element.
+// Submit emits the current head's opening job.
 //
-// Submit transitions the current element from “initialization” state to “opened” state.
-// After Submit succeeds:
-//   - attribute mutation is no longer allowed,
-//   - node-content jobs may be emitted into the element,
-//   - the element must eventually be closed with Close() (except for void elements).
+// After Submit, the current head is open for child content and no longer
+// accepts attribute mutation.
 func (c Cursor) Submit() error {
 	return c.stack.Submit(c.printer)
 }
 
-// Close emits a closing head job for the current element/container.
+// Close closes the current regular or container head.
 //
-// Close requires that the current head has already been submitted (i.e., Submit
-// was called successfully). Closing before submitting is an error.
-//
-// Void elements must not be closed.
+// The current head must already be submitted. Void elements must not be closed.
 func (c Cursor) Close() error {
 	return c.stack.Close(c.printer)
 }
 
-// Comp emits a component job at the current cursor position.
-//
-// Comp requires the cursor to be in content state.
+// Comp emits comp at the current cursor position.
 func (c Cursor) Comp(comp Comp) error {
 	if err := c.stack.Opened(); err != nil {
 		return err
@@ -278,9 +276,7 @@ func (c Cursor) Comp(comp Comp) error {
 	return c.printer.Send(NewJobComp(c.ctx, comp))
 }
 
-// CompCtx is like Comp, but uses ctx for the emitted job.
-//
-// CompCtx requires the cursor to be in content state.
+// CompCtx is like Comp but uses ctx for the emitted job.
 func (c Cursor) CompCtx(ctx context.Context, comp Comp) error {
 	if err := c.stack.Opened(); err != nil {
 		return err
@@ -289,8 +285,6 @@ func (c Cursor) CompCtx(ctx context.Context, comp Comp) error {
 }
 
 // Text emits escaped text at the current cursor position.
-//
-// Text requires the cursor to be in content state.
 func (c Cursor) Text(text string) error {
 	if err := c.stack.Opened(); err != nil {
 		return err
@@ -298,9 +292,7 @@ func (c Cursor) Text(text string) error {
 	return c.printer.Send(NewJobText(c.ctx, text))
 }
 
-// Raw emits raw (unescaped) text at the current cursor position.
-//
-// Raw requires the cursor to be in content state.
+// Raw emits unescaped text at the current cursor position.
 func (c Cursor) Raw(text string) error {
 	if err := c.stack.Opened(); err != nil {
 		return err
@@ -308,9 +300,7 @@ func (c Cursor) Raw(text string) error {
 	return c.printer.Send(NewJobRaw(c.ctx, text))
 }
 
-// Bytes emits a byte-slice payload job at the current cursor position.
-//
-// Bytes requires the cursor to be in content state.
+// Bytes emits raw bytes at the current cursor position.
 func (c Cursor) Bytes(data []byte) error {
 	if err := c.stack.Opened(); err != nil {
 		return err
@@ -318,9 +308,7 @@ func (c Cursor) Bytes(data []byte) error {
 	return c.printer.Send(NewJobBytes(c.ctx, data))
 }
 
-// Templ emits a templ component job at the current cursor position.
-//
-// Templ requires the cursor to be in content state.
+// Templ emits a templ-compatible component at the current cursor position.
 func (c Cursor) Templ(templ Templ) error {
 	if err := c.stack.Opened(); err != nil {
 		return err
@@ -328,9 +316,7 @@ func (c Cursor) Templ(templ Templ) error {
 	return c.printer.Send(NewJobTempl(c.ctx, templ))
 }
 
-// TemplCtx is like Templ, but uses ctx for the emitted job.
-//
-// TemplCtx requires the cursor to be in content state.
+// TemplCtx is like Templ but uses ctx for the emitted job.
 func (c Cursor) TemplCtx(ctx context.Context, templ Templ) error {
 	if err := c.stack.Opened(); err != nil {
 		return err
@@ -338,9 +324,7 @@ func (c Cursor) TemplCtx(ctx context.Context, templ Templ) error {
 	return c.printer.Send(NewJobTempl(ctx, templ))
 }
 
-// Fprint emits a formatted-print job for any at the current cursor position.
-//
-// Fprint requires the cursor to be in content state.
+// Fprint renders any with fmt.Fprint and GoX escaping.
 func (c Cursor) Fprint(any any) error {
 	if err := c.stack.Opened(); err != nil {
 		return err
@@ -348,24 +332,22 @@ func (c Cursor) Fprint(any any) error {
 	return c.printer.Send(NewJobFprint(c.ctx, any))
 }
 
-// Send forwards an already-constructed Job directly to the underlying Printer.
+// Send forwards job directly to the underlying Printer.
 //
-// Send does not perform state validation; callers are responsible for ensuring
-// job ordering/nesting is valid for their use case.
+// Send skips cursor state validation, so callers must preserve any ordering and
+// nesting guarantees they need.
 func (c Cursor) Send(job Job) error {
 	return c.printer.Send(job)
 }
 
 // Editor applies editor to this cursor.
-//
-// Editor is a hook for advanced rendering that needs direct access to cursor methods.
 func (c Cursor) Editor(editor Editor) error {
 	return editor.Edit(c)
 }
 
 // Many renders each value in order using Any.
 //
-// Many requires the cursor to be in content state fot he most types.
+// Many is a convenient way to emit mixed values without switching manually.
 func (c Cursor) Many(many ...any) error {
 	for _, any := range many {
 		if err := c.Any(any); err != nil {
@@ -375,20 +357,18 @@ func (c Cursor) Many(many ...any) error {
 	return nil
 }
 
-// Any renders a value using GoX’s default dynamic dispatch.
+// Any renders a value using GoX's default dynamic dispatch.
 //
-// Defined types include:
+// Supported cases include:
 //   - string / []string
 //   - Elem / []Elem
 //   - Comp / []Comp
 //   - Job / []Job
 //   - Editor
 //   - Templ
-//   - []interface{} (treated as a variadic list)
+//   - []any (treated as a variadic list)
 //
-// nil values are ignored. Other types fall back to Fprint.
-//
-// Any requires the cursor to be in content state.
+// Nil interface values are ignored. Everything else falls back to Fprint.
 func (c Cursor) Any(any any) error {
 	if any == nil {
 		return nil
@@ -443,8 +423,7 @@ func (c Cursor) Any(any any) error {
 
 // AttrSet sets an attribute on the current head.
 //
-// AttrSet may only be used during initialization state (after Init/InitVoid and
-// before Submit). After Submit, AttrSet returns an error.
+// AttrSet may be used only after Init or InitVoid and before Submit.
 func (c Cursor) AttrSet(name string, value any) error {
 	attrs, err := c.stack.Attrs()
 	if err != nil {
@@ -454,13 +433,11 @@ func (c Cursor) AttrSet(name string, value any) error {
 	return nil
 }
 
-// AttrMod adds one or more attribute modifiers to the current head.
+// AttrMod adds one or more modifiers to the current head.
 //
-// AttrMod may only be used during initialization state (after Init/InitVoid and
-// before Submit). After Submit, AttrMod returns an error.
-//
-// Attribute modifiers run right before rendering and can inspect or modify the
-// full attribute set for the element.
+// AttrMod may be used only after Init or InitVoid and before Submit. Modifiers
+// run right before rendering and may inspect, leave unchanged, or mutate the
+// full attribute set.
 func (c Cursor) AttrMod(mods ...Modify) error {
 	attrs, err := c.stack.Attrs()
 	if err != nil {
