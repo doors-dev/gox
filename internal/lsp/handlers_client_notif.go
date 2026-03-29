@@ -35,7 +35,14 @@ func initClientNotifs(sess *session, on func(on onNotif, m ...method)) {
 		switch kind {
 		case workspace.KindSource:
 			doc.SourceOpen(int32(version))
-			doc.SourceUpdate(text)
+			upd, _ := doc.SourceUpdate(text)
+			if upd && doc.TargetIsOpened() {
+				sess.callClient(
+					applyEdit,
+					jsonGenerator.newUpdateEdit(doc.TargetFile().URI(), doc.TargetContent(), "synced with the .gox file"),
+				)
+				return
+			}
 			if doc.TargetIsOpened() {
 				return
 			}
@@ -48,7 +55,13 @@ func initClientNotifs(sess *session, on func(on onNotif, m ...method)) {
 				n.notify(j)
 				return
 			}
-			sess.showInfo("This generated .x.go file may be outdated until the .gox source file is saved.")
+			if text == doc.TargetContent() {
+				return
+			}
+			sess.callClient(
+				applyEdit,
+				jsonGenerator.newUpdateEdit(doc.TargetFile().URI(), doc.TargetContent(), "synced with the .gox file"),
+			)
 		}
 	}, didOpen)
 
@@ -102,6 +115,12 @@ func initClientNotifs(sess *session, on func(on onNotif, m ...method)) {
 			jsonDoc.setAsTarget(j, doc)
 			jsonChanges.setUpdate(j, doc.TargetContent())
 			n.notify(j)
+			if updated && doc.TargetIsOpened() {
+				sess.callClient(
+					applyEdit,
+					jsonGenerator.newUpdateEdit(doc.TargetFile().URI(), doc.TargetContent(), ""),
+				)
+			}
 			if updated {
 				pos, do := doc.GoxImportPos(sess.enc())
 				if !do {
@@ -119,7 +138,6 @@ func initClientNotifs(sess *session, on func(on onNotif, m ...method)) {
 				)
 			}
 		case workspace.KindTarget:
-			n.err(common.NewErr(jsonrpc2.ErrUnknown, "Generated file edits are reverted on save. Edit the .gox source, or rename .x.go to .go to edit this file directly."))
 			return
 		}
 	}, didChange)

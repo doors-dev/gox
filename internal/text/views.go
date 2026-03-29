@@ -5,7 +5,7 @@ import (
 )
 
 func (t Text) String() string {
-	return string(t.source)
+	return string(t.Source())
 }
 
 func (t Text) Source() []byte {

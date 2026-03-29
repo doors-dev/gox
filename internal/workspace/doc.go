@@ -116,16 +116,7 @@ func (d Doc) Init() {
 }
 
 func (d Doc) Save() error {
-	needsUpdate, err := d.CheckTarget()
-	if err != nil {
-		d.err = err
-		return err
-	}
-	if !needsUpdate {
-		return nil
-	}
-	err = d.TargetWrite()
-	return err
+	return d.TargetWrite()
 }
 
 func (d Doc) CheckTarget() (needsUpdate bool, err error) {
