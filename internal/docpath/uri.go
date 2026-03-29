@@ -232,4 +232,3 @@ func isWindowsDriveURIPath(uri string) bool {
 	}
 	return uri[0] == '/' && unicode.IsLetter(rune(uri[1])) && uri[2] == ':'
 }
-

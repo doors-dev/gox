@@ -102,12 +102,6 @@ func initClientNotifs(sess *session, on func(on onNotif, m ...method)) {
 			jsonDoc.setAsTarget(j, doc)
 			jsonChanges.setUpdate(j, doc.TargetContent())
 			n.notify(j)
-			if updated && doc.TargetIsOpened() {
-				sess.callClient(
-					applyEdit,
-					jsonGenerator.newUpdateEdit(doc.TargetFile().URI(), doc.TargetContent(), ""),
-				)
-			}
 			if updated {
 				pos, do := doc.GoxImportPos(sess.enc())
 				if !do {
