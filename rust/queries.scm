@@ -239,7 +239,6 @@
 (block 
   .
   "{" @append_indent_start @append_hardline 
-  (_)+
   "}" @prepend_indent_end
   .
 )
@@ -681,7 +680,6 @@ _
 (gox_block 
   .
   "{" @append_indent_start @append_hardline 
-  (_)+
   "}" @prepend_indent_end @prepend_hardline
   .
 )
@@ -696,6 +694,9 @@ _
 
 (_
   (gox_lparen) @append_indent_start @append_input_softline @append_antispace
+  .
+  [(gox_single_arg) (gox_multi_arg)]
+  .
   (gox_rparen) @prepend_indent_end @prepend_input_softline @prepend_antispace
 ) 
 
