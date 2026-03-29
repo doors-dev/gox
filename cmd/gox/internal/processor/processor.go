@@ -29,6 +29,7 @@ const (
 type processor struct {
 	ignore    gitignore.Matcher
 	force     bool
+	isDir     bool
 	root      string
 	task      task
 	wg        errgroup.Group
@@ -205,42 +206,42 @@ func (p *processor) walkFmt(path string) {
 			p.walkFmt(path)
 			continue
 		}
-		if strings.HasSuffix(path, ".gox") {
-			p.wg.Go(func() error {
-				p.format(path, rust.Format)
-				return nil
-			})
-			continue
-		}
-		if strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, ".x.go") {
-			p.wg.Go(func() error {
-				p.format(path, func(b []byte) ([]byte, error) {
-					o, err := format.Source(b)
-					if err != nil {
-						return nil, err
-					}
-					if bytes.Equal(b, o) {
-						return nil, nil
-					}
-					return o, nil
-				})
-				return nil
-			})
-			continue
-		}
+		p.formatFile(path)
 	}
 }
 
-func (p *processor) run() error {
-	info, err := os.Stat(p.root)
-	if err != nil {
-		return err
+func (p *processor) formatFile(path string) bool {
+	if strings.HasSuffix(path, ".gox") {
+		p.wg.Go(func() error {
+			p.format(path, rust.Format)
+			return nil
+		})
+		return true
 	}
-	isDir := info.IsDir()
+	if strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, ".x.go") {
+		p.wg.Go(func() error {
+			p.format(path, func(b []byte) ([]byte, error) {
+				o, err := format.Source(b)
+				if err != nil {
+					return nil, err
+				}
+				if bytes.Equal(b, o) {
+					return nil, nil
+				}
+				return o, nil
+			})
+			return nil
+		})
+		return true
+	}
+	return false
+}
+
+func (p *processor) run() error {
 	switch p.task {
 	case generation:
 		start := time.Now()
-		if isDir {
+		if p.isDir {
 			p.walkGen(p.root)
 			p.wg.Wait()
 		} else {
@@ -257,7 +258,11 @@ func (p *processor) run() error {
 		return nil
 	case formatting:
 		start := time.Now()
-		p.walkFmt(p.root)
+		if p.isDir {
+			p.walkFmt(p.root)
+		} else if !p.formatFile(p.root) {
+			return errors.New("Expected a .go or .gox file: " + p.root)
+		}
 		p.wg.Wait()
 		p.formatPrint(time.Since(start))
 		if len(p.errors) > 0 {
@@ -269,9 +274,14 @@ func (p *processor) run() error {
 	}
 }
 
-func newProcessor(path string, noIgnore bool, force bool, task task) *processor {
+func newProcessor(path string, noIgnore bool, force bool, task task) (*processor, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
 	var ignore gitignore.Matcher = nil
-	if !noIgnore {
+	isDir := info.IsDir()
+	if !noIgnore && isDir {
 		fs := osfs.New(path)
 		pats, err := gitignore.ReadPatterns(fs, nil)
 		if err != nil {
@@ -281,18 +291,27 @@ func newProcessor(path string, noIgnore bool, force bool, task task) *processor 
 	}
 	p := processor{
 		ignore: ignore,
+		isDir:  isDir,
 		root:   path,
 		task:   task,
 		force:  force,
 	}
 	p.wg.SetLimit(runtime.GOMAXPROCS(0) * 2)
-	return &p
+	return &p, nil
 }
 
 func Generate(path string, noIgnore bool, force bool) error {
-	return newProcessor(path, noIgnore, force, generation).run()
+	p, err := newProcessor(path, noIgnore, force, generation)
+	if err != nil {
+		return err
+	}
+	return p.run()
 }
 
 func Format(path string, noIgnore bool, force bool) error {
-	return newProcessor(path, noIgnore, force, formatting).run()
+	p, err := newProcessor(path, noIgnore, force, formatting)
+	if err != nil {
+		return err
+	}
+	return p.run()
 }

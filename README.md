@@ -90,12 +90,16 @@ Rules worth following:
 ```text
 gox                 # start the language server
 gox gen             # generate .x.go files for the current directory
-gox gen -path ./pkg # generate a specific file or directory
+gox gen ./pkg       # generate a specific file or directory
 gox fmt             # format .gox and .go files in the current directory
+gox fmt ./internal  # format a specific directory
+gox fmt ./main.go   # format a specific file
 gox ver             # print the GoX version
 ```
 
-By default, `gox gen` and `gox fmt` use the current directory and respect `.gitignore`. `-no-ignore` disables that behavior, and `-force` skips target-file safety checks during generation.
+By default, `gox gen` and `gox fmt` use the current directory and respect `.gitignore`. Both commands also accept an optional positional file or directory path. `-no-ignore` disables ignore handling, and `-force` skips target-file safety checks during generation.
+
+The old `-path` flag is no longer supported.
 
 ### What happens under the hood
 
