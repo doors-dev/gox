@@ -56,12 +56,22 @@ func initClientNotifs(sess *session, on func(on onNotif, m ...method)) {
 				return
 			}
 			if text == doc.TargetContent() {
+				if diag := doc.GetDiag(); diag != nil {
+					sess.notifClient(publishDiagnostics, diag)
+				}
 				return
 			}
-			sess.callClient(
+			sess.callClientHandle(
 				applyEdit,
 				jsonGenerator.newUpdateEdit(doc.TargetFile().URI(), doc.TargetContent(), "synced with the .gox file"),
-			)
+				func(r Response) {
+					if r.Err != nil {
+						return
+					}
+					if diag := doc.GetDiag(); diag != nil {
+						sess.notifClient(publishDiagnostics, diag)
+					}
+				})
 		}
 	}, didOpen)
 

@@ -4,6 +4,8 @@ import (
 	"errors"
 	"log/slog"
 
+	"github.com/bytedance/sonic"
+	"github.com/bytedance/sonic/ast"
 	"github.com/doors-dev/gox/internal/assembler"
 	"github.com/doors-dev/gox/internal/common"
 	"github.com/doors-dev/gox/internal/text"
@@ -42,6 +44,17 @@ type doc struct {
 	sourceVersion int32
 	targetVersion int32
 	err           error
+	diagnositcs   *ast.Node
+}
+
+func (d Doc) StoreDiag(a *ast.Node) {
+	m, _ := a.MarshalJSON()
+	clone, _ := sonic.Get(m)
+	d.diagnositcs = &clone
+}
+
+func (d Doc) GetDiag() *ast.Node {
+	return d.diagnositcs
 }
 
 func (d Doc) PrintTarget() {

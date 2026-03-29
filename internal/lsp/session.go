@@ -59,7 +59,7 @@ func (s *session) notifClient(m method, params Json) {
 	})
 }
 
-func (s *session) callClient(m method, params Json) {
+func (s *session) callClientHandle(m method, params Json, handle func(Response)) {
 	data, err := params.MarshalJSON()
 	if err != nil {
 		panic("param marshaling error - should not happen")
@@ -69,11 +69,18 @@ func (s *session) callClient(m method, params Json) {
 		Method: string(m),
 		Params: data,
 	}, func(r Response) {
+		s.man().Lock()
+		defer s.man().Unlock()
 		if r.Err != nil {
 			slog.Error("Call client result error", "method", m, "error", r.Err.Error())
 			s.logError("Call client result error: [method=" + string(m) + ", error=" + r.Err.Error() + "]")
 		}
+		handle(r)
 	})
+}
+
+func (s *session) callClient(m method, params Json) {
+	s.callClientHandle(m, params, func(r Response) {})
 }
 
 func (s *session) showInfo(msg string) {

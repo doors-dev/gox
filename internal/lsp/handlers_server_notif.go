@@ -20,6 +20,10 @@ func initServerNotifs(sess *session, on func(on onNotif, m ...method)) {
 		if doc.Err() != nil {
 			return
 		}
+		doc.StoreDiag(j)
+		if doc.TargetIsOpened() {
+			n.notify(doc.GetDiag())
+		}
 		jsonDoc.setAsSource(j, doc)
 		jsonPos.convertDiagnosticsToSource(sess.man(), sess.enc(), doc, j)
 		n.notify(j)
