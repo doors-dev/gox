@@ -163,11 +163,11 @@ func (t Text) preparePatch(ran common.Range, content string) (patch, error) {
 	end := t.offset(ran.End(), true)
 	offsets := []offset{}
 	buf := bytes.Buffer{}
-	if beg == -1 {
-		// allow only empty lines above the exiting lines
-		if ran.Beg().Column() != 0 {
-			return patch{}, errors.New("invalid range")
-		}
+		if beg == -1 {
+			// allow only empty lines above the exiting lines
+			if ran.Beg().Column() != 0 {
+				return patch{}, errors.New("The edit range is invalid.")
+			}
 		begLine := len(t.lineOffsets) - 1
 		begCol := t.lineOffsets[begLine].Len()
 		beg = len(t.source)

@@ -3,7 +3,6 @@ package workspace
 import (
 	"errors"
 	"log/slog"
-	"slices"
 
 	"github.com/doors-dev/gox/internal/assembler"
 	"github.com/doors-dev/gox/internal/common"
@@ -39,7 +38,6 @@ type doc struct {
 	tree          *tree_sitter.Tree
 	source        text.Text
 	target        text.Text
-	draft         text.Text
 	translator    translator.Translator
 	sourceVersion int32
 	targetVersion int32
@@ -64,21 +62,13 @@ func (d Doc) GoxImportPos(enc common.Encoding) (common.Pos, bool) {
 
 func (d Doc) Err() error {
 	if d == nil {
-		return errors.New("File is not a part of the workspace")
+		return errors.New("This file is not part of the current workspace.")
 	}
 	return d.err
 }
 
 func (d Doc) Assemble() {
 	d.target, d.translator = assembler.Assemble(d.source, d.tree.RootNode())
-}
-
-func (d Doc) resetDraft() {
-	d.draft = d.target.Clone()
-}
-
-func (d Doc) SubmitTargetDraft() bool {
-	return slices.Equal(d.target.Source(), d.draft.Source())
 }
 
 func (d Doc) Load() error {
@@ -89,7 +79,7 @@ func (d Doc) Load() error {
 func (d Doc) Parse() error {
 	d.tree = d.parser.Parse(d.source.Source(), nil)
 	if d.tree.RootNode().HasError() {
-		return errors.New("Parser detected ERROR nodes, please ensure that syntax is correct.")
+		return errors.New("GoX could not parse this file. Fix the syntax errors and try again.")
 	}
 	return nil
 }
@@ -97,12 +87,12 @@ func (d Doc) Parse() error {
 func (d Doc) Init() {
 	if !d.sourceFile.Exists() {
 		d.targetRemove()
-		d.err = errors.New("Source file not exists")
+		d.err = errors.New("The source .gox file no longer exists.")
 		return
 	}
 	err := d.Load()
 	if err != nil {
-		d.err = errors.New("Source reading error: " + err.Error())
+		d.err = errors.New("Could not read the source .gox file: " + err.Error())
 		return
 	}
 	if d.tree != nil {
@@ -110,7 +100,6 @@ func (d Doc) Init() {
 	}
 	d.Parse()
 	d.Assemble()
-	d.resetDraft()
 	needsUpdate, err := d.CheckTarget()
 	if err != nil {
 		d.err = err
@@ -121,7 +110,7 @@ func (d Doc) Init() {
 	}
 	err = d.TargetWrite()
 	if err != nil {
-		d.err = errors.New("Target writing error: " + err.Error())
+		d.err = errors.New("Could not write the generated .x.go file: " + err.Error())
 		return
 	}
 }
@@ -136,9 +125,6 @@ func (d Doc) Save() error {
 		return nil
 	}
 	err = d.TargetWrite()
-	if err != nil && !d.TargetIsOpened() {
-		d.resetDraft()
-	}
 	return err
 }
 

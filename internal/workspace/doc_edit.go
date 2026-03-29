@@ -16,7 +16,7 @@ type Formatted struct {
 func (d Doc) Format(enc common.Encoding) (Formatted, error) {
 	output, err := rust.Format(d.source.Source())
 	if err != nil {
-		return Formatted{}, errors.New("Formatting failed, please esure that the file is valid.")
+		return Formatted{}, errors.New("Could not format this file. Make sure the source is valid.")
 	}
 	if output == nil {
 		return Formatted{Range: common.NoRange()}, nil
@@ -31,7 +31,7 @@ func (d Doc) Format(enc common.Encoding) (Formatted, error) {
 func (d Doc) SourceUpdate(content string) (bool, error) {
 	edit, upd, err := d.source.Update(content)
 	if err != nil {
-		d.err = errors.New("patch apply error")
+		d.err = errors.New("Could not apply the edit.")
 		return false, err
 	}
 	if !upd {
@@ -49,7 +49,7 @@ func (d Doc) SourcePatch(enc common.Encoding, ran common.Range, content string) 
 	r := d.source.IntoRange(enc, ran)
 	edit, upd, err := d.source.Patch(r, content)
 	if err != nil {
-		d.err = errors.New("patch apply error")
+		d.err = errors.New("Could not apply the edit.")
 		return false, err
 	}
 	if !upd {
@@ -60,21 +60,4 @@ func (d Doc) SourcePatch(enc common.Encoding, ran common.Range, content string) 
 	oldTree.Edit(&edit)
 	d.tree = d.parser.Parse(d.source.Source(), oldTree)
 	return true, nil
-}
-
-func (d Doc) TargetDraftPatch(enc common.Encoding, ran common.Range, content string) error {
-	r := d.draft.IntoRange(enc, ran)
-	_, _, err := d.draft.Patch(r, content)
-	if err != nil {
-		d.err = errors.New("patch apply error")
-	}
-	return err
-}
-
-func (d Doc) TargetDraftUpdate(content string) error {
-	_, _, err := d.draft.Update(content)
-	if err != nil {
-		d.err = errors.New("patch apply error")
-	}
-	return err
 }

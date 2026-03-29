@@ -75,12 +75,12 @@ func (s *stack) Opened() error {
 	if s.submitted && last.kind != KindVoid {
 		return nil
 	}
-	return HeadError("head is not in the opened state")
+	return HeadError("The head is not open.")
 }
 
 func (s *stack) Submit(p Printer) error {
 	if s.submitted {
-		return errors.New("head is already submitted")
+		return errors.New("The head has already been submitted.")
 	}
 	last := s.last()
 	if last.kind == KindVoid {
@@ -94,11 +94,11 @@ func (s *stack) Submit(p Printer) error {
 
 func (s *stack) Close(p Printer) error {
 	if !s.submitted {
-		return errors.New("head neads to be submitted before closing")
+		return errors.New("Submit the head before closing it.")
 	}
 	last := s.last()
 	if !last.isValid() {
-		return errors.New("nothing to close")
+		return errors.New("There is nothing to close.")
 	}
 	s.submitted = true
 	s.heads = s.heads[:len(s.heads)-1]
@@ -147,7 +147,7 @@ func (s *stack) InitSubmitContainer(p Printer) error {
 
 func (s *stack) Attrs() (*attrs, error) {
 	if s.submitted {
-		return nil, HeadError("head is already submitted")
+		return nil, HeadError("The head has already been submitted.")
 	}
 	return s.attrs, nil
 }

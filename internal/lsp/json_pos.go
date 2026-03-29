@@ -34,7 +34,7 @@ func (r jsonPosDriver) setRange(j Json, ran common.Range) {
 func (r jsonPosDriver) getRange(j Json) (common.Range, error) {
 	ran := j.Get("range")
 	if !ran.Exists() {
-		return common.NoRange(), errors.New("range field not found")
+		return common.NoRange(), errors.New("The range field is missing.")
 	}
 	return r.intoRange(ran)
 }
@@ -42,7 +42,7 @@ func (r jsonPosDriver) getRange(j Json) (common.Range, error) {
 func (r jsonPosDriver) getPos(j Json) (common.Pos, error) {
 	pos := j.Get("position")
 	if !pos.Exists() {
-		return common.NoPos(), errors.New("position field not found")
+		return common.NoPos(), errors.New("The position field is missing.")
 	}
 	return r.intoPos(pos)
 }
@@ -70,7 +70,7 @@ func (r jsonPosDriver) intoRange(j Json) (common.Range, error) {
 	start := j.Get("start")
 	end := j.Get("end")
 	if !start.Exists() || !end.Exists() {
-		return common.NoRange(), errors.New("missing field in range")
+		return common.NoRange(), errors.New("The range is missing required fields.")
 	}
 	startPos, err := r.intoPos(start)
 	if err != nil {
@@ -87,7 +87,7 @@ func (r jsonPosDriver) intoPos(j Json) (common.Pos, error) {
 	line := j.Get("line")
 	character := j.Get("character")
 	if !line.Exists() || !character.Exists() {
-		return common.NoPos(), errors.New("missing field in position")
+		return common.NoPos(), errors.New("The position is missing required fields.")
 	}
 	lineNum, err := line.Int64()
 	if err != nil {
@@ -137,7 +137,7 @@ func (r jsonPosDriver) convertLocations(man workspace.Manager, enc common.Encodi
 			}
 			newRange, ok := origin.SourceRange(enc, ran, workspace.Approximate)
 			if !ok {
-				return errors.New("range not found")
+				return errors.New("The range could not be mapped.")
 			}
 			_, err = j.Set("originSelectionRange", jsonPos.fromRange(newRange))
 			if err != nil {
@@ -165,7 +165,7 @@ func (r jsonPosDriver) convertLocations(man workspace.Manager, enc common.Encodi
 		return
 	}
 	if kind == workspace.KindSource {
-		err = errors.New("source can't be referenced by the server")
+		err = errors.New("The server cannot reference source files here.")
 	}
 	err = doc.Err()
 	if err != nil {
@@ -184,7 +184,7 @@ func (r jsonPosDriver) convertLocations(man workspace.Manager, enc common.Encodi
 		}
 		newRange, ok := doc.SourceRange(enc, ran, workspace.Approximate)
 		if !ok {
-			return errors.New("range not found")
+			return errors.New("The range could not be mapped.")
 		}
 		j.Set(key, jsonPos.fromRange(newRange))
 	}
@@ -206,7 +206,7 @@ func (r jsonPosDriver) convertCalls(man workspace.Manager, enc common.Encoding, 
 			return true
 		}
 		if kind == workspace.KindSource {
-			err = errors.New("source file is not expected")
+			err = errors.New("A source file is not expected here.")
 			return false
 		}
 		err = doc.Err()
@@ -238,13 +238,13 @@ func (r jsonPosDriver) convertDiagnostics(man workspace.Manager, enc common.Enco
 	if diagnostics.Exists() {
 		diag, err := diagnostics.ArrayUseNode()
 		if err != nil {
-			return errors.New("diagnostics is not array")
+			return errors.New("Diagnostics must be an array.")
 		}
 		newDiag := make([]ast.Node, 0, len(diag))
 		for _, node := range diag {
 			ran, err := jsonPos.getRange(&node)
 			if err != nil {
-				err = errors.New("range not found")
+				err = errors.New("A diagnostic range is missing.")
 				continue
 			}
 			var newRan common.Range
@@ -276,7 +276,7 @@ func (r jsonPosDriver) convertDiagnostics(man workspace.Manager, enc common.Enco
 			return false
 		}
 		if path.Key == nil {
-			err = errors.New("wrong format")
+			err = errors.New("The related document format is invalid.")
 			return false
 		}
 		uri := *path.Key
@@ -286,7 +286,7 @@ func (r jsonPosDriver) convertDiagnostics(man workspace.Manager, enc common.Enco
 			return true
 		}
 		if kind == workspace.KindSource {
-			err = errors.New("diagnostics is not expected for source file")
+			err = errors.New("Diagnostics are not expected for a source file.")
 			return false
 		}
 		err = r.convertDiagnostics(man, enc, doc, node, direction)
@@ -330,7 +330,7 @@ func (r jsonPosDriver) convertRange(enc common.Encoding, doc workspace.Doc, j Js
 		panic("Unexpected")
 	}
 	if !ok {
-		return errors.New("range not found")
+		return errors.New("The range could not be mapped.")
 	}
 	jsonPos.setRange(j, newRan)
 	return nil
@@ -339,11 +339,11 @@ func (r jsonPosDriver) convertRange(enc common.Encoding, doc workspace.Doc, j Js
 func (r jsonPosDriver) convertPositionsToTarget(enc common.Encoding, doc workspace.Doc, j Json, mode workspace.ConvMode) (err error) {
 	poss := j.Get("positions")
 	if !poss.Exists() {
-		return errors.New("positions not found")
+		return errors.New("The positions field is missing.")
 	}
 	poss.ForEach(func(path ast.Sequence, node *ast.Node) bool {
 		if path.Index == -1 || path.Key != nil {
-			err = errors.New("positions is not array")
+			err = errors.New("Positions must be an array.")
 			return false
 		}
 		err = jsonPos.convertPosToTarget(enc, doc, node, mode)
@@ -376,7 +376,7 @@ func (r jsonPosDriver) convertPos(enc common.Encoding, doc workspace.Doc, j Json
 		panic("Unexpected")
 	}
 	if !ok {
-		return errors.New("pos not found")
+		return errors.New("The position could not be mapped.")
 	}
 	jsonPos.setPos(j, newPos)
 	return nil
@@ -406,7 +406,7 @@ func (r jsonPosDriver) convertRangeInPlace(enc common.Encoding, doc workspace.Do
 		panic("Unexpected")
 	}
 	if !ok {
-		return errors.New("range not found")
+		return errors.New("The range could not be mapped.")
 	}
 	j.Set("start", jsonPos.fromPos(newRan.Beg()))
 	j.Set("end", jsonPos.fromPos(newRan.End()))
@@ -454,7 +454,7 @@ func (r jsonPosDriver) convertAll(enc common.Encoding, doc workspace.Doc, j Json
 				panic("Unexpected")
 			}
 			if !ok {
-				err = errors.New("pos not found")
+				err = errors.New("The position could not be mapped.")
 				return false
 			}
 			node.SetAny("line", newPos.Line())

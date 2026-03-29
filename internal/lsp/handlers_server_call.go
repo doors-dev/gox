@@ -14,7 +14,7 @@ func initServerCalls(sess *session, on func(on onCall, m ...method)) {
 		}
 		err := jsonChanges.convertEdit(sess.man(), sess.enc(), edit)
 		if err != nil {
-			c.err(common.NewErr(jsonrpc2.ErrInternal, "Can't convert edit"))
+			c.err(common.NewErr(jsonrpc2.ErrInternal, "Could not convert the workspace edit."))
 			return
 		}
 		c.proxy(j, func(res Json) {

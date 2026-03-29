@@ -39,17 +39,17 @@ func (r jsonInitDriver) isVscodeExtension(j Json) bool {
 func (r jsonInitDriver) getWorkspaceDirsFromArray(j Json) ([]string, error) {
 	a, err := j.ArrayUseNode()
 	if err != nil {
-		return nil, errors.New("Expecting array for workspace folders")
+		return nil, errors.New("Workspace folders must be an array.")
 	}
 	uris := make([]string, 0, len(a))
 	for _, folder := range a {
 		uri := folder.Get("uri")
 		if uri == nil {
-			return nil, errors.New("Can't read workspace folder URI")
+			return nil, errors.New("A workspace folder URI is missing.")
 		}
 		uriStr, err := uri.String()
 		if err != nil {
-			return nil, errors.New("Can't read workspace folder URI")
+			return nil, errors.New("A workspace folder URI is invalid.")
 		}
 		uris = append(uris, uriStr)
 	}
@@ -59,7 +59,7 @@ func (r jsonInitDriver) getWorkspaceDirsFromArray(j Json) ([]string, error) {
 func (r jsonInitDriver) getWorkspaceDirs(j Json) ([]string, error) {
 	folders := j.Get("workspaceFolders")
 	if !folders.Exists() {
-		return nil, errors.New("Can't get workspace folders from the intialize request")
+		return nil, errors.New("The initialize request is missing workspace folders.")
 	}
 	return r.getWorkspaceDirsFromArray(folders)
 }
@@ -67,7 +67,7 @@ func (r jsonInitDriver) getWorkspaceDirs(j Json) ([]string, error) {
 func (r jsonInitDriver) readEncoding(j Json) (common.Encoding, error) {
 	cap := j.Get("capabilities")
 	if !cap.Exists() {
-		return common.UTF16, errors.New("no capabilities")
+		return common.UTF16, errors.New("Client capabilities are missing.")
 	}
 	encoding := cap.Get("positionEncoding")
 	if !encoding.Exists() {
@@ -75,7 +75,7 @@ func (r jsonInitDriver) readEncoding(j Json) (common.Encoding, error) {
 	}
 	str, err := encoding.String()
 	if err != nil {
-		return common.UTF16, errors.New("positionEncoding is not a string")
+		return common.UTF16, errors.New("The client position encoding must be a string.")
 	}
 	switch str {
 	case "utf-8":
@@ -83,7 +83,7 @@ func (r jsonInitDriver) readEncoding(j Json) (common.Encoding, error) {
 	case "utf-16":
 		return common.UTF16, nil
 	default:
-		return common.UTF16, errors.New("unsupported positionEncoding")
+		return common.UTF16, errors.New("The client position encoding is not supported.")
 	}
 }
 
@@ -123,7 +123,7 @@ func (r jsonInitDriver) setEncodings(j Json) error {
 		return nil
 	}
 	if !hasUtf16 {
-		return errors.New("no utf-16 encoding")
+		return errors.New("The client does not support UTF-16 position encoding.")
 	}
 	general.Set("positionEncoding", ast.NewArray([]ast.Node{ast.NewString("utf-16")}))
 	return nil
@@ -132,15 +132,15 @@ func (r jsonInitDriver) setEncodings(j Json) error {
 func (d jsonInitDriver) insertCompletionTriggers(j Json) error {
 	cap := j.Get("capabilities")
 	if !cap.Exists() {
-		return errors.New("no capabilities")
+		return errors.New("Server capabilities are missing.")
 	}
 	completion := cap.Get("completionProvider")
 	if !completion.Exists() {
-		return errors.New("no completion provider")
+		return errors.New("The server completion provider is missing.")
 	}
 	triggers := completion.Get("triggerCharacters")
 	if !triggers.Exists() {
-		return errors.New("no completion triggers")
+		return errors.New("The server completion trigger list is missing.")
 	}
 	triggers.Add(ast.NewString("<"))
 	triggers.Add(ast.NewString("/"))
@@ -151,7 +151,7 @@ func (d jsonInitDriver) insertCompletionTriggers(j Json) error {
 func (r jsonInitDriver) getWorkspaceChanges(j Json) (added []string, removed []string, err error) {
 	event := j.Get("event")
 	if !event.Exists() {
-		return nil, nil, errors.New("no event")
+		return nil, nil, errors.New("Workspace folder change event is missing.")
 	}
 	addedNodes := event.Get("added")
 	if addedNodes.Exists() {
@@ -161,7 +161,7 @@ func (r jsonInitDriver) getWorkspaceChanges(j Json) (added []string, removed []s
 				uri := *node.Get("uri")
 				str, err := uri.String()
 				if err != nil {
-					return nil, nil, errors.New("added uri is not string")
+					return nil, nil, errors.New("An added workspace folder URI is invalid.")
 				}
 				added = append(added, str)
 			}
@@ -175,7 +175,7 @@ func (r jsonInitDriver) getWorkspaceChanges(j Json) (added []string, removed []s
 				uri := *node.Get("uri")
 				str, err := uri.String()
 				if err != nil {
-					return nil, nil, errors.New("removed uri is not string")
+					return nil, nil, errors.New("A removed workspace folder URI is invalid.")
 				}
 				removed = append(removed, str)
 			}

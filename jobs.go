@@ -91,7 +91,7 @@ func (j *JobHeadOpen) Output(w io.Writer) error {
 		return nil
 	}
 	if j.Tag == "" {
-		return OutputError("void or regular element must have a name")
+		return OutputError("Regular and void elements must have a name.")
 	}
 	if err := utils.WriteTagOpenBeg(w, j.Tag); err != nil {
 		return err
@@ -157,10 +157,10 @@ func (j *JobHeadClose) Output(w io.Writer) error {
 		return nil
 	}
 	if j.Kind == KindVoid {
-		return OutputError("void element cannot be closed")
+		return OutputError("Void elements cannot be closed.")
 	}
 	if j.Kind == KindRegular && j.Tag == "" {
-		return OutputError("regular element must have a name")
+		return OutputError("Regular elements must have a name.")
 	}
 	return utils.WriteTagClose(w, j.Tag)
 }

@@ -52,11 +52,6 @@ func (p ProxyFunc) Proxy(cur Cursor, elem Elem) error {
 
 var _ Proxy = ProxyFunc(nil)
 
-// Noop ignores its argument.
-//
-// It is useful as a placeholder callback or when an adapter requires a function
-// but the caller has nothing to do.
-func Noop(any) {}
 
 // NewEscapedWriter returns a writer that applies GoX's HTML escaping rules.
 //

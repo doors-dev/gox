@@ -24,7 +24,7 @@ type stdioListener struct {
 func (s *stdioListener) Accept() (io.ReadWriteCloser, error) {
 	if s.fired.Swap(true) {
 		<-s.close
-		return nil, errors.New("closed")
+		return nil, errors.New("The listener is closed.")
 	}
 	return common.RWClose(
 		os.Stdin,

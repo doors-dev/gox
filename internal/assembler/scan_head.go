@@ -92,7 +92,7 @@ func renderProxyBeg(coll collector, proxy *tree_sitter.Node) {
 	coll.append(r(".Proxy(__c, gox.Elem(func(__c gox.Cursor) (__e error) {"))
 	coll.indentBeg()
 	coll.cr()
-	coll.append(r("ctx := __c.Context(); gox.Noop(ctx)"))
+	coll.append(r("ctx := __c.Context(); _ = ctx"))
 }
 
 func scanRawHead(coll collector, root *tree_sitter.Node) {

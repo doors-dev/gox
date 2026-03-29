@@ -12,15 +12,15 @@ type jsonDocDriver struct{}
 func (r jsonDocDriver) getText(j Json) (string, error) {
 	textDoc := j.Get("textDocument")
 	if !textDoc.Exists() {
-		return "", errors.New("text document not found")
+		return "", errors.New("The textDocument field is missing.")
 	}
 	text := textDoc.Get("text")
 	if !text.Exists() {
-		return "", errors.New("text field not found")
+		return "", errors.New("The document text is missing.")
 	}
 	str, err := text.String()
 	if err != nil {
-		return "", errors.New("text field not valid")
+		return "", errors.New("The document text is invalid.")
 	}
 	return str, nil
 }
@@ -60,11 +60,11 @@ func (r jsonDocDriver) get(man workspace.Manager, j Json, forEdit bool) (workspa
 		return nil
 	}()
 	if uri == nil {
-		return nil, workspace.KindUnknown, errors.New("uri field not found")
+		return nil, workspace.KindUnknown, errors.New("A document URI is missing.")
 	}
 	uriStr, err := uri.String()
 	if err != nil {
-		return nil, workspace.KindUnknown, errors.New("uri field not valid")
+		return nil, workspace.KindUnknown, errors.New("A document URI is invalid.")
 	}
 	doc, kind := man.Doc(uriStr)
 	if !forEdit && doc == nil && kind == workspace.KindTarget {
@@ -87,15 +87,15 @@ func (r jsonDocDriver) setVersion(j Json, version int32) {
 func (r jsonDocDriver) getVersion(j Json) (int, error) {
 	textDoc := j.Get("textDocument")
 	if !textDoc.Exists() {
-		return 0, errors.New("text document not found")
+		return 0, errors.New("The textDocument field is missing.")
 	}
 	version := textDoc.Get("version")
 	if !version.Exists() {
-		return 0, errors.New("version field not found")
+		return 0, errors.New("The document version is missing.")
 	}
 	i, err := version.Int64()
 	if err != nil {
-		return 0, errors.New("version field not valid")
+		return 0, errors.New("The document version is invalid.")
 	}
 	return int(i), nil
 }

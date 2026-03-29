@@ -52,7 +52,7 @@ func (r jsonChangesDriver) convertInlayHints(enc common.Encoding, doc workspace.
 	}
 	j.ForEach(func(path ast.Sequence, node *ast.Node) bool {
 		if path.Index == -1 || path.Key != nil {
-			err = errors.New("inlay hints gopls reponse format error")
+			err = errors.New("The gopls inlay hints response format is invalid.")
 			return false
 		}
 		if err != nil {
@@ -68,7 +68,7 @@ func (r jsonChangesDriver) convertInlayHints(enc common.Encoding, doc workspace.
 		}
 		textEdits.ForEach(func(path ast.Sequence, node *ast.Node) bool {
 			if path.Index == -1 || path.Key != nil {
-				err = errors.New("inlay hints gopls reponse format error")
+				err = errors.New("The gopls inlay hints response format is invalid.")
 				return false
 			}
 			err = jsonPos.convertRangeToTarget(enc, doc, node, workspace.Strict)
@@ -104,7 +104,7 @@ func (r jsonChangesDriver) convertCodeActions(man workspace.Manager, enc common.
 	}
 	arr, err := j.ArrayUseNode()
 	if err != nil {
-		return errors.New("code actions not found or invalid")
+		return errors.New("Code actions are missing or invalid.")
 	}
 	var newActions = make([]ast.Node, 0, len(arr))
 	for _, node := range arr {
@@ -135,11 +135,11 @@ func (r jsonChangesDriver) convertEdit(man workspace.Manager, enc common.Encodin
 		newChanges := ast.NewObject(nil)
 		changes.ForEach(func(path ast.Sequence, node *ast.Node) bool {
 			if path.Index == -1 {
-				err = errors.New("Can't read workspace edit")
+				err = errors.New("Could not read the workspace edit.")
 				return false
 			}
 			if path.Key == nil {
-				err = errors.New("Can't read workspace edit")
+				err = errors.New("Could not read the workspace edit.")
 				return false
 			}
 			uri := *path.Key
@@ -166,7 +166,7 @@ func (r jsonChangesDriver) convertEdit(man workspace.Manager, enc common.Encodin
 		})
 		_, jerr := j.Set("changes", newChanges)
 		if jerr != nil {
-			err = errors.New("Can't set changes")
+			err = errors.New("Could not update the workspace changes.")
 			return
 		}
 	}
@@ -176,7 +176,7 @@ func (r jsonChangesDriver) convertEdit(man workspace.Manager, enc common.Encodin
 	}
 	changesArr, jerr := changes.ArrayUseNode()
 	if jerr != nil {
-		err = errors.New("Can't read document changes")
+		err = errors.New("Could not read the document changes.")
 		return
 	}
 	newChanges := make([]ast.Node, 0, len(changesArr))
@@ -215,7 +215,7 @@ func (r jsonChangesDriver) convertEdit(man workspace.Manager, enc common.Encodin
 		var kind string
 		kind, jerr = kindNode.String()
 		if err != nil {
-			err = errors.New("Can't read workspace edit")
+			err = errors.New("Could not read the workspace edit.")
 			return
 		}
 		switch kind {
@@ -226,7 +226,7 @@ func (r jsonChangesDriver) convertEdit(man workspace.Manager, enc common.Encodin
 		case "delete":
 			newChanges = append(newChanges, node)
 		default:
-			err = errors.New("Unknown document change kind")
+			err = errors.New("The document change kind is not supported.")
 			return
 		}
 	}
@@ -237,7 +237,7 @@ func (r jsonChangesDriver) convertEdit(man workspace.Manager, enc common.Encodin
 func (r jsonChangesDriver) getChanges(j Json) ([]ContentChange, error) {
 	node := j.Get("contentChanges")
 	if !node.Exists() {
-		return nil, errors.New("Can't read content changes")
+		return nil, errors.New("Could not read the content changes.")
 	}
 	arr, _ := node.ArrayUseNode()
 	changes := make([]ContentChange, 0, len(arr))

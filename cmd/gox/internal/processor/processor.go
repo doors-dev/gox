@@ -246,7 +246,7 @@ func (p *processor) run() error {
 		} else {
 			file, ok := workspace.NewFile(p.root)
 			if !ok {
-				return errors.New("Not .gox or .x.go file: " + p.root)
+				return errors.New("Expected a .gox or .x.go file: " + p.root)
 			}
 			p.genFile(file)
 		}

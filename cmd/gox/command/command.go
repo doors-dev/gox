@@ -39,25 +39,25 @@ func Execute(s Starter) (error, error) {
 	case "fmt", "format":
 		args, err := parseGenericArgs(args, "format")
 		if err != nil {
-			return errors.New("format arguments parse error: " + err.Error()), nil
+			return errors.New("Could not parse format arguments: " + err.Error()), nil
 		}
 		return nil, s.Format(args)
 	case "gen", "generate":
 		args, err := parseGenericArgs(args, "generate")
 		if err != nil {
-			return errors.New("generate arguments parse error: " + err.Error()), nil
+			return errors.New("Could not parse generate arguments: " + err.Error()), nil
 		}
 		return nil, s.Generate(args)
 	case "srv", "serve":
 		args, err := parseServeArgs(args)
 		if err != nil {
-			return errors.New("serve arguments parse error: " + err.Error()), nil
+			return errors.New("Could not parse serve arguments: " + err.Error()), nil
 		}
 		return nil, s.Serve(args)
 	case "ver", "version":
 		println(assembler.Version())
 		return nil, nil
 	default:
-		return errors.New("unknown command: " + command + "\n\n" + help), nil
+		return errors.New("Unknown command: " + command + "\n\n" + help), nil
 	}
 }
