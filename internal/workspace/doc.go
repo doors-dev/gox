@@ -81,7 +81,7 @@ func (d Doc) Err() error {
 }
 
 func (d Doc) Assemble() {
-	d.target, d.translator = assembler.Assemble(d.source, d.tree.RootNode())
+	d.target, d.translator = assembler.Assemble(d.sourceFile.Path(), d.source, d.tree.RootNode())
 }
 
 func (d Doc) Load() error {

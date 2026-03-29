@@ -21,16 +21,44 @@ func (t Text) CR() {
 	t.source = append(t.source, lastIndent...)
 	end := len(t.source)
 	t.lineOffsets = append(t.lineOffsets, newOffset(beg, end))
+	t.annotationBlock = false
 }
 
 func (t Text) AppendString(s string) {
 	t.Append([]byte(s))
 }
 
+func (t Text) Annotate(text string) {
+	if strings.Contains(text, "\n") {
+		panic("multiline annotations are not allowed")
+	}
+	if t.annotationBlock {
+		return
+	}
+	line := append([]byte(text), '\n')
+	last := len(t.lineOffsets) - 1
+	if last == -1 {
+		t.source = append(t.source, line...)
+		t.lineOffsets = append(t.lineOffsets, newOffset(0, len(text)))
+		return
+	}
+	if t.annotated == last {
+		return
+	}
+	lastOffset := t.lineOffsets[last]
+	beg := lastOffset.Beg()
+	t.source = slices.Insert(t.source, beg, line...)
+	t.lineOffsets[last] = newOffset(beg, beg+len(text))
+	lastOffset.Shift(len(line))
+	t.lineOffsets = append(t.lineOffsets, lastOffset)
+	t.annotated = len(t.lineOffsets) - 1
+}
+
 func (t Text) Append(s []byte) {
 	scanner := bufio.NewScanner(bytes.NewReader(s))
 	scanner.Buffer(nil, maxTokenSize)
 	first := true
+	before := len(t.lineOffsets)
 	for scanner.Scan() {
 		beg := len(t.source)
 		t.source = append(t.source, scanner.Bytes()...)
@@ -59,6 +87,16 @@ func (t Text) Append(s []byte) {
 	if err := scanner.Err(); err != nil {
 		panic(err)
 	}
+	after := len(t.lineOffsets)
+	diff := after - before
+	if diff == 0 {
+		return
+	}
+	if t.lineOffsets[after-1].Len() == 0 {
+		t.annotationBlock = false
+		return
+	}
+	t.annotationBlock = true
 }
 
 func (t *text) IndentRef(line []byte) {
@@ -132,7 +170,7 @@ func (t Text) Update(content string) (tree_sitter.InputEdit, bool, error) {
 
 func (t Text) Patch(ran common.Range, content string) (tree_sitter.InputEdit, bool, error) {
 	defer t.ensureLineOffsets()
-	patch, err := t.preparePatch(ran, content) 
+	patch, err := t.preparePatch(ran, content)
 	if err != nil {
 		return tree_sitter.InputEdit{}, false, err
 	}
@@ -163,11 +201,11 @@ func (t Text) preparePatch(ran common.Range, content string) (patch, error) {
 	end := t.offset(ran.End(), true)
 	offsets := []offset{}
 	buf := bytes.Buffer{}
-		if beg == -1 {
-			// allow only empty lines above the exiting lines
-			if ran.Beg().Column() != 0 {
-				return patch{}, errors.New("The edit range is invalid.")
-			}
+	if beg == -1 {
+		// allow only empty lines above the exiting lines
+		if ran.Beg().Column() != 0 {
+			return patch{}, errors.New("The edit range is invalid.")
+		}
 		begLine := len(t.lineOffsets) - 1
 		begCol := t.lineOffsets[begLine].Len()
 		beg = len(t.source)

@@ -3,6 +3,8 @@ package assembler
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"path/filepath"
 	"regexp"
 
 	"github.com/doors-dev/gox/internal/common"
@@ -11,10 +13,12 @@ import (
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-func Assemble(source text.Text, root *tree_sitter.Node) (text.Text, translator.Translator) {
+func Assemble(path string, source text.Text, root *tree_sitter.Node) (text.Text, translator.Translator) {
 	target := text.NewText()
 	translator := translator.NewTranslator()
+	name := filepath.Base(path)
 	a := &assembler{
+		fileName:   name,
 		target:     target,
 		translator: translator,
 		source:     source,
@@ -29,6 +33,7 @@ func Assemble(source text.Text, root *tree_sitter.Node) (text.Text, translator.T
 type Assembler = *assembler
 
 type assembler struct {
+	fileName   string
 	source     text.Text
 	target     text.Text
 	translator translator.Translator
@@ -39,6 +44,7 @@ func (a *assembler) portal(beg tree_sitter.Point, end tree_sitter.Point) {
 	if ran.IsCursor() {
 		return
 	}
+	a.target.Annotate(fmt.Sprintf("//line %s:%d", a.fileName, beg.Row+1))
 	targetBeg := a.target.Cursor()
 	snippet := a.source.Slice(ran)
 	a.target.Append(snippet)

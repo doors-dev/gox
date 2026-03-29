@@ -239,7 +239,16 @@
 (block 
   .
   "{" @append_indent_start @append_hardline 
-  "}" @prepend_indent_end
+  (_)+
+  "}" @prepend_indent_end @prepend_hardline
+  .
+)
+
+(block 
+  .
+  "{" @append_input_softline @append_antispace
+  .
+  "}" 
   .
 )
 
@@ -680,9 +689,19 @@ _
 (gox_block 
   .
   "{" @append_indent_start @append_hardline 
+  (_)+
   "}" @prepend_indent_end @prepend_hardline
   .
 )
+
+(gox_block 
+  .
+  "{" @append_input_softline @append_antispace
+  .
+  "}" 
+  .
+)
+
 
 
 (gox_tilde_block
@@ -690,6 +709,8 @@ _
   (_)+
   "}" @prepend_indent_end
 )
+
+
 
 
 (_

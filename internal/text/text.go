@@ -9,7 +9,9 @@ import (
 const maxTokenSize = 1 << 24
 
 func NewText() Text {
-	t := &text{}
+	t := &text{
+		annotated: -1,
+	}
 	t.ensureLineOffsets()
 	return t
 }
@@ -22,9 +24,11 @@ type indent struct {
 }
 
 type text struct {
-	source      []byte
-	lineOffsets []offset
-	indents     []indent
+	source          []byte
+	lineOffsets     []offset
+	indents         []indent
+	annotationBlock bool
+	annotated       int
 }
 
 func (t Text) Clone() Text {
@@ -32,6 +36,7 @@ func (t Text) Clone() Text {
 		source:      slices.Clone(t.source),
 		lineOffsets: slices.Clone(t.lineOffsets),
 		indents:     slices.Clone(t.indents),
+		annotated:   t.annotated,
 	}
 }
 
