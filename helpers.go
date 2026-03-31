@@ -61,15 +61,15 @@ func NewEscapedWriter(w io.Writer) io.Writer {
 	return utils.NewEscapedWriter(w)
 }
 
-// AttrModFunc adapts a function into a Modify.
-type AttrModFunc func(ctx context.Context, tag string, attrs Attrs) error
+// ModifyFunc adapts a function into a Modify.
+type ModifyFunc func(ctx context.Context, tag string, attrs Attrs) error
 
 // Modify calls a(ctx, tag, attrs).
-func (a AttrModFunc) Modify(ctx context.Context, tag string, attrs Attrs) error {
+func (a ModifyFunc) Modify(ctx context.Context, tag string, attrs Attrs) error {
 	return a(ctx, tag, attrs)
 }
 
-var _ Modify = AttrModFunc(nil)
+var _ Modify = ModifyFunc(nil)
 
 // PrinterFunc adapts a function into a Printer.
 type PrinterFunc func(j Job) error

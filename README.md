@@ -311,7 +311,7 @@ The helpers in `helpers.go` keep the API lightweight when you want one-off imple
 - `gox.EditorCompFunc`
 - `gox.EditorFunc`
 - `gox.ProxyFunc`
-- `gox.AttrModFunc`
+- `gox.ModifyFunc`
 - `gox.PrinterFunc`
 - `gox.NewEscapedWriter`
 
