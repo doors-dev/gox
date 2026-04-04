@@ -53,6 +53,43 @@ go get github.com/doors-dev/gox
 
 Keep the installed `gox` tool and the Go module version reasonably in sync. Generated `.x.go` files carry a GoX version marker, and newer generated files require a tooling upgrade.
 
+## How to Render an `Elem`
+
+Most of the time, rendering starts with `Elem.Render(ctx, w)`.
+
+```go
+func Badge(label string) gox.Elem {
+    return <span class="badge">~(label)</span>
+}
+
+func handleBadge(w http.ResponseWriter, r *http.Request) {
+    w.Header().Set("Content-Type", "text/html; charset=utf-8")
+    if err := Badge("New").Render(r.Context(), w); err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+    }
+}
+```
+
+Outside HTTP, you can render to any `io.Writer`:
+
+```go
+func Example() error {
+    return Badge("New").Render(context.Background(), os.Stdout)
+}
+```
+
+If you need the HTML as a string, render into a buffer:
+
+```go
+func RenderBadge(label string) (string, error) {
+    var buf bytes.Buffer
+    err := Badge(label).Render(context.Background(), &buf)
+    return buf.String(), err
+}
+```
+
+Use `Elem.Print(ctx, printer)` instead when you want to render through a custom `Printer` instead of the default HTML writer.
+
 ---
 
 ## Workflow
