@@ -15,7 +15,7 @@ func initServerNotifs(sess *session, on func(on onNotif, m ...method)) {
 			return
 		}
 		if kind == workspace.KindSource {
-			panic("source file diagnostics is not expected")
+			return
 		}
 		if doc.Err() != nil {
 			return
