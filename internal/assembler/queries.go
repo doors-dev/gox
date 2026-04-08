@@ -113,7 +113,10 @@ func goxIsImported(content []byte, root *tree_sitter.Node) (result bool) {
 	return result
 }
 
-func NeedsGoxImport(content []byte, root *tree_sitter.Node) (gox bool) {
+func NeedsGoxImport(content []byte, root *tree_sitter.Node) bool {
+	if root.HasError() {
+		return false
+	}
 	if goxIsImported(content, root) {
 		return false
 	}
