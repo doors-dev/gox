@@ -4,8 +4,29 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"testing"
 )
+
+type errWriter struct {
+	failAt int
+	writes int
+	err    error
+}
+
+func (w *errWriter) Write(p []byte) (int, error) {
+	if w.writes >= w.failAt {
+		return 0, w.err
+	}
+	w.writes++
+	return len(p), nil
+}
+
+type errOutput struct{ err error }
+
+func (o errOutput) Output(io.Writer) error {
+	return o.err
+}
 
 func TestNewAttrsEmpty(t *testing.T) {
 	a := NewAttrs()
@@ -86,9 +107,13 @@ func TestAttrsList(t *testing.T) {
 func TestAttrsClone(t *testing.T) {
 	a := NewAttrs()
 	a.Get("id").Set("x")
+	a.Get("hidden")
 	c := a.Clone()
 	if !c.Has("id") {
 		t.Fatal("clone missing id")
+	}
+	if c.Has("hidden") {
+		t.Fatal("clone copied unset attr")
 	}
 	c.Get("id").Set("y")
 	if v, _ := a.Find("id"); v.Value() != "x" {
@@ -214,5 +239,32 @@ func TestAttrsApplyModsErrorStops(t *testing.T) {
 	}))
 	if err := a.ApplyMods(context.Background(), "div"); err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+func TestAttrsOutputNilIsNoop(t *testing.T) {
+	var a Attrs
+	if err := a.output(context.Background(), "div", &bytes.Buffer{}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAttrsOutputPropagatesSpaceWriteError(t *testing.T) {
+	a := NewAttrs()
+	a.Get("class").Set("c")
+	w := &errWriter{failAt: 0, err: errors.New("space write failed")}
+	err := a.output(context.Background(), "div", w)
+	if err == nil || err.Error() != "space write failed" {
+		t.Fatalf("output error = %v", err)
+	}
+}
+
+func TestAttrsOutputPropagatesAttrError(t *testing.T) {
+	a := NewAttrs()
+	want := errors.New("attr output failed")
+	a.Get("data-x").Set(errOutput{err: want})
+	err := a.output(context.Background(), "div", &bytes.Buffer{})
+	if !errors.Is(err, want) {
+		t.Fatalf("output error = %v, want %v", err, want)
 	}
 }

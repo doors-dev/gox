@@ -403,6 +403,14 @@ func (t templStub) Render(ctx context.Context, w io.Writer) error {
 	return err
 }
 
+type failingPrinter struct {
+	err error
+}
+
+func (p failingPrinter) Send(Job) error {
+	return p.err
+}
+
 func TestCursorTempl(t *testing.T) {
 	out := renderElem(t, func(c Cursor) error {
 		return c.Templ(templStub{s: "tx"})
@@ -467,4 +475,159 @@ func TestHeadKindDistinct(t *testing.T) {
 	if KindContainer == KindRegular || KindRegular == KindVoid {
 		t.Fatal("HeadKind not distinct")
 	}
+}
+
+func TestCursorHeadLifecycleErrors(t *testing.T) {
+	tests := []struct {
+		name string
+		run  func(Cursor) error
+	}{
+		{
+			name: "close before submit",
+			run: func(c Cursor) error {
+				if err := c.Init("div"); err != nil {
+					return err
+				}
+				return c.Close()
+			},
+		},
+		{
+			name: "close void after submit",
+			run: func(c Cursor) error {
+				if err := c.InitVoid("input"); err != nil {
+					return err
+				}
+				if err := c.Submit(); err != nil {
+					return err
+				}
+				return c.Close()
+			},
+		},
+		{
+			name: "init while head pending",
+			run: func(c Cursor) error {
+				if err := c.Init("div"); err != nil {
+					return err
+				}
+				return c.Init("span")
+			},
+		},
+		{
+			name: "init void while head pending",
+			run: func(c Cursor) error {
+				if err := c.Init("div"); err != nil {
+					return err
+				}
+				return c.InitVoid("input")
+			},
+		},
+		{
+			name: "init container while head pending",
+			run: func(c Cursor) error {
+				if err := c.Init("div"); err != nil {
+					return err
+				}
+				return c.InitContainer()
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := Elem(tc.run).Render(context.Background(), &bytes.Buffer{})
+			if err == nil {
+				t.Fatal("expected lifecycle error")
+			}
+		})
+	}
+}
+
+func TestCursorContentMethodsRequireSubmittedHead(t *testing.T) {
+	tests := []struct {
+		name string
+		run  func(Cursor) error
+	}{
+		{name: "comp", run: func(c Cursor) error { return c.Comp(compStub{s: "x"}) }},
+		{name: "comp ctx", run: func(c Cursor) error { return c.CompCtx(context.Background(), compStub{s: "x"}) }},
+		{name: "raw", run: func(c Cursor) error { return c.Raw("x") }},
+		{name: "bytes", run: func(c Cursor) error { return c.Bytes([]byte("x")) }},
+		{name: "templ", run: func(c Cursor) error { return c.Templ(templStub{s: "x"}) }},
+		{name: "templ ctx", run: func(c Cursor) error { return c.TemplCtx(context.Background(), templStub{s: "x"}) }},
+		{name: "fprint", run: func(c Cursor) error { return c.Fprint("x") }},
+		{name: "many", run: func(c Cursor) error { return c.Many("x") }},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := Elem(func(c Cursor) error {
+				if err := c.Init("div"); err != nil {
+					return err
+				}
+				return tc.run(c)
+			}).Render(context.Background(), &bytes.Buffer{})
+			if err == nil {
+				t.Fatal("expected content-state error")
+			}
+		})
+	}
+}
+
+func TestCursorAnyCompUsesCompBranch(t *testing.T) {
+	out := renderElem(t, func(c Cursor) error {
+		return c.Any(compStub{s: "branch"})
+	})
+	if out != "branch" {
+		t.Fatalf("got %q", out)
+	}
+}
+
+func TestCursorAnySlicesPropagateErrors(t *testing.T) {
+	tests := []struct {
+		name string
+		run  func(Cursor) error
+	}{
+		{
+			name: "string slice requires submitted head",
+			run: func(c Cursor) error {
+				return c.Any([]string{"a"})
+			},
+		},
+		{
+			name: "elem slice requires submitted head",
+			run: func(c Cursor) error {
+				return c.Any([]Elem{
+					func(c Cursor) error { return c.Text("a") },
+				})
+			},
+		},
+		{
+			name: "comp slice requires submitted head",
+			run: func(c Cursor) error {
+				return c.Any([]Comp{compStub{s: "a"}})
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := Elem(func(c Cursor) error {
+				if err := c.Init("div"); err != nil {
+					return err
+				}
+				return tc.run(c)
+			}).Render(context.Background(), &bytes.Buffer{})
+			if err == nil {
+				t.Fatal("expected slice dispatch error")
+			}
+		})
+	}
+
+	t.Run("job slice propagates printer error", func(t *testing.T) {
+		want := errors.New("boom")
+		c := NewCursor(context.Background(), failingPrinter{err: want})
+		err := c.Any([]Job{NewJobText(c.Context(), "a")})
+		if !errors.Is(err, want) {
+			t.Fatalf("Any([]Job) error = %v, want %v", err, want)
+		}
+	})
 }

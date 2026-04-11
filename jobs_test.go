@@ -41,6 +41,25 @@ func TestJobHeadOpenWithAttrs(t *testing.T) {
 	}
 }
 
+func TestJobHeadOpenNilAttrs(t *testing.T) {
+	j := NewJobHeadOpen(context.Background(), 1, KindRegular, "div", nil)
+	buf := &bytes.Buffer{}
+	if err := j.Output(buf); err != nil {
+		t.Fatal(err)
+	}
+	if buf.String() != "<div>" {
+		t.Fatalf("got %q", buf.String())
+	}
+}
+
+func TestJobHeadOpenWriteError(t *testing.T) {
+	want := errors.New("write failed")
+	j := NewJobHeadOpen(context.Background(), 1, KindRegular, "div", nil)
+	if err := j.Output(&errWriter{failAt: 0, err: want}); !errors.Is(err, want) {
+		t.Fatalf("Output() error = %v, want %v", err, want)
+	}
+}
+
 func TestJobHeadCloseContainerNoOutput(t *testing.T) {
 	j := NewJobHeadClose(context.Background(), 1, KindContainer, "")
 	buf := &bytes.Buffer{}
