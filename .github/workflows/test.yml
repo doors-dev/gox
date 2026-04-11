@@ -30,6 +30,11 @@ jobs:
       - name: Build Rust library
         run: make build_rust
 
+      - name: Install gopls
+        run: |
+          go install golang.org/x/tools/gopls@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
       - name: Run cross-package coverage
         run: go test -coverpkg=./... ./... -coverprofile=coverage_all.out
 
