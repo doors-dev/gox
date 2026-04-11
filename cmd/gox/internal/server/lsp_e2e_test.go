@@ -437,6 +437,15 @@ func (h *lspHarness) notify(method string, params any) {
 
 func (h *lspHarness) callRaw(method string, params any) json.RawMessage {
 	h.t.Helper()
+	resp := h.call(method, params)
+	if resp.Err != nil {
+		h.t.Fatalf("call %s failed: %v\nrecorded events:\n%s", method, resp.Err, h.dumpEvents())
+	}
+	return resp.Result
+}
+
+func (h *lspHarness) call(method string, params any) callResult {
+	h.t.Helper()
 	id := atomic.AddInt64(&h.nextID, 1)
 	msg, err := jsonrpc2.NewCall(jsonrpc2.Int64ID(id), method, params)
 	if err != nil {
@@ -451,13 +460,10 @@ func (h *lspHarness) callRaw(method string, params any) json.RawMessage {
 	}
 	select {
 	case resp := <-respCh:
-		if resp.Err != nil {
-			h.t.Fatalf("call %s failed: %v\nrecorded events:\n%s", method, resp.Err, h.dumpEvents())
-		}
-		return resp.Result
+		return resp
 	case <-time.After(lspCallTimeout):
 		h.t.Fatalf("timed out waiting for response to %s\nrecorded events:\n%s", method, h.dumpEvents())
-		return nil
+		return callResult{}
 	}
 }
 
@@ -1180,6 +1186,88 @@ func TestLSPServerE2EWithRealGopls(t *testing.T) {
 				t.Fatalf("unexpected pull diagnostic message: %+v", report.Items[0])
 			}
 			assertRangeContainsPosition(t, report.Items[0].Range, fixture.broken.Marker("missing_symbol"))
+		})
+	})
+
+	t.Run("invalid handled requests surface protocol errors and user-facing notifications", func(t *testing.T) {
+		run := func(name string, fn func(t *testing.T)) {
+			t.Run(name, func(t *testing.T) {
+				h.t = t
+				fn(t)
+			})
+		}
+
+		run("bad client call returns an error response", func(t *testing.T) {
+			checkpoint := h.checkpoint()
+			resp := h.call("textDocument/documentSymbol", map[string]any{})
+			if resp.Err == nil {
+				t.Fatal("expected documentSymbol error response")
+			}
+			if !errors.Is(resp.Err, jsonrpc2.ErrInvalidParams) {
+				t.Fatalf("unexpected error: %v", resp.Err)
+			}
+			h.waitForEventAfter(checkpoint, "notification", "window/logMessage", func(raw json.RawMessage) bool {
+				return strings.Contains(string(raw), "A document URI is missing.")
+			})
+			h.waitForEventAfter(checkpoint, "notification", "window/showMessage", func(raw json.RawMessage) bool {
+				return strings.Contains(string(raw), "A document URI is missing.")
+			})
+		})
+
+		run("bad client notification still surfaces the error to the client", func(t *testing.T) {
+			checkpoint := h.checkpoint()
+			h.notify("workspace/didChangeWorkspaceFolders", map[string]any{})
+			h.waitForEventAfter(checkpoint, "notification", "window/logMessage", func(raw json.RawMessage) bool {
+				return strings.Contains(string(raw), "Workspace folder change event is missing.")
+			})
+			h.waitForEventAfter(checkpoint, "notification", "window/showMessage", func(raw json.RawMessage) bool {
+				return strings.Contains(string(raw), "Workspace folder change event is missing.")
+			})
+		})
+
+		run("bad didOpen notification reports missing document text", func(t *testing.T) {
+			checkpoint := h.checkpoint()
+			h.notify("textDocument/didOpen", map[string]any{
+				"textDocument": map[string]any{
+					"uri":        viewURI,
+					"languageId": "gox",
+					"version":    99,
+				},
+			})
+			h.waitForEventAfter(checkpoint, "notification", "window/logMessage", func(raw json.RawMessage) bool {
+				return strings.Contains(string(raw), "The document text is missing.")
+			})
+			h.waitForEventAfter(checkpoint, "notification", "window/showMessage", func(raw json.RawMessage) bool {
+				return strings.Contains(string(raw), "The document text is missing.")
+			})
+		})
+
+		run("bad didChange notification reports missing content changes", func(t *testing.T) {
+			checkpoint := h.checkpoint()
+			h.notify("textDocument/didChange", map[string]any{
+				"textDocument": map[string]any{
+					"uri":     viewURI,
+					"version": 100,
+				},
+			})
+			h.waitForEventAfter(checkpoint, "notification", "window/logMessage", func(raw json.RawMessage) bool {
+				return strings.Contains(string(raw), "Could not read the content changes.")
+			})
+			h.waitForEventAfter(checkpoint, "notification", "window/showMessage", func(raw json.RawMessage) bool {
+				return strings.Contains(string(raw), "Could not read the content changes.")
+			})
+		})
+
+		run("bad selectionRange request degrades to an empty result", func(t *testing.T) {
+			resp := h.call("textDocument/selectionRange", map[string]any{
+				"textDocument": map[string]any{"uri": viewURI},
+			})
+			if resp.Err != nil {
+				t.Fatalf("selectionRange returned error: %v", resp.Err)
+			}
+			if compactJSON(resp.Result) != "[]" {
+				t.Fatalf("selectionRange result = %s, want []", compactJSON(resp.Result))
+			}
 		})
 	})
 
