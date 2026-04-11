@@ -48,13 +48,17 @@ func TestCursorVoidElement(t *testing.T) {
 		if err := c.InitVoid("input"); err != nil {
 			return err
 		}
+		if err := c.AttrSet("type", "text"); err != nil {
+			return err
+		}
 		if err := c.AttrSet("disabled", true); err != nil {
 			return err
 		}
 		return c.Submit()
 	})
-	if !strings.Contains(out, "<input") || !strings.Contains(out, "disabled") {
-		t.Fatalf("got %q", out)
+	want := `<input disabled type="text">`
+	if out != want {
+		t.Fatalf("got %q, want %q", out, want)
 	}
 }
 

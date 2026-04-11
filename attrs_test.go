@@ -33,8 +33,8 @@ func TestNewAttrsEmpty(t *testing.T) {
 	if a == nil {
 		t.Fatal("NewAttrs returned nil")
 	}
-	if a.Has("id") {
-		t.Fatal("empty Attrs.Has = true")
+	if got := a.List(); len(got) != 0 {
+		t.Fatalf("NewAttrs().List() len = %d, want 0 (%#v)", len(got), got)
 	}
 }
 
@@ -189,13 +189,13 @@ func TestAttrOutputName(t *testing.T) {
 func TestAttrOutputValue(t *testing.T) {
 	a := NewAttrs()
 	at := a.Get("class")
-	at.Set("c")
+	at.Set(`a&"b`)
 	buf := &bytes.Buffer{}
 	if err := at.OutputValue(buf); err != nil {
 		t.Fatal(err)
 	}
-	if buf.String() == "" {
-		t.Fatal("empty output")
+	if got := buf.String(); got != "a&amp;&#34;b" {
+		t.Fatalf("OutputValue = %q, want HTML-escaped value", got)
 	}
 }
 

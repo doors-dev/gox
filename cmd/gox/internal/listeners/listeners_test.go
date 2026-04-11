@@ -30,11 +30,34 @@ func TestNetListenerAcceptAndClose(t *testing.T) {
 	}
 	defer client.Close()
 
+	var server io.ReadWriteCloser
 	select {
-	case conn := <-accepted:
-		defer conn.Close()
+	case server = <-accepted:
+		defer server.Close()
 	case <-time.After(2 * time.Second):
 		t.Fatal("Accept() did not return in time")
+	}
+
+	// Verify the accepted conn is wired to the dialed client by
+	// round-tripping bytes in both directions.
+	if _, err := client.Write([]byte("ping")); err != nil {
+		t.Fatalf("client Write() error = %v", err)
+	}
+	buf := make([]byte, 4)
+	if _, err := io.ReadFull(server, buf); err != nil {
+		t.Fatalf("server ReadFull() error = %v", err)
+	}
+	if string(buf) != "ping" {
+		t.Fatalf("server read %q, want %q", buf, "ping")
+	}
+	if _, err := server.Write([]byte("pong")); err != nil {
+		t.Fatalf("server Write() error = %v", err)
+	}
+	if _, err := io.ReadFull(client, buf); err != nil {
+		t.Fatalf("client ReadFull() error = %v", err)
+	}
+	if string(buf) != "pong" {
+		t.Fatalf("client read %q, want %q", buf, "pong")
 	}
 }
 

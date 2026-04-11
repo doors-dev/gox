@@ -9,11 +9,19 @@ import (
 
 func TestElemNilPrintAndRender(t *testing.T) {
 	var e Elem
-	if err := e.Print(context.Background(), NewPrinter(&bytes.Buffer{})); err != nil {
+	printBuf := &bytes.Buffer{}
+	if err := e.Print(context.Background(), NewPrinter(printBuf)); err != nil {
 		t.Fatalf("Print(nil) error = %v", err)
 	}
-	if err := e.Render(context.Background(), &bytes.Buffer{}); err != nil {
+	if printBuf.Len() != 0 {
+		t.Fatalf("Print(nil) wrote %q, want empty output", printBuf.String())
+	}
+	renderBuf := &bytes.Buffer{}
+	if err := e.Render(context.Background(), renderBuf); err != nil {
 		t.Fatalf("Render(nil) error = %v", err)
+	}
+	if renderBuf.Len() != 0 {
+		t.Fatalf("Render(nil) wrote %q, want empty output", renderBuf.String())
 	}
 }
 

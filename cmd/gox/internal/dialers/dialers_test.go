@@ -2,6 +2,7 @@ package dialers
 
 import (
 	"context"
+	"io"
 	"net"
 	"runtime"
 	"testing"
@@ -58,6 +59,18 @@ func TestCmdDialerStartsProcess(t *testing.T) {
 	}
 	if conn == nil {
 		t.Fatal("Dial(/bin/cat) returned nil conn")
+	}
+	// /bin/cat should echo what we write back to its stdout, which the
+	// returned ReadWriteCloser exposes via Read.
+	if _, err := conn.Write([]byte("hello\n")); err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+	buf := make([]byte, len("hello\n"))
+	if _, err := io.ReadFull(conn, buf); err != nil {
+		t.Fatalf("ReadFull() error = %v", err)
+	}
+	if string(buf) != "hello\n" {
+		t.Fatalf("cat echoed %q, want %q", buf, "hello\n")
 	}
 	if err := conn.Close(); err != nil {
 		t.Fatalf("Close() error = %v", err)

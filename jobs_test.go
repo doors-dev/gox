@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"strings"
 	"testing"
 )
 
 func TestJobHeadOpenContainerNoOutput(t *testing.T) {
-	j := NewJobHeadOpen(context.Background(), 1, KindContainer, "", nil)
+	// Containers carry no opening tag — even when given a tag name
+	// and attrs, Output must not write anything.
+	a := NewAttrs()
+	a.Get("class").Set("ignored")
+	j := NewJobHeadOpen(context.Background(), 1, KindContainer, "div", a)
 	buf := &bytes.Buffer{}
 	if err := j.Output(buf); err != nil {
 		t.Fatal(err)
@@ -30,13 +33,13 @@ func TestJobHeadOpenEmptyTagErrors(t *testing.T) {
 func TestJobHeadOpenWithAttrs(t *testing.T) {
 	a := NewAttrs()
 	a.Get("class").Set("c")
+	a.Get("id").Set("x")
 	j := NewJobHeadOpen(context.Background(), 1, KindRegular, "div", a)
 	buf := &bytes.Buffer{}
 	if err := j.Output(buf); err != nil {
 		t.Fatal(err)
 	}
-	got := buf.String()
-	if !strings.Contains(got, "<div") || !strings.Contains(got, `class="c"`) {
+	if got := buf.String(); got != `<div class="c" id="x">` {
 		t.Fatalf("got %q", got)
 	}
 }
@@ -218,8 +221,8 @@ func TestJobErrorOutput(t *testing.T) {
 }
 
 func TestOutputErrorString(t *testing.T) {
-	if OutputError("boom").Error() != "boom" {
-		t.Fatal()
+	if got := OutputError("boom").Error(); got != "boom" {
+		t.Fatalf("OutputError.Error() = %q, want %q", got, "boom")
 	}
 }
 
