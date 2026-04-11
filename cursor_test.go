@@ -5,11 +5,9 @@ import (
 	"context"
 	"errors"
 	"io"
-	"strings"
 	"testing"
 )
 
-// renderElem runs e through a default printer and returns its output.
 func renderElem(t *testing.T, e Elem) string {
 	t.Helper()
 	buf := &bytes.Buffer{}
@@ -18,8 +16,6 @@ func renderElem(t *testing.T, e Elem) string {
 	}
 	return buf.String()
 }
-
-// --- Cursor regular element ---------------------------------------------
 
 func TestCursorRegularElement(t *testing.T) {
 	out := renderElem(t, func(c Cursor) error {
@@ -84,8 +80,8 @@ func TestCursorTextEscapes(t *testing.T) {
 	out := renderElem(t, func(c Cursor) error {
 		return c.Text("<a&b>")
 	})
-	if !strings.Contains(out, "&lt;a&amp;b&gt;") {
-		t.Fatalf("got %q", out)
+	if out != "&lt;a&amp;b&gt;" {
+		t.Fatalf("got %q, want %q", out, "&lt;a&amp;b&gt;")
 	}
 }
 
@@ -116,8 +112,6 @@ func TestCursorFprint(t *testing.T) {
 	}
 }
 
-// --- Cursor.Any dispatch -----------------------------------------------
-
 func TestCursorAnyNil(t *testing.T) {
 	out := renderElem(t, func(c Cursor) error {
 		return c.Any(nil)
@@ -131,8 +125,8 @@ func TestCursorAnyString(t *testing.T) {
 	out := renderElem(t, func(c Cursor) error {
 		return c.Any("foo<")
 	})
-	if !strings.Contains(out, "foo&lt;") {
-		t.Fatalf("got %q", out)
+	if out != "foo&lt;" {
+		t.Fatalf("got %q, want %q", out, "foo&lt;")
 	}
 }
 
@@ -223,14 +217,11 @@ func TestCursorMany(t *testing.T) {
 	}
 }
 
-// --- State machine errors ---------------------------------------------
-
 func TestCursorTextWithoutSubmitErrors(t *testing.T) {
 	err := Elem(func(c Cursor) error {
 		if err := c.Init("span"); err != nil {
 			return err
 		}
-		// Forgot Submit
 		return c.Text("oops")
 	}).Render(context.Background(), &bytes.Buffer{})
 	if err == nil {
@@ -277,8 +268,6 @@ func TestCursorAttrAfterSubmitErrors(t *testing.T) {
 	}
 }
 
-// --- Cursor.NewID / Context --------------------------------------------
-
 func TestCursorNewIDIncreases(t *testing.T) {
 	c := NewCursor(context.Background(), NewPrinter(&bytes.Buffer{}))
 	a := c.NewID()
@@ -297,15 +286,11 @@ func TestCursorContext(t *testing.T) {
 	}
 }
 
-// --- HeadError -----------------------------------------------------------
-
 func TestHeadErrorString(t *testing.T) {
 	if HeadError("boom").Error() != "boom" {
 		t.Fatal("HeadError")
 	}
 }
-
-// --- AttrMod -------------------------------------------------------------
 
 func TestCursorAttrMod(t *testing.T) {
 	mod := ModifyFunc(func(ctx context.Context, tag string, attrs Attrs) error {
@@ -324,8 +309,8 @@ func TestCursorAttrMod(t *testing.T) {
 		}
 		return c.Close()
 	})
-	if !strings.Contains(out, `data-tag="section"`) {
-		t.Fatalf("got %q", out)
+	if out != `<section data-tag="section"></section>` {
+		t.Fatalf("got %q, want %q", out, `<section data-tag="section"></section>`)
 	}
 }
 
@@ -364,8 +349,6 @@ func TestCursorAttrModAfterSubmitErrors(t *testing.T) {
 		t.Fatal("expected error")
 	}
 }
-
-// --- Send / Comp / Templ ------------------------------------------------
 
 func TestCursorSendBypassesValidation(t *testing.T) {
 	out := renderElem(t, func(c Cursor) error {
@@ -472,8 +455,6 @@ func TestCursorEditor(t *testing.T) {
 		t.Fatalf("got %q", out)
 	}
 }
-
-// --- HeadKind constants -------------------------------------------------
 
 func TestHeadKindDistinct(t *testing.T) {
 	if KindContainer == KindRegular || KindRegular == KindVoid {

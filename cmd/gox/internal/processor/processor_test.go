@@ -31,8 +31,9 @@ func TestFormatSupportsSingleGoFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(content), "func main() {") {
-		t.Fatalf("formatted file did not change as expected:\n%s", content)
+	want := "package main\n\nfunc main() { println(\"x\") }\n"
+	if got := string(content); got != want {
+		t.Fatalf("formatted file = %q, want %q", got, want)
 	}
 }
 
@@ -135,16 +136,18 @@ func TestFormatDirectoryFormatsGoFilesAndSkipsIgnored(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(mainContent), "func main() {") {
-		t.Fatalf("main.go did not get formatted:\n%s", mainContent)
+	wantMain := "package main\n\nfunc main() { println(\"x\") }\n"
+	if got := string(mainContent); got != wantMain {
+		t.Fatalf("main.go = %q, want %q", got, wantMain)
 	}
 
 	ignoredContent, err := os.ReadFile(ignoredFile)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(ignoredContent), "func ignored() {") {
-		t.Fatalf("ignored.go was formatted despite .gitignore:\n%s", ignoredContent)
+	wantIgnored := "package main\nfunc ignored(){println(\"x\")}\n"
+	if got := string(ignoredContent); got != wantIgnored {
+		t.Fatalf("ignored.go = %q, want %q", got, wantIgnored)
 	}
 }
 

@@ -256,8 +256,9 @@ func TestHeaderFramer(t *testing.T) {
 	if err := writer.Write(context.Background(), msg); err != nil {
 		t.Fatalf("Write() error = %v", err)
 	}
-	if !strings.Contains(buf.String(), "Content-Length:") {
-		t.Fatalf("header output missing Content-Length:\n%s", buf.String())
+	wantWire := "Content-Length: 49\r\n\r\n{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"status\":\"ok\"}}"
+	if got := buf.String(); got != wantWire {
+		t.Fatalf("wire output = %q, want %q", got, wantWire)
 	}
 	reader := framer.Reader(&buf)
 	read, err := reader.Read(context.Background())

@@ -38,8 +38,8 @@ func TestParseDocumentURIWindowsDriveUppercase(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
-	if !strings.Contains(string(got), "/C:/") {
-		t.Fatalf("got %q, want uppercase drive", got)
+	if got != "file:///C:/x/y.go" {
+		t.Fatalf("got %q, want %q", got, "file:///C:/x/y.go")
 	}
 }
 
@@ -96,8 +96,8 @@ func TestDocumentURIUnmarshalText(t *testing.T) {
 	if err := uri.UnmarshalText([]byte("file:///tmp/x.go")); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(uri), "/tmp/x.go") {
-		t.Fatalf("got %q", uri)
+	if uri != "file:///tmp/x.go" {
+		t.Fatalf("got %q, want %q", uri, "file:///tmp/x.go")
 	}
 }
 
@@ -110,15 +110,15 @@ func TestDocumentURIPathEmpty(t *testing.T) {
 
 func TestIsWindowsDrivePath(t *testing.T) {
 	cases := map[string]bool{
-		"":          false,
-		"a":         false,
-		"ab":        false,
-		"c:":        false,
-		"c:/":       true,
-		"C:/foo":    true,
-		"3:/foo":    false, // first char must be letter
-		"/c:/foo":   false,
-		"/tmp/foo":  false,
+		"":         false,
+		"a":        false,
+		"ab":       false,
+		"c:":       false,
+		"c:/":      true,
+		"C:/foo":   true,
+		"3:/foo":   false, // first char must be letter
+		"/c:/foo":  false,
+		"/tmp/foo": false,
 	}
 	for in, want := range cases {
 		if got := isWindowsDrivePath(in); got != want {
@@ -129,12 +129,12 @@ func TestIsWindowsDrivePath(t *testing.T) {
 
 func TestIsWindowsDriveURIPath(t *testing.T) {
 	cases := map[string]bool{
-		"":            false,
-		"/c:":         false,
-		"/c:/":        true,
-		"/C:/foo":    true,
-		"//c:/foo":    false,
-		"/3:/foo":     false,
+		"":         false,
+		"/c:":      false,
+		"/c:/":     true,
+		"/C:/foo":  true,
+		"//c:/foo": false,
+		"/3:/foo":  false,
 	}
 	for in, want := range cases {
 		if got := isWindowsDriveURIPath(in); got != want {
@@ -149,8 +149,7 @@ func TestParseDocumentURISlowPathPercent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(got), "has%20space.go") &&
-		!strings.Contains(string(got), "has space.go") {
-		t.Fatalf("got %q", got)
+	if got != "file:///tmp/has%20space.go" {
+		t.Fatalf("got %q, want %q", got, "file:///tmp/has%20space.go")
 	}
 }

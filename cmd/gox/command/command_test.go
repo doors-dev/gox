@@ -3,7 +3,6 @@ package command
 import (
 	"errors"
 	"os"
-	"strings"
 	"testing"
 )
 
@@ -101,8 +100,9 @@ func TestExecuteDispatch(t *testing.T) {
 		if runErr != nil {
 			t.Fatalf("runErr = %v, want nil", runErr)
 		}
-		if cmdErr == nil || !strings.Contains(cmdErr.Error(), "Unknown command: wat") {
-			t.Fatalf("cmdErr = %v", cmdErr)
+		want := "Unknown command: wat\n\nCommands:\n  srv\t\tStarts the GoX Language Server (default)\n  gen\t\tGenerates .x.go files from .gox files and removes orphaned .x.go files\n  fmt\t\tFormats .go and .gox files\n  ver\t\tPrints the version"
+		if cmdErr == nil || cmdErr.Error() != want {
+			t.Fatalf("cmdErr = %v, want %q", cmdErr, want)
 		}
 	})
 
@@ -113,8 +113,9 @@ func TestExecuteDispatch(t *testing.T) {
 		if runErr != nil {
 			t.Fatalf("runErr = %v, want nil", runErr)
 		}
-		if cmdErr == nil || !strings.Contains(cmdErr.Error(), "Could not parse format arguments") {
-			t.Fatalf("cmdErr = %v", cmdErr)
+		want := "Could not parse format arguments: expected at most 1 path argument, got 2"
+		if cmdErr == nil || cmdErr.Error() != want {
+			t.Fatalf("cmdErr = %v, want %q", cmdErr, want)
 		}
 	})
 

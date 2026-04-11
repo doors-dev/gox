@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"io"
-	"strings"
 	"testing"
 )
 
@@ -315,8 +314,8 @@ func TestWriteAttrValueOK(t *testing.T) {
 	if err := WriteAttrValue(buf, "v<x>"); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(buf.String(), "&lt;") {
-		t.Fatalf("got %q, want escaped", buf.String())
+	if got := buf.String(); got != "v&lt;x&gt;" {
+		t.Fatalf("got %q, want %q", got, "v&lt;x&gt;")
 	}
 }
 

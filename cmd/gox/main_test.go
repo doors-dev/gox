@@ -36,9 +36,17 @@ func TestInitLoggerWritesToFile(t *testing.T) {
 	if !strings.Contains(string(content), "hello from test") {
 		t.Fatalf("log output missing message:\n%s", content)
 	}
+	beforeDisable := string(content)
 
 	initLogger(logFile, slog.LevelInfo, false)
 	slog.Info("discarded")
+	content, err = os.ReadFile(logFile)
+	if err != nil {
+		t.Fatalf("ReadFile(log after disable): %v", err)
+	}
+	if got := string(content); got != beforeDisable {
+		t.Fatalf("disabled logger changed file:\nbefore:\n%s\nafter:\n%s", beforeDisable, got)
+	}
 }
 
 func TestStarterFormatAndGenerateViaExecute(t *testing.T) {
@@ -59,8 +67,9 @@ func TestStarterFormatAndGenerateViaExecute(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(formatted), "func main() {") {
-		t.Fatalf("formatted file did not change:\n%s", formatted)
+	want := "package main\n\nfunc main() { println(\"x\") }\n"
+	if got := string(formatted); got != want {
+		t.Fatalf("formatted file = %q, want %q", got, want)
 	}
 
 	goxFile := filepath.Join(dir, "view.gox")
@@ -112,8 +121,9 @@ func TestMainRunsSuccessfulCommand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(formatted), "func main() {") {
-		t.Fatalf("main() did not format file:\n%s", formatted)
+	want := "package main\n\nfunc main() { println(\"x\") }\n"
+	if got := string(formatted); got != want {
+		t.Fatalf("main() formatted file = %q, want %q", got, want)
 	}
 }
 
@@ -122,8 +132,9 @@ func TestMainExitsWithCommandError(t *testing.T) {
 	if result.exitCode != 1 {
 		t.Fatalf("exit code = %d, want 1", result.exitCode)
 	}
-	if !strings.Contains(result.stderr, "Unknown command: wat") {
-		t.Fatalf("stderr = %q, want unknown command error", result.stderr)
+	want := "Unknown command: wat\n\nCommands:\n  srv\t\tStarts the GoX Language Server (default)\n  gen\t\tGenerates .x.go files from .gox files and removes orphaned .x.go files\n  fmt\t\tFormats .go and .gox files\n  ver\t\tPrints the version\n"
+	if result.stderr != want {
+		t.Fatalf("stderr = %q, want %q", result.stderr, want)
 	}
 }
 

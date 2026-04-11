@@ -5,7 +5,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/doors-dev/gox/internal/common"
@@ -144,7 +143,7 @@ func TestSessionBridgeAndWorkspaceHelpers(t *testing.T) {
 	if len(bridge.notifications) != 1 {
 		t.Fatalf("notifications after error call = %d, want 1", len(bridge.notifications))
 	}
-	assertNotifPayload(t, bridge.notifications[0], Client, logMessage, "Call client result error", 1)
+	assertNotifPayload(t, bridge.notifications[0], Client, logMessage, "Call client result error: [method=textDocument/documentSymbol, error=boom]", 1)
 
 	bridge.calls = nil
 	bridge.callResp = Response{}
@@ -169,8 +168,8 @@ func assertNotifPayload(t *testing.T, got recordedNotify, wantRole Role, wantMet
 	if err := json.Unmarshal(got.req.Params, &payload); err != nil {
 		t.Fatalf("Unmarshal(%s): %v", got.req.Params, err)
 	}
-	if !strings.Contains(payload.Message, wantMessage) {
-		t.Fatalf("payload message = %q, want substring %q", payload.Message, wantMessage)
+	if payload.Message != wantMessage {
+		t.Fatalf("payload message = %q, want %q", payload.Message, wantMessage)
 	}
 	if payload.Type != wantType {
 		t.Fatalf("payload type = %d, want %d", payload.Type, wantType)

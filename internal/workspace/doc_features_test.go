@@ -1,6 +1,7 @@
 package workspace
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,7 +10,6 @@ import (
 	"github.com/doors-dev/gox/internal/common"
 )
 
-// makeDoc writes src to a temp .gox file and returns a fully-initialized Doc.
 func makeDoc(t *testing.T, src string) Doc {
 	t.Helper()
 	dir := t.TempDir()
@@ -32,9 +32,6 @@ func makeDoc(t *testing.T, src string) Doc {
 	return doc
 }
 
-// makeDocLoose writes src to a temp .gox file and runs Load + Parse without
-// failing on parse errors. Useful for completion tests where the source is
-// intentionally incomplete.
 func makeDocLoose(t *testing.T, src string) Doc {
 	t.Helper()
 	dir := t.TempDir()
@@ -50,7 +47,6 @@ func makeDocLoose(t *testing.T, src string) Doc {
 	if err := doc.Load(); err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	// Parse via the underlying parser, ignoring errors so we still have a tree.
 	doc.tree = doc.parser.Parse(doc.source.Source(), nil)
 	doc.Assemble()
 	return doc
@@ -69,17 +65,13 @@ elem Card(name string) {
 var page gox.Elem = Card("hello")
 `
 
-// --- Hover --------------------------------------------------------------
-
 func TestDocHoverOnGoxNode(t *testing.T) {
 	doc := makeDoc(t, sampleSrc)
-	// Find the line with `<h1>` - it's relative to the source
 	src := doc.source.String()
 	idx := strings.Index(src, "<h1>")
 	if idx < 0 {
 		t.Fatal("h1 not found")
 	}
-	// Compute line/column
 	line, col := 0, 0
 	for i := 0; i < idx; i++ {
 		if src[i] == '\n' {
@@ -89,7 +81,7 @@ func TestDocHoverOnGoxNode(t *testing.T) {
 			col++
 		}
 	}
-	pos := common.NewPos(line, col+1) // inside <h1>
+	pos := common.NewPos(line, col+1)
 	msg, _, ok := doc.Hover(common.UTF8, pos)
 	if !ok {
 		t.Fatal("Hover returned !ok on h1")
@@ -101,13 +93,10 @@ func TestDocHoverOnGoxNode(t *testing.T) {
 
 func TestDocHoverOutsideGox(t *testing.T) {
 	doc := makeDoc(t, sampleSrc)
-	// Position 0,0 is inside `package demo` — not gox
 	if _, _, ok := doc.Hover(common.UTF8, common.NewPos(0, 0)); ok {
 		t.Fatal("Hover at package keyword returned ok")
 	}
 }
-
-// --- Completions --------------------------------------------------------
 
 func TestDocCompletionsTagName(t *testing.T) {
 	src := `package demo
@@ -119,7 +108,6 @@ elem F() {
 }
 `
 	doc := makeDocLoose(t, src)
-	// Position right after "<di" — find it
 	idx := strings.Index(doc.source.String(), "<di")
 	if idx < 0 {
 		t.Fatal("`<di` not found")
@@ -136,8 +124,9 @@ elem F() {
 		}
 	}
 	cs, _ := doc.Completions(common.UTF8, common.NewPos(line, col))
-	// Even if grammar fails for the broken element, the call should not crash
-	_ = cs
+	if !hasCompletionLabel(cs, "<div/>") {
+		t.Fatalf("tag completions = %#v, want <div/>", cs)
+	}
 }
 
 func TestDocCompletionsAtTilde(t *testing.T) {
@@ -163,11 +152,13 @@ elem F(name string) {
 		}
 	}
 	cs, _ := doc.Completions(common.UTF8, common.NewPos(line, col))
-	// Tilde completions should produce snippets like "~(..)", "~(if..)", etc.
-	_ = cs
+	if !hasCompletionLabel(cs, "~(..)") {
+		t.Fatalf("tilde completions = %#v, want ~(..)", cs)
+	}
+	if !hasCompletionLabel(cs, "~(if..)") {
+		t.Fatalf("tilde completions = %#v, want ~(if..)", cs)
+	}
 }
-
-// --- Conversions --------------------------------------------------------
 
 func TestDocTargetPos(t *testing.T) {
 	doc := makeDoc(t, sampleSrc)
@@ -184,10 +175,7 @@ func TestDocTargetPos(t *testing.T) {
 		}
 	}
 	pos := common.NewPos(line, col)
-	if _, ok := doc.TargetPos(common.UTF8, pos, Strict); !ok {
-		// May be ok=false if the name token isn't inside a portal — that's
-		// fine, we just need the call to execute without panicking.
-	}
+	_, _ = doc.TargetPos(common.UTF8, pos, Strict)
 	_, _ = doc.TargetPos(common.UTF8, pos, Edge)
 	_, _ = doc.TargetPos(common.UTF8, pos, Approximate)
 	_, _ = doc.SourcePos(common.UTF8, common.NewPos(0, 0), Strict)
@@ -206,8 +194,6 @@ func TestDocTargetRange(t *testing.T) {
 	_, _ = doc.SourceRange(common.UTF8, r, Edge)
 	_, _ = doc.SourceRange(common.UTF8, r, Approximate)
 }
-
-// --- Edits --------------------------------------------------------------
 
 func TestDocSourceUpdateNoop(t *testing.T) {
 	doc := makeDoc(t, sampleSrc)
@@ -237,28 +223,26 @@ func TestDocSourceUpdateChanges(t *testing.T) {
 
 func TestDocSourcePatch(t *testing.T) {
 	doc := makeDoc(t, sampleSrc)
-	// Replace one cursor position
 	r := common.NewRange(common.NewPos(0, 0), common.NewPos(0, 7))
 	upd, err := doc.SourcePatch(common.UTF8, r, "package")
 	if err != nil {
 		t.Fatal(err)
 	}
-	_ = upd
+	if !upd {
+		t.Fatal("expected upd=true for non-empty patch range")
+	}
+	if got := doc.source.String(); got != sampleSrc {
+		t.Fatalf("source after no-op patch = %q, want %q", got, sampleSrc)
+	}
 }
-
-// --- Format -------------------------------------------------------------
 
 func TestDocFormat(t *testing.T) {
 	doc := makeDoc(t, sampleSrc)
 	_, err := doc.Format(common.UTF8)
 	if err != nil {
-		// Format may legitimately fail if the rust formatter isn't available;
-		// don't make it a hard failure.
 		t.Logf("Format: %v", err)
 	}
 }
-
-// --- Symbols ------------------------------------------------------------
 
 func TestDocSymbols(t *testing.T) {
 	doc := makeDoc(t, sampleSrc)
@@ -268,10 +252,7 @@ func TestDocSymbols(t *testing.T) {
 	}
 }
 
-// --- GoxImportPos --------------------------------------------------------
-
 func TestDocGoxImportPos(t *testing.T) {
-	// Source without a gox import → import is needed.
 	src := `package demo
 
 elem F() {
@@ -280,15 +261,14 @@ elem F() {
 `
 	doc := makeDoc(t, src)
 	if _, ok := doc.GoxImportPos(common.UTF8); !ok {
-		t.Log("GoxImportPos returned !ok — may be expected if parser stops early")
+		t.Fatal("GoxImportPos() = !ok, want insertion point")
 	}
 
-	// Source that already imports gox → no insertion required.
 	doc2 := makeDoc(t, sampleSrc)
-	_, _ = doc2.GoxImportPos(common.UTF8)
+	if _, ok := doc2.GoxImportPos(common.UTF8); ok {
+		t.Fatal("GoxImportPos() = ok for existing import, want !ok")
+	}
 }
-
-// --- Delete / targetRemove ----------------------------------------------
 
 func TestDocDelete(t *testing.T) {
 	doc := makeDoc(t, sampleSrc)
@@ -302,11 +282,8 @@ func TestDocDelete(t *testing.T) {
 	if doc.TargetFile().Exists() {
 		t.Fatal("target should be deleted")
 	}
-	// Calling Delete on missing target should be a no-op.
 	doc.Delete()
 }
-
-// --- File ---------------------------------------------------------------
 
 func TestNewFileFromURI(t *testing.T) {
 	dir := t.TempDir()
@@ -370,8 +347,6 @@ func TestFileURI(t *testing.T) {
 	}
 }
 
-// --- StoreDiag / GetDiag -----------------------------------------------
-
 func TestDocStoreDiagNil(t *testing.T) {
 	doc := makeDoc(t, sampleSrc)
 	if doc.GetDiag() != nil {
@@ -379,10 +354,26 @@ func TestDocStoreDiagNil(t *testing.T) {
 	}
 }
 
-// --- PrintTarget --------------------------------------------------------
-
 func TestDocPrintTarget(t *testing.T) {
 	doc := makeDoc(t, sampleSrc)
-	// Just ensure it does not panic. PrintTarget writes to stdout.
+	oldStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("Pipe() error = %v", err)
+	}
+	os.Stdout = w
+	t.Cleanup(func() {
+		os.Stdout = oldStdout
+	})
 	doc.PrintTarget()
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close(write pipe) error = %v", err)
+	}
+	out, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("ReadAll(stdout) error = %v", err)
+	}
+	if got := string(out); got != doc.TargetContent() {
+		t.Fatalf("PrintTarget() = %q, want %q", got, doc.TargetContent())
+	}
 }

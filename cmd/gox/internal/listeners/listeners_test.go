@@ -38,8 +38,6 @@ func TestNetListenerAcceptAndClose(t *testing.T) {
 		t.Fatal("Accept() did not return in time")
 	}
 
-	// Verify the accepted conn is wired to the dialed client by
-	// round-tripping bytes in both directions.
 	if _, err := client.Write([]byte("ping")); err != nil {
 		t.Fatalf("client Write() error = %v", err)
 	}

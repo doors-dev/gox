@@ -60,8 +60,6 @@ func TestCmdDialerStartsProcess(t *testing.T) {
 	if conn == nil {
 		t.Fatal("Dial(/bin/cat) returned nil conn")
 	}
-	// /bin/cat should echo what we write back to its stdout, which the
-	// returned ReadWriteCloser exposes via Read.
 	if _, err := conn.Write([]byte("hello\n")); err != nil {
 		t.Fatalf("Write() error = %v", err)
 	}

@@ -8,8 +8,6 @@ import (
 )
 
 func TestJobHeadOpenContainerNoOutput(t *testing.T) {
-	// Containers carry no opening tag — even when given a tag name
-	// and attrs, Output must not write anything.
 	a := NewAttrs()
 	a.Get("class").Set("ignored")
 	j := NewJobHeadOpen(context.Background(), 1, KindContainer, "div", a)
@@ -119,9 +117,11 @@ func TestJobHeadCloseContext(t *testing.T) {
 }
 
 func TestJobTextOutput(t *testing.T) {
-	j := NewJobText(context.Background(), "<x>")
-	if j.Context() == nil {
-		t.Fatal("ctx nil")
+	type ctxKey string
+	ctx := context.WithValue(context.Background(), ctxKey("job"), "text")
+	j := NewJobText(ctx, "<x>")
+	if j.Context() != ctx {
+		t.Fatal("Context() did not round-trip the provided context")
 	}
 	buf := &bytes.Buffer{}
 	if err := j.Output(buf); err != nil {
@@ -133,8 +133,12 @@ func TestJobTextOutput(t *testing.T) {
 }
 
 func TestJobRawOutput(t *testing.T) {
-	j := NewJobRaw(context.Background(), "<x>")
-	_ = j.Context()
+	type ctxKey string
+	ctx := context.WithValue(context.Background(), ctxKey("job"), "raw")
+	j := NewJobRaw(ctx, "<x>")
+	if j.Context() != ctx {
+		t.Fatal("Context() did not round-trip the provided context")
+	}
 	buf := &bytes.Buffer{}
 	if err := j.Output(buf); err != nil {
 		t.Fatal(err)
@@ -145,8 +149,12 @@ func TestJobRawOutput(t *testing.T) {
 }
 
 func TestJobBytesOutput(t *testing.T) {
-	j := NewJobBytes(context.Background(), []byte("hi"))
-	_ = j.Context()
+	type ctxKey string
+	ctx := context.WithValue(context.Background(), ctxKey("job"), "bytes")
+	j := NewJobBytes(ctx, []byte("hi"))
+	if j.Context() != ctx {
+		t.Fatal("Context() did not round-trip the provided context")
+	}
 	buf := &bytes.Buffer{}
 	if err := j.Output(buf); err != nil {
 		t.Fatal(err)
@@ -157,8 +165,12 @@ func TestJobBytesOutput(t *testing.T) {
 }
 
 func TestJobFprintOutput(t *testing.T) {
-	j := NewJobFprint(context.Background(), 42)
-	_ = j.Context()
+	type ctxKey string
+	ctx := context.WithValue(context.Background(), ctxKey("job"), "fprint")
+	j := NewJobFprint(ctx, 42)
+	if j.Context() != ctx {
+		t.Fatal("Context() did not round-trip the provided context")
+	}
 	buf := &bytes.Buffer{}
 	if err := j.Output(buf); err != nil {
 		t.Fatal(err)
@@ -169,8 +181,12 @@ func TestJobFprintOutput(t *testing.T) {
 }
 
 func TestJobCompOutput(t *testing.T) {
-	j := NewJobComp(context.Background(), compStub{s: "x"})
-	_ = j.Context()
+	type ctxKey string
+	ctx := context.WithValue(context.Background(), ctxKey("job"), "comp")
+	j := NewJobComp(ctx, compStub{s: "x"})
+	if j.Context() != ctx {
+		t.Fatal("Context() did not round-trip the provided context")
+	}
 	buf := &bytes.Buffer{}
 	if err := j.Output(buf); err != nil {
 		t.Fatal(err)
@@ -196,9 +212,11 @@ func TestJobCompNilElem(t *testing.T) {
 }
 
 func TestJobTemplOutput(t *testing.T) {
-	j := NewJobTempl(context.Background(), templStub{s: "tt"})
-	if j.Context() == nil {
-		t.Fatal("ctx nil")
+	type ctxKey string
+	ctx := context.WithValue(context.Background(), ctxKey("job"), "templ")
+	j := NewJobTempl(ctx, templStub{s: "tt"})
+	if j.Context() != ctx {
+		t.Fatal("Context() did not round-trip the provided context")
 	}
 	buf := &bytes.Buffer{}
 	if err := j.Output(buf); err != nil {
@@ -211,9 +229,11 @@ func TestJobTemplOutput(t *testing.T) {
 
 func TestJobErrorOutput(t *testing.T) {
 	want := errors.New("kaboom")
-	j := NewJobError(context.Background(), want)
-	if j.Context() == nil {
-		t.Fatal("ctx nil")
+	type ctxKey string
+	ctx := context.WithValue(context.Background(), ctxKey("job"), "error")
+	j := NewJobError(ctx, want)
+	if j.Context() != ctx {
+		t.Fatal("Context() did not round-trip the provided context")
 	}
 	if err := j.Output(&bytes.Buffer{}); err != want {
 		t.Fatalf("got %v", err)
@@ -226,7 +246,6 @@ func TestOutputErrorString(t *testing.T) {
 	}
 }
 
-// Releaser/Release coverage
 type fakeReleaser struct{ released bool }
 
 func (f *fakeReleaser) release() { f.released = true }

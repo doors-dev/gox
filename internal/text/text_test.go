@@ -3,13 +3,10 @@ package text
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/doors-dev/gox/internal/common"
 )
-
-// --- NewText / basic state ----------------------------------------------
 
 func TestNewTextEmpty(t *testing.T) {
 	tx := NewText()
@@ -20,8 +17,6 @@ func TestNewTextEmpty(t *testing.T) {
 		t.Fatalf("Cursor() = %v, want 0:0", got)
 	}
 }
-
-// --- Append / AppendString / CR -----------------------------------------
 
 func TestAppendStringSingleLine(t *testing.T) {
 	tx := NewText()
@@ -37,7 +32,6 @@ func TestAppendStringMultiline(t *testing.T) {
 	if got := tx.String(); got != "foo\nbar\nbaz\n" {
 		t.Fatalf("String = %q", got)
 	}
-	// Cursor reports last line / column
 	c := tx.Cursor()
 	if c.Line() != 2 || c.Column() != 3 {
 		t.Fatalf("Cursor = %v, want 2:3", c)
@@ -47,7 +41,6 @@ func TestAppendStringMultiline(t *testing.T) {
 func TestAppendStringTrailingNewline(t *testing.T) {
 	tx := NewText()
 	tx.AppendString("foo\n")
-	// After "foo\n" we should have a final empty line for the next append.
 	if got := tx.String(); got != "foo\n" {
 		t.Fatalf("String = %q", got)
 	}
@@ -66,8 +59,6 @@ func TestCRInsertsNewline(t *testing.T) {
 		t.Fatalf("String = %q", got)
 	}
 }
-
-// --- MustLine / Slice / Rune -------------------------------------------
 
 func TestMustLine(t *testing.T) {
 	tx := NewText()
@@ -109,18 +100,14 @@ func TestRune(t *testing.T) {
 	}
 }
 
-// --- Indents -----------------------------------------------------------
-
 func TestIndentRefAndCR(t *testing.T) {
 	tx := NewText()
 	tx.AppendString("\t\tfoo")
 	tx.IndentRef([]byte("\t\tfoo"))
 	tx.CR()
 	tx.AppendString("bar")
-	// New line should inherit the "\t\t" prefix from IndentRef.
-	got := tx.String()
-	if !strings.Contains(got, "\n\t\tbar") {
-		t.Fatalf("String = %q", got)
+	if got := tx.String(); got != "\t\tfoo\n\t\tbar\n" {
+		t.Fatalf("String() = %q, want %q", got, "\t\tfoo\n\t\tbar\n")
 	}
 }
 
@@ -130,9 +117,8 @@ func TestIndentBegEnd(t *testing.T) {
 	tx.CR()
 	tx.AppendString("body")
 	tx.IndentEnd()
-	got := tx.String()
-	if !strings.Contains(got, "\n\tbody") {
-		t.Fatalf("String = %q", got)
+	if got := tx.String(); got != "\n\tbody\n" {
+		t.Fatalf("String() = %q, want %q", got, "\n\tbody\n")
 	}
 }
 
@@ -143,22 +129,17 @@ func TestIndentFakeWrapsBraces(t *testing.T) {
 	tx.CR()
 	tx.AppendString("body")
 	tx.IndentEnd()
-	got := tx.String()
-	if !strings.Contains(got, "{") || !strings.Contains(got, "}") {
-		t.Fatalf("Fake indent missing braces: %q", got)
-	}
-	if !strings.Contains(got, "\tbody") {
-		t.Fatalf("Fake indent body not indented: %q", got)
+	want := "head\n{\n\tbody\n}\n"
+	if got := tx.String(); got != want {
+		t.Fatalf("String() = %q, want %q", got, want)
 	}
 }
-
-// --- Annotate ----------------------------------------------------------
 
 func TestAnnotateOnEmpty(t *testing.T) {
 	tx := NewText()
 	tx.Annotate("//line foo:1")
-	if !strings.Contains(tx.String(), "//line foo:1") {
-		t.Fatalf("String = %q", tx.String())
+	if got := tx.String(); got != "//line foo:1\n" {
+		t.Fatalf("String() = %q, want %q", got, "//line foo:1\n")
 	}
 }
 
@@ -176,16 +157,10 @@ func TestAnnotateInsertsBefore(t *testing.T) {
 	tx := NewText()
 	tx.AppendString("body")
 	tx.Annotate("//line foo:1")
-	got := tx.String()
-	if !strings.Contains(got, "//line foo:1") || !strings.Contains(got, "body") {
-		t.Fatalf("String = %q", got)
-	}
-	if strings.Index(got, "//line") > strings.Index(got, "body") {
-		t.Fatalf("annotation not before body: %q", got)
+	if got := tx.String(); got != "//line foo:1\nbody\n" {
+		t.Fatalf("String() = %q, want %q", got, "//line foo:1\nbody\n")
 	}
 }
-
-// --- Clone -------------------------------------------------------------
 
 func TestClone(t *testing.T) {
 	tx := NewText()
@@ -197,8 +172,6 @@ func TestClone(t *testing.T) {
 	}
 }
 
-// --- LastPos -----------------------------------------------------------
-
 func TestLastPos(t *testing.T) {
 	tx := NewText()
 	tx.AppendString("a\nb")
@@ -206,8 +179,6 @@ func TestLastPos(t *testing.T) {
 		t.Fatalf("LastPos = %v", got)
 	}
 }
-
-// --- Load / Save -------------------------------------------------------
 
 func TestLoadAndSave(t *testing.T) {
 	dir := t.TempDir()
@@ -219,8 +190,8 @@ func TestLoadAndSave(t *testing.T) {
 	if err := tx.Load(src); err != nil {
 		t.Fatal(err)
 	}
-	if got := tx.String(); !strings.Contains(got, "alpha") || !strings.Contains(got, "beta") {
-		t.Fatalf("Load got %q", got)
+	if got := tx.String(); got != "alpha\nbeta\n" {
+		t.Fatalf("Load() = %q, want %q", got, "alpha\nbeta\n")
 	}
 	out := filepath.Join(dir, "out.txt")
 	if err := tx.Save(out); err != nil {
@@ -230,8 +201,8 @@ func TestLoadAndSave(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(b), "alpha") {
-		t.Fatalf("Save wrote %q", b)
+	if got := string(b); got != "alpha\nbeta\n" {
+		t.Fatalf("Save() wrote %q, want %q", got, "alpha\nbeta\n")
 	}
 }
 
@@ -257,8 +228,6 @@ func TestLoadMissing(t *testing.T) {
 	}
 }
 
-// --- Update / Patch ----------------------------------------------------
-
 func TestUpdateNoop(t *testing.T) {
 	tx := NewText()
 	tx.AppendString("foo\nbar")
@@ -281,8 +250,8 @@ func TestUpdateChanges(t *testing.T) {
 	if !changed {
 		t.Fatal("changed = false, want true")
 	}
-	if !strings.Contains(tx.String(), "baz") {
-		t.Fatalf("after Update = %q", tx.String())
+	if got := tx.String(); got != "foo\nbaz\n" {
+		t.Fatalf("after Update = %q, want %q", got, "foo\nbaz\n")
 	}
 }
 
@@ -297,12 +266,10 @@ func TestPatchReplace(t *testing.T) {
 	if !ok {
 		t.Fatal("ok = false")
 	}
-	if got := tx.String(); !strings.Contains(got, "hello go!") {
-		t.Fatalf("after Patch = %q", got)
+	if got := tx.String(); got != "hello go!\n" {
+		t.Fatalf("after Patch = %q, want %q", got, "hello go!\n")
 	}
 }
-
-// --- Encoding conversions ----------------------------------------------
 
 func TestUtf16to8And8to16ASCII(t *testing.T) {
 	b := []byte("hello")
@@ -315,9 +282,7 @@ func TestUtf16to8And8to16ASCII(t *testing.T) {
 }
 
 func TestUtf16to8MultiByte(t *testing.T) {
-	// "héllo" — 'é' is 2 bytes in UTF-8 but 1 unit in UTF-16.
 	b := []byte("héllo")
-	// utf16 col 2 → after 'h' + 'é' → byte offset 3
 	if got := Utf16to8(b, 2); got != 3 {
 		t.Errorf("Utf16to8 = %d, want 3", got)
 	}
@@ -327,7 +292,6 @@ func TestUtf16to8MultiByte(t *testing.T) {
 }
 
 func TestUtf16to8Surrogate(t *testing.T) {
-	// 😀 is 4 bytes utf-8 and 2 utf-16 units.
 	b := []byte("a😀b")
 	if got := Utf16to8(b, 3); got != 5 {
 		t.Errorf("Utf16to8 surrogate = %d, want 5", got)
@@ -352,13 +316,11 @@ func TestIntoFromPosUTF8Identity(t *testing.T) {
 func TestIntoFromPosUTF16Conversion(t *testing.T) {
 	tx := NewText()
 	tx.AppendString("héllo")
-	// UTF-16 col 2 → UTF-8 col 3
 	p16 := common.NewPos(0, 2)
 	got := tx.IntoPos(common.UTF16, p16)
 	if got.Column() != 3 {
 		t.Fatalf("IntoPos UTF16 = %v, want 0:3", got)
 	}
-	// Reverse
 	p8 := common.NewPos(0, 3)
 	got2 := tx.FromPos(common.UTF16, p8)
 	if got2.Column() != 2 {
@@ -383,7 +345,6 @@ func TestIntoRangeFromRange(t *testing.T) {
 func TestIntoFromPosOutOfRange(t *testing.T) {
 	tx := NewText()
 	tx.AppendString("a")
-	// pos beyond all lines is returned as-is.
 	p := common.NewPos(99, 5)
 	if got := tx.IntoPos(common.UTF16, p); got.Line() != 99 || got.Column() != 5 {
 		t.Fatalf("IntoPos out-of-range = %v", got)
@@ -392,8 +353,6 @@ func TestIntoFromPosOutOfRange(t *testing.T) {
 		t.Fatalf("FromPos out-of-range = %v", got)
 	}
 }
-
-// --- offset arithmetic --------------------------------------------------
 
 func TestOffsetArithmetic(t *testing.T) {
 	o := newOffset(2, 5)

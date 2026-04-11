@@ -98,7 +98,6 @@ func TestAttrsList(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("List len = %d", len(got))
 	}
-	// Sorted by name: class < id
 	if got[0].Name() != "class" || got[1].Name() != "id" {
 		t.Fatalf("List = %v %v", got[0].Name(), got[1].Name())
 	}
@@ -219,7 +218,6 @@ func TestAttrsApplyModsRunsAndClears(t *testing.T) {
 	if called != 1 {
 		t.Errorf("called = %d", called)
 	}
-	// Re-applying should be a no-op (modifiers cleared).
 	if err := a.ApplyMods(context.Background(), "div"); err != nil {
 		t.Fatal(err)
 	}
@@ -244,8 +242,12 @@ func TestAttrsApplyModsErrorStops(t *testing.T) {
 
 func TestAttrsOutputNilIsNoop(t *testing.T) {
 	var a Attrs
-	if err := a.output(context.Background(), "div", &bytes.Buffer{}); err != nil {
+	buf := &bytes.Buffer{}
+	if err := a.output(context.Background(), "div", buf); err != nil {
 		t.Fatal(err)
+	}
+	if got := buf.String(); got != "" {
+		t.Fatalf("nil output wrote %q, want empty output", got)
 	}
 }
 

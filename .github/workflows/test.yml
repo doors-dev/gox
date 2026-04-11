@@ -2,8 +2,9 @@ name: test
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - main
+      - tests
   workflow_dispatch:
 
 permissions:
