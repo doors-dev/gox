@@ -562,6 +562,23 @@ func (h *lspHarness) bufferText(uri string) string {
 	return doc.Text
 }
 
+func (h *lspHarness) waitForBufferText(uri string, pred func(string) bool, description string) string {
+	h.t.Helper()
+	deadline := time.Now().Add(lspWaitTimeout)
+	for time.Now().Before(deadline) {
+		text := h.bufferText(uri)
+		if pred(text) {
+			return text
+		}
+		if err := h.getReadErr(); err != nil && !errors.Is(err, io.EOF) {
+			h.t.Fatalf("LSP peer stopped while waiting for buffer %s: %v\nrecorded events:\n%s", uri, err, h.dumpEvents())
+		}
+		time.Sleep(lspPollInterval)
+	}
+	h.t.Fatalf("timed out waiting for buffer %s to satisfy %s\nlatest buffer:\n%s\nrecorded events:\n%s", uri, description, h.bufferText(uri), h.dumpEvents())
+	return ""
+}
+
 func (h *lspHarness) mustOpenDoc(uri string) *openDocument {
 	h.t.Helper()
 	h.docsM.Lock()
@@ -1166,9 +1183,9 @@ func TestLSPServerE2EWithRealGopls(t *testing.T) {
 			return strings.Contains(string(raw), importURI)
 		})
 		assertRawContains(t, params, importURI)
-		if !strings.Contains(h.bufferText(importURI), "import \"fmt\"") {
-			t.Fatalf("workspace/applyEdit did not update the open buffer:\n%s", h.bufferText(importURI))
-		}
+		h.waitForBufferText(importURI, func(text string) bool {
+			return strings.Contains(text, "import \"fmt\"")
+		}, `buffer containing import "fmt"`)
 	})
 
 	brokenURI := h.openFile(fixture.broken.Path, "gox")
@@ -1306,7 +1323,9 @@ func TestLSPServerE2EWithRealGopls(t *testing.T) {
 			h.waitForEventAfter(openTargetCheckpoint, "call", "workspace/applyEdit", func(raw json.RawMessage) bool {
 				return strings.Contains(string(raw), targetURI)
 			})
-			if h.bufferText(targetURI) != targetText {
+			if got := h.waitForBufferText(targetURI, func(text string) bool {
+				return text == targetText
+			}, "generated target contents"); got != targetText {
 				t.Fatalf("target open sync did not restore generated text")
 			}
 		})
@@ -1335,15 +1354,15 @@ func TestLSPServerE2EWithRealGopls(t *testing.T) {
 			if event.Method != "workspace/applyEdit" {
 				t.Fatalf("source didChange failed before refreshing the target buffer: %s", compactJSON(event.Params))
 			}
-			if !strings.Contains(h.bufferText(targetURI), "badge2") {
-				t.Fatalf("source change did not refresh the generated target buffer:\n%s", h.bufferText(targetURI))
-			}
+			h.waitForBufferText(targetURI, func(text string) bool {
+				return strings.Contains(text, "badge2")
+			}, `buffer containing "badge2"`)
 		})
 
 		run("source didSave writes the refreshed generated file", func(t *testing.T) {
-			if !strings.Contains(h.bufferText(targetURI), "badge2") {
-				t.Fatalf("source change never refreshed the target buffer, so save could not persist the new generated text:\n%s", h.bufferText(targetURI))
-			}
+			h.waitForBufferText(targetURI, func(text string) bool {
+				return strings.Contains(text, "badge2")
+			}, `buffer containing "badge2" before save`)
 			h.saveFile(fixture.view.Path)
 			savedTarget := waitForFileTextContains(t, targetPath, "badge2")
 			if !strings.Contains(savedTarget, "badge2") {

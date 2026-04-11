@@ -103,6 +103,11 @@ func TestServerWaitReturnsAfterDialError(t *testing.T) {
 		t.Fatal("client connection was not closed")
 	}
 
+	select {
+	case <-listener.closed:
+	case <-time.After(2 * time.Second):
+		t.Fatal("listener was not closed")
+	}
 	if listener.count.Load() != 1 {
 		t.Fatalf("listener Close() count = %d, want 1", listener.count.Load())
 	}

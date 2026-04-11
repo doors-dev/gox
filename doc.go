@@ -17,7 +17,7 @@
 //
 //	// Generated/lowered form using Cursor directly.
 //	func Badge(label string) gox.Elem {
-//		return func(cur gox.Cursor) error {
+//		return gox.Elem(func(cur gox.Cursor) error {
 //			if err := cur.Init("span"); err != nil {
 //				return err
 //			}
@@ -31,7 +31,7 @@
 //				return err
 //			}
 //			return cur.Close()
-//		}
+//		})
 //	}
 //
 // Elem renders through Cursor under the hood. Cursor, Attrs, Job, and Printer
