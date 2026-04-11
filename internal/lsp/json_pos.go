@@ -428,20 +428,29 @@ func (r jsonPosDriver) convertRange(enc common.Encoding, doc workspace.Doc, j Js
 	return nil
 }
 
-func (r jsonPosDriver) convertPositionsToTarget(enc common.Encoding, doc workspace.Doc, j Json, mode workspace.ConvMode) (err error) {
-	poss := j.Get("positions")
-	if !poss.Exists() {
+func (r jsonPosDriver) convertPositionsToTarget(enc common.Encoding, doc workspace.Doc, j Json, mode workspace.ConvMode) error {
+	node := j.Get("positions")
+	if !node.Exists() {
 		return errors.New("The positions field is missing.")
 	}
-	poss.ForEach(func(path ast.Sequence, node *ast.Node) bool {
-		if path.Index == -1 || path.Key != nil {
-			err = errors.New("Positions must be an array.")
-			return false
+	positions, err := node.ArrayUseNode()
+	if err != nil {
+		return errors.New("Positions must be an array.")
+	}
+	newPositions := make([]ast.Node, 0, len(positions))
+	for i := range positions {
+		pos, err := r.intoPos(&positions[i])
+		if err != nil {
+			return err
 		}
-		err = jsonPos.convertPosToTarget(enc, doc, node, mode)
-		return err == nil
-	})
-	return
+		newPos, ok := doc.TargetPos(enc, pos, mode)
+		if !ok {
+			return errors.New("The position could not be mapped.")
+		}
+		newPositions = append(newPositions, r.fromPos(newPos))
+	}
+	j.Set("positions", ast.NewArray(newPositions))
+	return nil
 }
 
 func (r jsonPosDriver) convertPosToSource(enc common.Encoding, doc workspace.Doc, j Json, mode workspace.ConvMode) error {

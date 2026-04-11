@@ -44,6 +44,11 @@ type lspRange struct {
 	End   lspPosition `json:"end"`
 }
 
+type lspSelectionRange struct {
+	Range  lspRange           `json:"range"`
+	Parent *lspSelectionRange `json:"parent,omitempty"`
+}
+
 type lspDiagnostic struct {
 	Range   lspRange `json:"range"`
 	Message string   `json:"message"`
@@ -1073,11 +1078,23 @@ func TestLSPServerE2EWithRealGopls(t *testing.T) {
 		})
 
 		run("selection range", func(t *testing.T) {
+			pos := fixture.view.Marker("template_label_use")
 			selectionRanges := h.callRaw("textDocument/selectionRange", map[string]any{
 				"textDocument": map[string]any{"uri": viewURI},
-				"positions":    []lspPosition{fixture.view.Marker("template_label_use")},
+				"positions":    []lspPosition{pos},
 			})
-			assertValidJSON(t, selectionRanges)
+			ranges := mustJSON[[]lspSelectionRange](t, selectionRanges)
+			if len(ranges) == 0 {
+				t.Fatalf("selectionRange returned empty array: %s", compactJSON(selectionRanges))
+			}
+			assertRangeContainsPosition(t, ranges[0].Range, pos)
+			if ranges[0].Parent == nil {
+				t.Fatalf("selectionRange[0] has no parent: %s", compactJSON(selectionRanges))
+			}
+			assertRangeContainsPosition(t, ranges[0].Parent.Range, pos)
+			if rangesEqual(ranges[0].Range, ranges[0].Parent.Range) {
+				t.Fatalf("selectionRange parent did not expand: %s", compactJSON(selectionRanges))
+			}
 		})
 
 		run("signature help", func(t *testing.T) {

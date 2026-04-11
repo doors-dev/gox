@@ -201,6 +201,27 @@ func TestManagerWorkspaceLifecycleAndFileValidation(t *testing.T) {
 		t.Fatal("ValidateTarget(newer file version) error = nil, want error")
 	}
 
+	develContent := bytes.Replace(semverContent, []byte("v0.0.0"), []byte("(devel)"), 1)
+	if err := os.WriteFile(docA.TargetFile().Path(), develContent, 0o644); err != nil {
+		t.Fatalf("write devel file: %v", err)
+	}
+	if needsUpdate, err := docA.TargetFile().ValidateTarget(develContent); err != nil || needsUpdate {
+		t.Fatalf("ValidateTarget(devel == devel) = (%v, %v), want (false, nil)", needsUpdate, err)
+	}
+	if needsUpdate, err := docA.TargetFile().ValidateTarget(semverContent); err != nil || needsUpdate {
+		t.Fatalf("ValidateTarget(devel file vs semver bytes) = (%v, %v), want (false, nil)", needsUpdate, err)
+	}
+	develChanged := append(append([]byte{}, develContent...), []byte("\n// changed")...)
+	if needsUpdate, err := docA.TargetFile().ValidateTarget(develChanged); err != nil || !needsUpdate {
+		t.Fatalf("ValidateTarget(devel file vs changed devel bytes) = (%v, %v), want (true, nil)", needsUpdate, err)
+	}
+	if err := os.WriteFile(docA.TargetFile().Path(), semverContent, 0o644); err != nil {
+		t.Fatalf("restore semver file: %v", err)
+	}
+	if needsUpdate, err := docA.TargetFile().ValidateTarget(develContent); err != nil || needsUpdate {
+		t.Fatalf("ValidateTarget(semver file vs devel bytes) = (%v, %v), want (false, nil)", needsUpdate, err)
+	}
+
 	toRemove := docA.TargetFile()
 	if !toRemove.Exists() {
 		t.Fatal("target file missing before remove")

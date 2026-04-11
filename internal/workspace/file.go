@@ -138,10 +138,7 @@ func (f File) ValidateTarget(b []byte) (needsUpdate bool, err error) {
 	if err != nil {
 		panic(err)
 	}
-	if !semver.IsValid(bytesVersion) {
-		panic(errors.New("Invalid GoX header in sample [" + bytesVersion + "]"))
-	}
-	if semver.IsValid(fileVersion) && semver.Compare(fileVersion, bytesVersion) == 1 {
+	if semver.IsValid(fileVersion) && semver.IsValid(bytesVersion) && semver.Compare(fileVersion, bytesVersion) == 1 {
 		err = errors.New("This generated file was created by a newer GoX version. Update GoX, or run 'gox gen -force' to overwrite it.")
 	}
 	const chunk = 32 * 1024

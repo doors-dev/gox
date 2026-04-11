@@ -2,3 +2,5 @@
 /.gocache
 .DS_Store
 **/.DS_Store
+*.out
+coverage.*
