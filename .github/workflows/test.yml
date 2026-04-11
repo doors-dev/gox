@@ -28,6 +28,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y build-essential
 
       - name: Build Rust library
+        env:
+          CARGO_PROFILE_RELEASE_LTO: "off"
         run: make build_rust
 
       - name: Install gopls
