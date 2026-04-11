@@ -21,6 +21,15 @@ jobs:
           go-version: "stable"
           cache: true
 
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux deps
+        run: sudo apt-get update && sudo apt-get install -y build-essential
+
+      - name: Build Rust library
+        run: make build_rust
+
       - name: Run cross-package coverage
         run: go test -coverpkg=./... ./... -coverprofile=coverage_all.out
 
