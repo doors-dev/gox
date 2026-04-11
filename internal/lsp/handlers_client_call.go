@@ -296,7 +296,32 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 			}
 			c.res(res)
 		})
-	}, incomingCalls, outgoingCalls, prepareCallHierarchy)
+	}, incomingCalls, prepareCallHierarchy)
+
+	on(func(c caller, j Json) {
+		doc, kind, err := jsonDoc.get(sess.man(), j, false)
+		if err != nil {
+			c.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
+			return
+		}
+		origin := doc
+		if kind == workspace.KindSource {
+			if doc.Err() != nil {
+				c.err(common.FromErr(jsonrpc2.ErrUnknown, doc.Err()))
+				return
+			}
+			jsonPos.convertAllToTarget(sess.enc(), doc, j, workspace.Approximate)
+			jsonDoc.setAsTarget(j, doc)
+		}
+		c.proxy(j, func(res Json) {
+			err := jsonPos.convertOutgoingCalls(sess.man(), sess.enc(), origin, res)
+			if err != nil {
+				c.err(common.NewErr(jsonrpc2.ErrInternal, "Could not convert the call hierarchy response: "+err.Error()))
+				return
+			}
+			c.res(res)
+		})
+	}, outgoingCalls)
 
 	on(func(c caller, j Json) {
 		doc, kind, err := jsonDoc.get(sess.man(), j, false)
@@ -344,7 +369,7 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 		}
 		jsonDoc.setAsTarget(j, doc)
 		c.proxy(j, func(res Json) {
-			err := jsonPos.convertDiagnosticsToSource(sess.man(), sess.enc(), doc, j)
+			err := jsonPos.convertDiagnosticsToSource(sess.man(), sess.enc(), doc, res)
 			if err != nil {
 				c.err(common.NewErr(jsonrpc2.ErrInternal, "Could not convert the diagnostics response: "+err.Error()))
 				return
@@ -369,7 +394,7 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 		}
 		jsonDoc.setAsTarget(j, doc)
 		c.proxy(j, func(res Json) {
-			err := jsonPos.convertLocations(sess.man(), sess.enc(), doc, j)
+			err := jsonPos.convertLocations(sess.man(), sess.enc(), doc, res)
 			if err != nil {
 				c.err(common.NewErr(jsonrpc2.ErrInternal, "Could not convert the document link response: "+err.Error()))
 				return
@@ -516,6 +541,19 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 	}, signatureHelp)
 
 	on(func(c caller, j Json) {
+		doc, kind, err := jsonDoc.get(sess.man(), j, false)
+		if err != nil {
+			c.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
+			return
+		}
+		if kind == workspace.KindSource {
+			err = jsonPos.convertItemRanges(sess.enc(), doc, j, convertToTarget, workspace.Edge)
+			if err != nil {
+				c.res(jsonGenerator.newNull())
+				return
+			}
+			jsonDoc.setAsTarget(j, doc)
+		}
 		c.proxy(j, func(res Json) {
 			err := jsonPos.convertLocations(sess.man(), sess.enc(), nil, res)
 			if err != nil {
@@ -524,6 +562,17 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 			}
 			c.res(res)
 		})
-	}, subtypes, supertypes, symbol)
+	}, subtypes, supertypes)
+
+	on(func(c caller, j Json) {
+		c.proxy(j, func(res Json) {
+			err := jsonPos.convertLocations(sess.man(), sess.enc(), nil, res)
+			if err != nil {
+				c.err(common.NewErr(jsonrpc2.ErrInternal, "Could not convert the locations response: "+err.Error()))
+				return
+			}
+			c.res(res)
+		})
+	}, symbol)
 
 }

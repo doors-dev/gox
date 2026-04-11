@@ -152,26 +152,30 @@ func (r jsonPosDriver) convertLocations(man workspace.Manager, enc common.Encodi
 			return
 		}
 	}
-	if !j.Get("uri").Exists() {
-		return
-	}
 	var doc workspace.Doc
-	var kind workspace.FileKind
-	doc, kind, err = jsonDoc.get(man, j, false)
-	if err != nil {
-		return
+	if j.Get("uri").Exists() {
+		var kind workspace.FileKind
+		doc, kind, err = jsonDoc.get(man, j, false)
+		if err != nil {
+			return
+		}
+		if kind == workspace.KindUnknown {
+			return
+		}
+		if kind == workspace.KindSource {
+			err = errors.New("The server cannot reference source files here.")
+		}
+		jsonDoc.setAsSource(j, doc)
+	} else {
+		doc = origin
 	}
-	if kind == workspace.KindUnknown {
+	if doc == nil {
 		return
-	}
-	if kind == workspace.KindSource {
-		err = errors.New("The server cannot reference source files here.")
 	}
 	err = doc.Err()
 	if err != nil {
 		return
 	}
-	jsonDoc.setAsSource(j, doc)
 	for _, key := range []string{"range", "targetRange", "targetSelectionRange", "selectionRange"} {
 		node := j.Get(key)
 		if !node.Exists() {
@@ -220,6 +224,58 @@ func (r jsonPosDriver) convertCalls(man workspace.Manager, enc common.Encoding, 
 	return
 }
 
+func (r jsonPosDriver) convertOutgoingCalls(man workspace.Manager, enc common.Encoding, origin workspace.Doc, j Json) (err error) {
+	j.ForEach(func(path ast.Sequence, node *ast.Node) bool {
+		if path.Index == -1 {
+			return false
+		}
+		to := node.Get("to")
+		if to.Exists() {
+			var doc workspace.Doc
+			var kind workspace.FileKind
+			doc, kind, err = jsonDoc.get(man, to, false)
+			if err != nil {
+				return false
+			}
+			if kind != workspace.KindUnknown {
+				if kind == workspace.KindSource {
+					err = errors.New("A source file is not expected here.")
+					return false
+				}
+				err = doc.Err()
+				if err != nil {
+					return false
+				}
+				err = jsonPos.convertAllToSource(enc, doc, to, workspace.Approximate)
+				if err != nil {
+					return false
+				}
+				jsonDoc.setAsSource(to, doc)
+			}
+		}
+		if origin == nil {
+			return true
+		}
+		err = origin.Err()
+		if err != nil {
+			return false
+		}
+		fromRanges := node.Get("fromRanges")
+		if !fromRanges.Exists() {
+			return true
+		}
+		fromRanges.ForEach(func(path ast.Sequence, node *ast.Node) bool {
+			if path.Index == -1 {
+				return false
+			}
+			err = jsonPos.convertRangeInPlace(enc, origin, node, convertToSource, workspace.Approximate)
+			return err == nil
+		})
+		return err == nil
+	})
+	return
+}
+
 func (r jsonPosDriver) convertDiagnosticsToTarget(man workspace.Manager, enc common.Encoding, doc workspace.Doc, j Json) error {
 	return r.convertDiagnostics(man, enc, doc, j, convertToTarget)
 }
@@ -253,7 +309,7 @@ func (r jsonPosDriver) convertDiagnostics(man workspace.Manager, enc common.Enco
 			case convertToSource:
 				newRan, ok = doc.SourceRange(enc, ran, workspace.Approximate)
 			case convertToTarget:
-				newRan, ok = doc.SourceRange(enc, ran, workspace.Approximate)
+				newRan, ok = doc.TargetRange(enc, ran, workspace.Approximate)
 			default:
 				panic("Unexpected")
 			}
@@ -312,6 +368,42 @@ func (r jsonPosDriver) convertRangeToSource(enc common.Encoding, doc workspace.D
 
 func (r jsonPosDriver) convertRangeToTarget(enc common.Encoding, doc workspace.Doc, j Json, mode workspace.ConvMode) error {
 	return r.convertRange(enc, doc, j, convertToTarget, mode)
+}
+
+func (r jsonPosDriver) convertItemRanges(enc common.Encoding, doc workspace.Doc, j Json, direction convertTo, mode workspace.ConvMode) (err error) {
+	item := j.Get("item")
+	if !item.Exists() {
+		return errors.New("there is no item")
+	}
+	for _, key := range []string{"range", "selectionRange"} {
+		node := item.Get(key)
+		if !node.Exists() {
+			continue
+		}
+		var ran common.Range
+		ran, err = jsonPos.intoRange(node)
+		if err != nil {
+			return
+		}
+		var newRan common.Range
+		var ok bool
+		switch direction {
+		case convertToSource:
+			newRan, ok = doc.SourceRange(enc, ran, mode)
+		case convertToTarget:
+			newRan, ok = doc.TargetRange(enc, ran, mode)
+		default:
+			panic("Unexpected")
+		}
+		if !ok {
+			return errors.New("The range could not be mapped.")
+		}
+		item.Set(key, jsonPos.fromRange(newRan))
+		if !ok {
+			return errors.New("The range could not be mapped.")
+		}
+	}
+	return nil
 }
 
 func (r jsonPosDriver) convertRange(enc common.Encoding, doc workspace.Doc, j Json, direction convertTo, mode workspace.ConvMode) error {

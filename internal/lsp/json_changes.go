@@ -242,9 +242,13 @@ func (r jsonChangesDriver) getChanges(j Json) ([]ContentChange, error) {
 	arr, _ := node.ArrayUseNode()
 	changes := make([]ContentChange, 0, len(arr))
 	for _, node := range arr {
-		ran, err := jsonPos.getRange(&node)
-		if err != nil {
-			return nil, err
+		ran := common.NoRange()
+		if node.Get("range").Exists() {
+			var err error
+			ran, err = jsonPos.getRange(&node)
+			if err != nil {
+				return nil, err
+			}
 		}
 		text := r.getText(&node)
 		changes = append(changes, ContentChange{

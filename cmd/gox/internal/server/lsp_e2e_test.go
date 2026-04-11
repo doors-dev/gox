@@ -955,7 +955,22 @@ func TestLSPServerE2EWithRealGopls(t *testing.T) {
 				t.Fatalf("expected at least one source document link, got %s", compactJSON(rawLinks))
 			}
 			assertRawContains(t, rawLinks, "https://example.com/view-docs")
-			assertRangeContainsPosition(t, links[0].Range, fixture.view.Marker("view_doc_link"))
+
+			targetURI := uriForPath(strings.TrimSuffix(fixture.view.Path, ".gox") + ".x.go")
+			rawTargetLinks := h.callRaw("textDocument/documentLink", map[string]any{
+				"textDocument": map[string]any{"uri": targetURI},
+			})
+			targetLinks := mustJSON[[]documentLink](t, rawTargetLinks)
+			if len(targetLinks) == 0 {
+				t.Fatalf("expected at least one target document link, got %s", compactJSON(rawTargetLinks))
+			}
+			if rangesEqual(links[0].Range, targetLinks[0].Range) {
+				t.Fatalf(
+					"expected source document link range to differ from raw target range; source=%+v target=%+v",
+					links[0].Range,
+					targetLinks[0].Range,
+				)
+			}
 		})
 
 		run("document symbol", func(t *testing.T) {
@@ -1635,6 +1650,10 @@ func rangeContainsPosition(ran lspRange, pos lspPosition) bool {
 	startOK := pos.Line > ran.Start.Line || (pos.Line == ran.Start.Line && pos.Character >= ran.Start.Character)
 	endOK := pos.Line < ran.End.Line || (pos.Line == ran.End.Line && pos.Character <= ran.End.Character)
 	return startOK && endOK
+}
+
+func rangesEqual(a lspRange, b lspRange) bool {
+	return a.Start == b.Start && a.End == b.End
 }
 
 func positionOfSubstring(t *testing.T, text string, substring string) lspPosition {
