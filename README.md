@@ -6,8 +6,12 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/doors-dev/gox.svg)](https://pkg.go.dev/github.com/doors-dev/gox)
 [![Mentioned in Awesome Go](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go)
 
+GoX lets you write HTML templates as typed Go expressions that compile to plain Go on the *go*.
 
-GoX lets you write HTML-like templates in `.gox` files, compile them into `.x.go` files in the same Go package, and keep editor features working across both source and generated code.
+- **Seamless editor support:** near-native language server experience across `.gox` and `.go` files.
+- **Full templating toolbox:** conditionals, loops, composition, and reusable components.
+- **Extensible rendering pipeline:** templates compile to a stream of render jobs, processable with custom printers.
+- **`templ` compatible:** `gox.Elem` implements `Render(ctx, w)` and drops in wherever a `templ` component is expected.
 
 > Syntax guide: [doors.dev/docs/template-syntax](https://doors.dev/docs/template-syntax)  
 > This README focuses on installation, workflow, editor integration, and the rendering API behind GoX.
