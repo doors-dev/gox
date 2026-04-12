@@ -22,6 +22,8 @@ GoX lets you write HTML templates as typed Go expressions that compile to plain 
 
 ### Install the `gox` tool
 
+> Not required, editor integration is enough to get started.
+
 The easiest path is the prebuilt binary from [GitHub Releases](https://github.com/doors-dev/gox/releases).
 
 To install from source:
