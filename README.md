@@ -4,6 +4,7 @@
 [![codecov](https://codecov.io/gh/doors-dev/gox/branch/main/graph/badge.svg?token=N5S703MVQ4)](https://codecov.io/gh/doors-dev/gox)
 [![Go Report Card](https://goreportcard.com/badge/github.com/doors-dev/gox)](https://goreportcard.com/report/github.com/doors-dev/gox)
 [![Go Reference](https://pkg.go.dev/badge/github.com/doors-dev/gox.svg)](https://pkg.go.dev/github.com/doors-dev/gox)
+[![Mentioned in Awesome Go](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go)
 
 
 GoX lets you write HTML-like templates in `.gox` files, compile them into `.x.go` files in the same Go package, and keep editor features working across both source and generated code. The generated code is plain Go, so the template layer stays inspectable, debuggable, and extensible from ordinary Go code.
