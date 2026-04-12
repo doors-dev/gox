@@ -7,7 +7,7 @@
 [![Mentioned in Awesome Go](https://awesome.re/mentioned-badge.svg)](https://github.com/avelino/awesome-go)
 
 
-GoX lets you write HTML-like templates in `.gox` files, compile them into `.x.go` files in the same Go package, and keep editor features working across both source and generated code. The generated code is plain Go, so the template layer stays inspectable, debuggable, and extensible from ordinary Go code.
+GoX lets you write HTML-like templates in `.gox` files, compile them into `.x.go` files in the same Go package, and keep editor features working across both source and generated code.
 
 > Syntax guide: [doors.dev/docs/template-syntax](https://doors.dev/docs/template-syntax)  
 > This README focuses on installation, workflow, editor integration, and the rendering API behind GoX.
