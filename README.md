@@ -147,8 +147,6 @@ gox ver             # print the GoX version
 
 By default, `gox gen` and `gox fmt` use the current directory and respect `.gitignore`. Both commands also accept an optional positional file or directory path. `-no-ignore` disables ignore handling, and `-force` skips target-file safety checks during generation.
 
-The old `-path` flag is no longer supported.
-
 ### What happens under the hood
 
 The `.gox` parser produces a syntax tree. The assembler walks that tree and lowers template nodes into plain Go built around `gox.Elem(func(cur gox.Cursor) error { ... })`.
@@ -165,12 +163,12 @@ Generated `.gox` code ultimately works with four things:
 
 - render values such as `Elem`, `Comp`, and templ-compatible components
 - a `Cursor` that builds structure and emits rendering operations
-- an `Attrs` set attached to an open head before it is submitted
+- an `Attrs` set attached to an open head before it is submitted and exposed via cursor methods
 - a stream of `Job` values consumed by a `Printer`
 
 That is the useful mental model for GoX. Once you understand those pieces, generated `.x.go` files are easy to read and the advanced hooks stop feeling magical.
 
-### Render values
+### Primitives
 
 These are the core renderable types:
 
@@ -364,13 +362,6 @@ The helpers in `helpers.go` keep the API lightweight when you want one-off imple
 - `gox.NewEscapedWriter`
 
 `gox.NewEscapedWriter` is useful when custom rendering code needs the same escaping rules as GoX text and attribute output.
-
-
----
-
-## Compatibility
-
-`gox.Elem` implements both `gox.Comp` and a templ-style `Render(ctx, w)` method, so it can sit in existing render pipelines while still exposing lower-level hooks when you need them.
 
 ---
 
