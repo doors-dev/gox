@@ -151,7 +151,7 @@ By default, `gox gen` and `gox fmt` use the current directory and respect `.giti
 
 The `.gox` parser produces a syntax tree. The assembler walks that tree and lowers template nodes into plain Go built around `gox.Elem(func(cur gox.Cursor) error { ... })`.
 
-Alongside generation, GoX keeps a source-to-target translation map between `.gox` and `.x.go`. That mapping is used not only for diagnostics, but also for editor navigation and edits that need to round-trip through generated Go.
+Alongside generation, GoX keeps a source-to-target translation map between `.gox` and `.x.go`. That mapping is used for the language server features.
 
 `gox fmt` formats `.gox` with the bundled Rust formatter and regular `.go` files with `gofmt`. Embedded `<script>` and `<style>` blocks are reformatted too.
 
