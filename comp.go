@@ -35,16 +35,13 @@ type Elem func(cur Cursor) error
 // Main makes Elem satisfy Comp by returning itself.
 func (e Elem) Main() Elem { return e }
 
-// Print renders e through printer using ctx as the default job context.
-//
-// Print creates a fresh Cursor, executes e, and streams the resulting jobs to
-// printer. If e is nil, Print returns nil.
+// Print sends e through printer as a root component job using ctx as the job context.
 func (e Elem) Print(ctx context.Context, printer Printer) error {
 	if e == nil {
 		return nil
 	}
-	cur := NewCursor(ctx, printer)
-	return e(cur)
+	job := NewJobComp(ctx, e)
+	return printer.Send(job)
 }
 
 // Render writes e to w with GoX's default Printer.
@@ -56,7 +53,8 @@ func (e Elem) Render(ctx context.Context, w io.Writer) error {
 		return nil
 	}
 	printer := NewPrinter(w)
-	return e.Print(ctx, printer)
+	cur := NewCursor(ctx, printer)
+	return e(cur)
 }
 
 // Proxy wraps an Elem before it is rendered.
