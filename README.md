@@ -13,7 +13,11 @@ GoX lets you write HTML templates as typed Go expressions that compile to plain 
 - **Extensible rendering pipeline:** templates compile to a stream of render jobs, processable with custom printers.
 - **`templ` compatible:** `gox.Elem` implements `Render(ctx, w)` and drops in wherever a `templ` component is expected.
 
+
 > Syntax guide: [doors.dev/docs/template-syntax](https://doors.dev/docs/template-syntax)  
+
+> For practical extensions on top of GoX, see [`github.com/doors-dev/goxx`](https://github.com/doors-dev/goxx).
+
 > This README focuses on installation, workflow, editor integration, and the rendering API behind GoX.
 
 ---
