@@ -22,12 +22,10 @@ type EditorComp interface {
 // satisfy component-based APIs.
 type EditorCompFunc func(cur Cursor) error
 
-// Edit calls e(cur).
 func (e EditorCompFunc) Edit(cur Cursor) error {
 	return e(cur)
 }
 
-// Main makes EditorCompFunc satisfy Comp by returning it as an Elem.
 func (e EditorCompFunc) Main() Elem {
 	return Elem(e)
 }
@@ -35,7 +33,6 @@ func (e EditorCompFunc) Main() Elem {
 // EditorFunc adapts a function into an Editor.
 type EditorFunc func(cur Cursor) error
 
-// Edit calls e(cur).
 func (e EditorFunc) Edit(cur Cursor) error {
 	return e(cur)
 }
@@ -43,15 +40,13 @@ func (e EditorFunc) Edit(cur Cursor) error {
 var _ Editor = EditorFunc(nil)
 
 // ProxyFunc adapts a function into a Proxy.
-type ProxyFunc func(cur Cursor, elem Elem) error
+type ProxyFunc func(cur Cursor, el Elem) error
 
-// Proxy calls p(cur, elem).
-func (p ProxyFunc) Proxy(cur Cursor, elem Elem) error {
-	return p(cur, elem)
+func (p ProxyFunc) Proxy(cur Cursor, el Elem) error {
+	return p(cur, el)
 }
 
 var _ Proxy = ProxyFunc(nil)
-
 
 // NewEscapedWriter returns a writer that applies GoX's HTML escaping rules.
 //
@@ -64,7 +59,6 @@ func NewEscapedWriter(w io.Writer) io.Writer {
 // ModifyFunc adapts a function into a Modify.
 type ModifyFunc func(ctx context.Context, tag string, attrs Attrs) error
 
-// Modify calls a(ctx, tag, attrs).
 func (a ModifyFunc) Modify(ctx context.Context, tag string, attrs Attrs) error {
 	return a(ctx, tag, attrs)
 }
@@ -74,7 +68,6 @@ var _ Modify = ModifyFunc(nil)
 // PrinterFunc adapts a function into a Printer.
 type PrinterFunc func(j Job) error
 
-// Send calls p(j).
 func (p PrinterFunc) Send(j Job) error {
 	return p(j)
 }
