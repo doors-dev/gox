@@ -87,9 +87,9 @@ func scanContent(coll collector, root *tree_sitter.Node) {
 
 func renderProxyBeg(coll collector, proxy *tree_sitter.Node) {
 	coll.cr()
-	coll.append(r("__e = "))
+	coll.append(r("__e = ("))
 	scanValue(coll, proxy)
-	coll.append(r(".Proxy(__c, gox.Elem(func(__c gox.Cursor) (__e error) {"))
+	coll.append(r(").Proxy(__c, gox.Elem(func(__c gox.Cursor) (__e error) {"))
 	coll.indentBeg()
 	coll.cr()
 	coll.append(r("ctx := __c.Context(); _ = ctx"))
@@ -185,7 +185,7 @@ func scanAttributes(coll collector, root *tree_sitter.Node) {
 			coll.append(p(&child))
 		case grammer.GOX_ATTR:
 			coll.cr()
-			coll.append(r("__e = __c.AttrSet("), s(name), r(", "))
+			coll.append(r("__e = __c.Set("), s(name), r(", "))
 			if value != nil {
 				scanValue(coll, value)
 			} else {
@@ -198,7 +198,7 @@ func scanAttributes(coll collector, root *tree_sitter.Node) {
 				continue
 			}
 			coll.cr()
-			coll.append(r("__e = __c.AttrMod("))
+			coll.append(r("__e = __c.Modify("))
 			scanGoSnippet(coll, arg)
 			coll.append(r("); "), r(ERR_CHECK))
 		}

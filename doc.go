@@ -21,7 +21,7 @@
 //			if err := cur.Init("span"); err != nil {
 //				return err
 //			}
-//			if err := cur.AttrSet("class", "badge"); err != nil {
+//			if err := cur.Set("class", "badge"); err != nil {
 //				return err
 //			}
 //			if err := cur.Submit(); err != nil {

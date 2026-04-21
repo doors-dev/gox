@@ -22,7 +22,7 @@ func TestCursorRegularElement(t *testing.T) {
 		if err := c.Init("span"); err != nil {
 			return err
 		}
-		if err := c.AttrSet("class", "badge"); err != nil {
+		if err := c.Set("class", "badge"); err != nil {
 			return err
 		}
 		if err := c.Submit(); err != nil {
@@ -44,10 +44,10 @@ func TestCursorVoidElement(t *testing.T) {
 		if err := c.InitVoid("input"); err != nil {
 			return err
 		}
-		if err := c.AttrSet("type", "text"); err != nil {
+		if err := c.Set("type", "text"); err != nil {
 			return err
 		}
-		if err := c.AttrSet("disabled", true); err != nil {
+		if err := c.Set("disabled", true); err != nil {
 			return err
 		}
 		return c.Submit()
@@ -253,7 +253,7 @@ func TestCursorCloseWithoutInitErrors(t *testing.T) {
 	}
 }
 
-func TestCursorAttrAfterSubmitErrors(t *testing.T) {
+func TestCursorSetAfterSubmitErrors(t *testing.T) {
 	err := Elem(func(c Cursor) error {
 		if err := c.Init("span"); err != nil {
 			return err
@@ -261,7 +261,7 @@ func TestCursorAttrAfterSubmitErrors(t *testing.T) {
 		if err := c.Submit(); err != nil {
 			return err
 		}
-		return c.AttrSet("id", "x")
+		return c.Set("id", "x")
 	}).Render(context.Background(), &bytes.Buffer{})
 	if err == nil {
 		t.Fatal("expected error setting attr after submit")
@@ -292,7 +292,7 @@ func TestHeadErrorString(t *testing.T) {
 	}
 }
 
-func TestCursorAttrMod(t *testing.T) {
+func TestCursorModify(t *testing.T) {
 	mod := ModifyFunc(func(ctx context.Context, tag string, attrs Attrs) error {
 		attrs.Get("data-tag").Set(tag)
 		return nil
@@ -301,7 +301,7 @@ func TestCursorAttrMod(t *testing.T) {
 		if err := c.Init("section"); err != nil {
 			return err
 		}
-		if err := c.AttrMod(mod); err != nil {
+		if err := c.Modify(mod); err != nil {
 			return err
 		}
 		if err := c.Submit(); err != nil {
@@ -314,7 +314,7 @@ func TestCursorAttrMod(t *testing.T) {
 	}
 }
 
-func TestCursorAttrModError(t *testing.T) {
+func TestCursorModifyError(t *testing.T) {
 	mod := ModifyFunc(func(ctx context.Context, tag string, attrs Attrs) error {
 		return errors.New("boom")
 	})
@@ -322,7 +322,7 @@ func TestCursorAttrModError(t *testing.T) {
 		if err := c.Init("section"); err != nil {
 			return err
 		}
-		if err := c.AttrMod(mod); err != nil {
+		if err := c.Modify(mod); err != nil {
 			return err
 		}
 		if err := c.Submit(); err != nil {
@@ -335,7 +335,7 @@ func TestCursorAttrModError(t *testing.T) {
 	}
 }
 
-func TestCursorAttrModAfterSubmitErrors(t *testing.T) {
+func TestCursorModifyAfterSubmitErrors(t *testing.T) {
 	err := Elem(func(c Cursor) error {
 		if err := c.Init("span"); err != nil {
 			return err
@@ -343,10 +343,35 @@ func TestCursorAttrModAfterSubmitErrors(t *testing.T) {
 		if err := c.Submit(); err != nil {
 			return err
 		}
-		return c.AttrMod(ModifyFunc(func(ctx context.Context, tag string, a Attrs) error { return nil }))
+		return c.Modify(ModifyFunc(func(ctx context.Context, tag string, a Attrs) error { return nil }))
 	}).Render(context.Background(), &bytes.Buffer{})
 	if err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+func TestCursorDeprecatedAttrAliases(t *testing.T) {
+	mod := ModifyFunc(func(ctx context.Context, tag string, attrs Attrs) error {
+		attrs.Get("data-tag").Set(tag)
+		return nil
+	})
+	out := renderElem(t, func(c Cursor) error {
+		if err := c.Init("section"); err != nil {
+			return err
+		}
+		if err := c.AttrSet("class", "legacy"); err != nil {
+			return err
+		}
+		if err := c.AttrMod(mod); err != nil {
+			return err
+		}
+		if err := c.Submit(); err != nil {
+			return err
+		}
+		return c.Close()
+	})
+	if out != `<section class="legacy" data-tag="section"></section>` {
+		t.Fatalf("got %q, want %q", out, `<section class="legacy" data-tag="section"></section>`)
 	}
 }
 

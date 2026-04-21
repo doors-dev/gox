@@ -308,7 +308,7 @@ elem Table(users []user) {
 
 // --- Attributes ------------------------------------------------------------
 
-// Doc section: "Attributes". A literal attribute is set via AttrSet and a
+// Doc section: "Attributes". A literal attribute is set via Set and a
 // parenthesised Go expression is passed through verbatim.
 func TestAttributesLiteralAndExpression(t *testing.T) {
 	src := `package demo
@@ -321,8 +321,8 @@ elem block(id string) {
 `
 	out := assemble(t, src)
 	mustContain(t, out,
-		`__e = __c.AttrSet("id", id)`,
-		`__e = __c.AttrSet("class", "card")`,
+		`__e = __c.Set("id", id)`,
+		`__e = __c.Set("class", "card")`,
 	)
 }
 
@@ -339,12 +339,12 @@ elem Field() {
 `
 	out := assemble(t, src)
 	mustContain(t, out,
-		`__e = __c.AttrSet("disabled", true)`,
+		`__e = __c.Set("disabled", true)`,
 	)
 }
 
 // Doc section: "Modifiers". `<button (LandingAction)>` attaches an attribute
-// modifier via `__c.AttrMod(LandingAction)`.
+// modifier via `__c.Modify(LandingAction)`.
 func TestAttributeModifier(t *testing.T) {
 	src := `package demo
 
@@ -356,7 +356,7 @@ elem Demo(LandingAction any) {
 `
 	out := assemble(t, src)
 	mustContain(t, out,
-		"__e = __c.AttrMod(LandingAction)",
+		"__e = __c.Modify(LandingAction)",
 		`__e = __c.Init("button")`,
 		`__e = __c.Text("Request Demo!")`,
 	)
@@ -448,7 +448,7 @@ elem Demo() {
 // --- Element proxy ---------------------------------------------------------
 
 // Doc section: "Element Proxy". `~>(p) <div>...</div>` wraps the following
-// element subtree in `p.Proxy(__c, gox.Elem(func(__c gox.Cursor) ...))`.
+// element subtree in `(p).Proxy(__c, gox.Elem(func(__c gox.Cursor) ...))`.
 func TestElementProxySingle(t *testing.T) {
 	src := `package demo
 
@@ -464,7 +464,7 @@ elem Demo(proxy any) {
 `
 	out := assemble(t, src)
 	mustContain(t, out,
-		"= proxy.Proxy(__c, gox.Elem(func(__c gox.Cursor)",
+		"= (proxy).Proxy(__c, gox.Elem(func(__c gox.Cursor)",
 		`__e = __c.Init("div")`,
 	)
 }
@@ -484,8 +484,8 @@ elem Demo(Track, Transform any) {
 `
 	out := assemble(t, src)
 	mustContain(t, out,
-		"Track.Proxy(__c, gox.Elem(func(__c gox.Cursor)",
-		"Transform.Proxy(__c, gox.Elem(func(__c gox.Cursor)",
+		"(Track).Proxy(__c, gox.Elem(func(__c gox.Cursor)",
+		"(Transform).Proxy(__c, gox.Elem(func(__c gox.Cursor)",
 		`__e = __c.Init("div")`,
 	)
 }
@@ -511,7 +511,7 @@ elem Icon() {
 	out := assemble(t, src)
 	mustContain(t, out,
 		`__e = __c.Init("svg")`,
-		`__e = __c.AttrSet("viewBox", "0 0 24 24")`,
+		`__e = __c.Set("viewBox", "0 0 24 24")`,
 		`__e = __c.Raw(`,
 		`<path d=\"M1 2\"/>`,
 		`<path d=\"M3 4\"/>`,

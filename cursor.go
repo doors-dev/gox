@@ -162,7 +162,7 @@ func (s *stack) Attrs() (*attrs, error) {
 //
 //	cur := gox.NewCursor(ctx, gox.NewPrinter(w))
 //	_ = cur.Init("span")
-//	_ = cur.AttrSet("class", "badge")
+//	_ = cur.Set("class", "badge")
 //	_ = cur.Submit()
 //	_ = cur.Text("New")
 //	_ = cur.Close()
@@ -172,14 +172,14 @@ func (s *stack) Attrs() (*attrs, error) {
 //
 // Regular element lifecycle:
 //  1. Init(tag)
-//  2. (optional) AttrSet / AttrMod
+//  2. (optional) Set / Modify
 //  3. Submit()              // emits head-open job
 //  4. emit children jobs    // Text/Comp/Any/etc.
 //  5. Close()               // emits head-close job
 //
 // Void element lifecycle:
 //  1. InitVoid(tag)
-//  2. (optional) AttrSet / AttrMod
+//  2. (optional) Set / Modify
 //  3. Submit()              // emits head-open job; no children and no Close
 //
 // Container lifecycle:
@@ -231,7 +231,7 @@ func (c Cursor) NewID() uint64 {
 
 // Init starts a regular element head.
 //
-// After Init, callers may set attributes with AttrSet or AttrMod. Child content
+// After Init, callers may set attributes with Set or Modify. Child content
 // must wait until Submit succeeds.
 func (c Cursor) Init(tag string) error {
 	return c.stack.Init(tag)
@@ -421,10 +421,10 @@ func (c Cursor) Any(any any) error {
 	}
 }
 
-// AttrSet sets an attribute on the current head.
+// Set sets an attribute on the current head.
 //
-// AttrSet may be used only after Init or InitVoid and before Submit.
-func (c Cursor) AttrSet(name string, value any) error {
+// Set may be used only after Init or InitVoid and before Submit.
+func (c Cursor) Set(name string, value any) error {
 	attrs, err := c.stack.Attrs()
 	if err != nil {
 		return err
@@ -433,12 +433,21 @@ func (c Cursor) AttrSet(name string, value any) error {
 	return nil
 }
 
-// AttrMod adds one or more modifiers to the current head.
+// AttrSet sets an attribute on the current head.
 //
-// AttrMod may be used only after Init or InitVoid and before Submit. Modifiers
+// AttrSet may be used only after Init or InitVoid and before Submit.
+//
+// Deprecated: use Set instead.
+func (c Cursor) AttrSet(name string, value any) error {
+	return c.Set(name, value)
+}
+
+// Modify adds one or more modifiers to the current head.
+//
+// Modify may be used only after Init or InitVoid and before Submit. Modifiers
 // run right before rendering and may inspect, leave unchanged, or mutate the
 // full attribute set.
-func (c Cursor) AttrMod(mods ...Modify) error {
+func (c Cursor) Modify(mods ...Modify) error {
 	attrs, err := c.stack.Attrs()
 	if err != nil {
 		return err
@@ -447,4 +456,15 @@ func (c Cursor) AttrMod(mods ...Modify) error {
 		attrs.AddMod(m)
 	}
 	return nil
+}
+
+// AttrMod adds one or more modifiers to the current head.
+//
+// AttrMod may be used only after Init or InitVoid and before Submit. Modifiers
+// run right before rendering and may inspect, leave unchanged, or mutate the
+// full attribute set.
+//
+// Deprecated: use Modify instead.
+func (c Cursor) AttrMod(mods ...Modify) error {
+	return c.Modify(mods...)
 }

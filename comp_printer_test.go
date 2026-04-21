@@ -70,7 +70,7 @@ func TestElemPrintDefaultPrinterMatchesRender(t *testing.T) {
 		if err := c.Init("span"); err != nil {
 			return err
 		}
-		if err := c.AttrSet("class", "badge"); err != nil {
+		if err := c.Set("class", "badge"); err != nil {
 			return err
 		}
 		if err := c.Submit(); err != nil {

@@ -203,9 +203,9 @@ So in normal Go code, a template is just a value you can return, store, pass aro
 There are three head lifecycles:
 
 1. Regular element
-   `Init(tag)` -> optional `AttrSet` / `AttrMod` -> `Submit()` -> child content -> `Close()`
+   `Init(tag)` -> optional `Set` / `Modify` -> `Submit()` -> child content -> `Close()`
 2. Void element
-   `InitVoid(tag)` -> optional `AttrSet` / `AttrMod` -> `Submit()`
+   `InitVoid(tag)` -> optional `Set` / `Modify` -> `Submit()`
 3. Container
    `InitContainer()` -> child content -> `Close()`
 
@@ -218,15 +218,15 @@ The important state rule is:
 
 `cur.Context()` returns the default context for jobs emitted through that cursor. `cur.Send()` forwards a prebuilt job directly to the underlying printer and bypasses cursor state validation.
 
-Generated `.x.go` files are mostly straightforward cursor code, simular to:
+Generated `.x.go` files are mostly straightforward cursor code, similar to:
 
 ```go
 func Badge(label string) gox.Elem {
     return gox.Elem(func(cur gox.Cursor) error {
-        err := cur.Init("span"); err != nil {
+        if err := cur.Init("span"); err != nil {
             return err
         }
-        if err := cur.AttrSet("class", "badge"); err != nil {
+        if err := cur.Set("class", "badge"); err != nil {
             return err
         }
         if err := cur.Submit(); err != nil {
@@ -260,9 +260,12 @@ Anything else falls back to escaped `fmt.Fprint`.
 
 You mainly encounter attributes in three places:
 
-- when generated code or hand-written cursor code calls `AttrSet`
-- when code calls `AttrMod` to attach one or more render-time modifiers
+- when generated code or hand-written cursor code calls `Set`
+- when code calls `Modify` to attach one or more render-time modifiers
 - when custom printers or proxies inspect `JobHeadOpen.Attrs`
+
+`AttrSet` and `AttrMod` remain as deprecated compatibility aliases for `Set`
+and `Modify`.
 
 Important details from the API:
 
