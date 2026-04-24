@@ -63,7 +63,7 @@ func (e Elem) Render(ctx context.Context, w io.Writer) error {
 // instrumentation, attribute injection, conditional rendering, or rerouting
 // through a custom Printer.
 type Proxy interface {
-	Proxy(cur Cursor, elem Elem) error
+	Proxy(cur Cursor, el Elem) error
 }
 
 // Templ is the minimal templ-compatible rendering interface.
