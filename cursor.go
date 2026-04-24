@@ -336,8 +336,15 @@ func (c Cursor) Fprint(any any) error {
 //
 // Send skips cursor state validation, so callers must preserve any ordering and
 // nesting guarantees they need.
+//
+// Deprecated: use Printer instead.
 func (c Cursor) Send(job Job) error {
 	return c.printer.Send(job)
+}
+
+// Printer returns the underlying Printer for direct job emission.
+func (c Cursor) Printer() Printer {
+	return c.printer
 }
 
 // Editor applies editor to this cursor.
@@ -404,10 +411,10 @@ func (c Cursor) Any(any any) error {
 		}
 		return nil
 	case Job:
-		return c.Send(v)
+		return c.printer.Send(v)
 	case []Job:
 		for _, v := range v {
-			if err := c.Send(v); err != nil {
+			if err := c.printer.Send(v); err != nil {
 				return err
 			}
 		}

@@ -216,7 +216,7 @@ The important state rule is:
 - before `Submit()`, you are still building a head and may mutate attributes
 - after `Submit()`, you may emit child content, but you may no longer mutate that head
 
-`cur.Context()` returns the default context for jobs emitted through that cursor. `cur.Send()` forwards a prebuilt job directly to the underlying printer and bypasses cursor state validation.
+`cur.Context()` returns the default context for jobs emitted through that cursor. `cur.Printer()` exposes the underlying printer for direct job emission. `cur.Send()` remains as a deprecated shortcut for `cur.Printer().Send()` and bypasses cursor state validation in the same way.
 
 Generated `.x.go` files are mostly straightforward cursor code, similar to:
 

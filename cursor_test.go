@@ -375,11 +375,20 @@ func TestCursorDeprecatedAttrAliases(t *testing.T) {
 	}
 }
 
-func TestCursorSendBypassesValidation(t *testing.T) {
+func TestCursorPrinterSendBypassesValidation(t *testing.T) {
 	out := renderElem(t, func(c Cursor) error {
-		return c.Send(NewJobText(c.Context(), "hi"))
+		return c.Printer().Send(NewJobText(c.Context(), "hi"))
 	})
 	if out != "hi" {
+		t.Fatalf("got %q", out)
+	}
+}
+
+func TestCursorDeprecatedSendAlias(t *testing.T) {
+	out := renderElem(t, func(c Cursor) error {
+		return c.Send(NewJobText(c.Context(), "legacy"))
+	})
+	if out != "legacy" {
 		t.Fatalf("got %q", out)
 	}
 }
