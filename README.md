@@ -18,6 +18,8 @@ GoX lets you write HTML templates as typed Go expressions that compile to plain 
 
 > For practical extensions on top of GoX, see [`github.com/doors-dev/goxx`](https://github.com/doors-dev/goxx).
 
+> Working with an LLM agent? Point it at [`llms.md`](./llms.md) — the condensed agent-facing reference (syntax, workflow, pitfalls). See [Using with LLM agents](#using-with-llm-agents) below for setup.
+
 > This README focuses on installation, workflow, editor integration, and the rendering API behind GoX.
 
 ---
@@ -369,6 +371,29 @@ The helpers in `helpers.go` keep the API lightweight when you want one-off imple
 - `gox.NewEscapedWriter`
 
 `gox.NewEscapedWriter` is useful when custom rendering code needs the same escaping rules as GoX text and attribute output.
+
+---
+
+## Using with LLM agents
+
+[`llms.md`](./llms.md) is a condensed, agent-facing reference: syntax essentials, workflow rules, common pitfalls, and the `goxx` defaults. Wire it into whichever agent you use:
+
+- **Claude Code** — add a line to your project's `CLAUDE.md`:
+  ```markdown
+  @https://raw.githubusercontent.com/doors-dev/gox/main/llms.md
+  ```
+  Or vendor a local copy and reference it: `@docs/gox-llms.md`.
+
+- **Cursor** — drop the file into `.cursor/rules/gox.md` and add a frontmatter glob so it activates only on GoX files:
+  ```markdown
+  ---
+  globs: ["**/*.gox", "**/*.x.go"]
+  ---
+  ```
+
+- **Generic `AGENTS.md` / Copilot instructions / other tools** — copy the contents into the relevant section, or link to the raw file above.
+
+The doc assumes the agent will run `gox gen` itself, so make sure the `gox` CLI is installed and on `PATH` in the agent's environment (see [Install](#install)).
 
 ---
 
