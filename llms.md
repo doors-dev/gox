@@ -684,22 +684,21 @@ Captured item must begin with element/component/container that resolves to an el
 8. **`return nil` inside open markup** — breaks HTML. Guard at top of `elem`, or use `~(if ...)`/`~func { return nil }` for child-only skips.
 9. **Variable from tag scope referenced later** — tags create scopes. Declare in top-level snippet.
 10. **`~name` without parens** — parse error. Always `~(name)`. Parenless = literals only.
-11. **Mixed `class` and `Class`** — separate attributes. Pick one casing.
+11. **Mixed `class` and `Class`** — separate attributes. Pick one casing - lower by default.
 12. **Relied on attribute source order** — output is alphabetical.
 13. **Tried `<MyComponent/>`** — no JSX. Use `~(myComponent)` or composite-literal placeholder.
 14. **Used `Main` as field name** — collides with render method. Rename.
 15. **Pure-Go file as `.gox`** — use `.go` when no GoX/HTML syntax.
 16. **Expected different `elem` visibility** — same as Go (uppercase = exported).
 17. **`~(...)` in attribute** — text/template positions only. Use `id=(id)`, `checked=func { ... }`.
-18. **Dropped required parent wrapper** — render the parent in the caller, helpers/components inside.
-19. **Called `attrs.Set(...)` in `Modify`** — method is `attrs.Get(name).Set(value)`.
-20. **`</br>` / `</input>`** — void tags have no closing. Use `<br>`, `<br/>`, `<br />`.
-21. **Unescaped via `~(untrustedHTML)`** — that escapes. `<:>...</:>` or `gox.EditorFunc + cur.Raw` for trusted only.
-22. **Whitespace between placeholders** — `~(a) ~(b)` has space; `~(a)~(b)` doesn't. `~(a, " ", b)` for safety.
-23. **Expected raw template indentation/newlines** — normalized. Intentional spaces preserved. Use raw blocks for verbatim.
-24. **Expected proxy to capture multiple siblings** — captures one. Group via fragment/wrapper/multi-value placeholder.
-25. **Custom `Proxy` for ordinary wrapping/attributes** — use components/`Modify`/`goxx.ProxyMod` instead.
-26. **Imported `gox` but unused in `.gox`** — fine; generated `.x.go` references `gox.Elem`, so module must be in `go.mod`.
-27. **Version drift** — generated files have version markers; CI must use matching `gox`.
-28. **Added `goxx` to a Doors project** — skip `goxx`.
-29. **Raw `http.Handler` calling `Elem.Render(ctx, w)` directly** — failure leaves bytes written. Prefer `goxx.Render` (buffers first).
+18. **Called `attrs.Set(...)` in `Modify`** — method is `attrs.Get(name).Set(value)`.
+19. **`</br>` / `</input>`** — void tags have no closing. Use `<br>`, `<br/>`, `<br />`.
+20. **Unescaped via `~(untrustedHTML)`** — that escapes. `<:>...</:>` or `gox.EditorFunc + cur.Raw` for trusted only.
+21. **Whitespace between placeholders** — `~(a) ~(b)`, `~(a)~(b)` have no space, `~(a, " ", b)` has.
+22. **Expected raw template indentation/newlines** — normalized. Intentional spaces preserved. Use raw blocks for verbatim.
+23. **Expected proxy to capture multiple siblings** — captures one. Group via fragment/wrapper/multi-value placeholder.
+24. **Custom `Proxy` for ordinary wrapping/attributes** — use components/`Modify`/`goxx.ProxyMod` instead.
+25. **Imported `gox` but unused in `.gox`** — fine; generated `.x.go` references `gox.Elem` for `elem` and HTML syntax, so module must be in `go.mod`.
+26. **Version drift** — generated files have version markers; CI must use matching `gox`.
+27. **Added `goxx` to a Doors project** — skip `goxx`.
+28. **Raw `http.Handler` calling `Elem.Render(ctx, w)` directly** — failure leaves bytes written. Prefer `goxx.Render` (buffers first).
