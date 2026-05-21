@@ -1,5 +1,7 @@
 package workspace
 
+import "log/slog"
+
 type dir struct {
 	path string
 	docs map[string]Doc
@@ -38,7 +40,9 @@ func (d *dir) ProcessFileRemovals() {
 		}
 		delete(d.sus, name)
 		if !doc.TargetFile().Exists() {
-			doc.Save()
+			if err := doc.Save(); err != nil {
+				slog.Error("Generated target restore failed", "source", doc.SourceFile().Path(), "target", doc.TargetFile().Path(), "error", err)
+			}
 		}
 	}
 }

@@ -5,7 +5,10 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/doors-dev/gox/internal/common"
 	"github.com/doors-dev/gox/internal/docpath"
@@ -34,6 +37,22 @@ func (b *bridgeStub) Call(role Role, call Request, callback Callback) {
 }
 
 func (b *bridgeStub) Notify(role Role, notification Request) error {
+	b.notifications = append(b.notifications, recordedNotify{role: role, req: notification})
+	return nil
+}
+
+type asyncBridgeStub struct {
+	callResp      Response
+	notifications []recordedNotify
+	calls         []recordedCall
+}
+
+func (b *asyncBridgeStub) Call(role Role, call Request, callback Callback) {
+	b.calls = append(b.calls, recordedCall{role: role, req: call})
+	go callback(b.callResp)
+}
+
+func (b *asyncBridgeStub) Notify(role Role, notification Request) error {
 	b.notifications = append(b.notifications, recordedNotify{role: role, req: notification})
 	return nil
 }
@@ -150,6 +169,179 @@ func TestSessionBridgeAndWorkspaceHelpers(t *testing.T) {
 	sess.callClient(documentSymbol, params)
 	if len(bridge.calls) != 1 || bridge.calls[0].req.Method != string(documentSymbol) {
 		t.Fatalf("callClient() calls = %#v", bridge.calls)
+	}
+}
+
+func TestDidSaveRejectsSourceOutsideWorkspace(t *testing.T) {
+	root := t.TempDir()
+	outside := t.TempDir()
+	inPath := filepath.Join(root, "view.gox")
+	outPath := filepath.Join(outside, "view.gox")
+	if err := os.WriteFile(inPath, []byte(lspHelperSource), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(outPath, []byte(lspHelperSource), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	bridge := &bridgeStub{}
+	router := NewRouter(bridge)
+	router.session.setEnc(common.UTF8)
+	router.session.ensureWorkspaces([]string{string(docpath.URIFromPath(root))})
+
+	params, err := json.Marshal(map[string]any{
+		"textDocument": map[string]any{
+			"uri": string(docpath.URIFromPath(outPath)),
+		},
+		"text": lspHelperSource,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	router.Notification(Client, Request{
+		Method: string(didSave),
+		Params: params,
+	})
+
+	for _, notification := range bridge.notifications {
+		if notification.role == Gopls && notification.req.Method == string(didSave) {
+			t.Fatalf("outside-workspace didSave was forwarded to gopls: %#v", notification)
+		}
+	}
+	if len(bridge.notifications) != 2 {
+		t.Fatalf("notifications = %d, want log + show error", len(bridge.notifications))
+	}
+	assertNotifPayload(t, bridge.notifications[0], Client, logMessage, "Error \"response\" to notification: [method=textDocument/didSave, msg=This file is not part of the current workspace., error=JSON RPC unknown error]", 1)
+	assertNotifPayload(t, bridge.notifications[1], Client, showMessage, "This file is not part of the current workspace.", 1)
+}
+
+func TestDidSaveAcceptsSourceWhenWorkspaceURIHasTrailingSlash(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "view.gox")
+	if err := os.WriteFile(path, []byte(lspHelperSource), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	bridge := &bridgeStub{}
+	router := NewRouter(bridge)
+	router.session.setEnc(common.UTF8)
+	router.session.ensureWorkspaces([]string{string(docpath.URIFromPath(root)) + "/"})
+
+	params, err := json.Marshal(map[string]any{
+		"textDocument": map[string]any{
+			"uri": string(docpath.URIFromPath(path)),
+		},
+		"text": lspHelperSource,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	router.Notification(Client, Request{
+		Method: string(didSave),
+		Params: params,
+	})
+
+	if len(bridge.notifications) != 1 {
+		t.Fatalf("notifications = %d, want forwarded didSave only: %#v", len(bridge.notifications), bridge.notifications)
+	}
+	got := bridge.notifications[0]
+	if got.role != Gopls || got.req.Method != string(didSave) {
+		t.Fatalf("didSave was not forwarded to gopls: %#v", got)
+	}
+	if string(got.req.Params) == string(params) {
+		t.Fatalf("didSave params were not mapped through the generated target: %s", got.req.Params)
+	}
+	if !strings.Contains(string(got.req.Params), ".x.go") {
+		t.Fatalf("didSave params do not target generated file: %s", got.req.Params)
+	}
+}
+
+func TestDidSaveSurvivesWorkspaceURIChangingToTrailingSlash(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "view.gox")
+	if err := os.WriteFile(path, []byte(lspHelperSource), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	bridge := &bridgeStub{}
+	router := NewRouter(bridge)
+	router.session.setEnc(common.UTF8)
+	router.session.ensureWorkspaces([]string{string(docpath.URIFromPath(root))})
+
+	params, err := json.Marshal(map[string]any{
+		"textDocument": map[string]any{
+			"uri": string(docpath.URIFromPath(path)),
+		},
+		"text": lspHelperSource,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	router.Notification(Client, Request{
+		Method: string(didSave),
+		Params: params,
+	})
+	if len(bridge.notifications) != 1 || bridge.notifications[0].role != Gopls {
+		t.Fatalf("initial didSave did not forward to gopls: %#v", bridge.notifications)
+	}
+
+	bridge.notifications = nil
+	router.session.ensureWorkspaces([]string{string(docpath.URIFromPath(root)) + "/"})
+	router.Notification(Client, Request{
+		Method: string(didSave),
+		Params: params,
+	})
+	if len(bridge.notifications) != 1 || bridge.notifications[0].role != Gopls {
+		t.Fatalf("didSave after workspace URI mutation did not forward to gopls: %#v", bridge.notifications)
+	}
+}
+
+func TestDidSaveSurvivesWorkspaceFoldersRefreshWithTrailingSlash(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "view.gox")
+	if err := os.WriteFile(path, []byte(lspHelperSource), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	bridge := &asyncBridgeStub{}
+	router := NewRouter(bridge)
+	router.session.setEnc(common.UTF8)
+	router.session.ensureWorkspaces([]string{string(docpath.URIFromPath(root))})
+
+	bridge.callResp = Response{Result: json.RawMessage(`[{"uri":` + strconv.Quote(string(docpath.URIFromPath(root))+"/") + `,"name":"root"}]`)}
+	done := make(chan Response, 1)
+	router.Call(Gopls, Request{
+		Method: string(workspaceFolders),
+		Params: json.RawMessage(`{}`),
+	}, func(r Response) {
+		done <- r
+	})
+	select {
+	case r := <-done:
+		if r.Err != nil {
+			t.Fatalf("workspaceFolders response error: %v", r.Err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("workspaceFolders callback was not invoked")
+	}
+
+	params, err := json.Marshal(map[string]any{
+		"textDocument": map[string]any{
+			"uri": string(docpath.URIFromPath(path)),
+		},
+		"text": lspHelperSource,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bridge.notifications = nil
+	router.Notification(Client, Request{
+		Method: string(didSave),
+		Params: params,
+	})
+	if len(bridge.notifications) != 1 || bridge.notifications[0].role != Gopls {
+		t.Fatalf("didSave after workspaceFolders refresh did not forward to gopls: %#v", bridge.notifications)
 	}
 }
 

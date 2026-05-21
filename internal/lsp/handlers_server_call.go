@@ -29,7 +29,7 @@ func initServerCalls(sess *session, on func(on onCall, m ...method)) {
 				c.res(res)
 				return
 			}
-			sess.ensureWorkspaces(workspace)
+			sess.ensureWorkspacesLocked(workspace)
 			c.res(res)
 		})
 	}, workspaceFolders)

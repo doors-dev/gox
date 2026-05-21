@@ -199,6 +199,9 @@ func (a Attrs) output(ctx context.Context, tag string, w io.Writer) error {
 		return err
 	}
 	for _, attr := range a.entries {
+		if !attr.IsSet() {
+			continue
+		}
 		_, err := w.Write(space)
 		if err != nil {
 			return err

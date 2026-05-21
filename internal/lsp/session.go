@@ -17,8 +17,16 @@ func (s *session) man() workspace.Manager {
 	return s.manager
 }
 
+func (s *session) rootsLocked() []string {
+	return s.manager.RootsLocked()
+}
+
 func (s *session) ensureWorkspaces(uris []string) {
 	s.manager.EnsureWorkspaces(uris)
+}
+
+func (s *session) ensureWorkspacesLocked(uris []string) {
+	s.manager.EnsureWorkspacesLocked(uris)
 }
 
 func (s *session) addWorkspace(uri string) {
@@ -72,7 +80,9 @@ func (s *session) callClientHandle(m method, params Json, handle func(Response))
 		s.man().Lock()
 		defer s.man().Unlock()
 		if r.Err != nil {
-			slog.Error("Call client result error", "method", m, "error", r.Err.Error())
+			attrs := []any{"method", m, "error", r.Err.Error()}
+			attrs = append(attrs, requestLogAttrs(params)...)
+			slog.Error("Call client result error", attrs...)
 			s.logError("Call client result error: [method=" + string(m) + ", error=" + r.Err.Error() + "]")
 		}
 		handle(r)

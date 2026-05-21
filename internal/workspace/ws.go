@@ -23,6 +23,7 @@ func newWs(root string, lock sync.Locker) *workspace {
 		dirs:   make(map[string]*dir),
 		root:   root,
 		lock:   lock,
+		done:   make(chan struct{}),
 	}
 	w.scan(root)
 	go w.ticker()
@@ -34,6 +35,8 @@ type workspace struct {
 	dirs   map[string]*dir
 	root   string
 	lock   sync.Locker
+	done   chan struct{}
+	stop   sync.Once
 }
 
 func (w *workspace) Load(file File) Doc {
@@ -54,21 +57,39 @@ func (w *workspace) load(file File) Doc {
 }
 
 func (w *workspace) ticker() {
+	ticker := time.NewTicker(250 * time.Millisecond)
+	defer ticker.Stop()
 	for {
-		<-time.After(250 * time.Millisecond)
+		select {
+		case <-ticker.C:
+		case <-w.done:
+			return
+		}
+		w.lock.Lock()
+		select {
+		case <-w.done:
+			w.lock.Unlock()
+			return
+		default:
+		}
 		for name, d := range w.dirs {
-			w.lock.Lock()
 			d.ProcessFileRemovals()
 			if d.IsEmpty() {
 				delete(w.dirs, name)
 			}
-			w.lock.Unlock()
 		}
+		w.lock.Unlock()
 	}
 }
 
 func (w *workspace) Root() string {
 	return w.root
+}
+
+func (w *workspace) Stop() {
+	w.stop.Do(func() {
+		close(w.done)
+	})
 }
 
 func (w *workspace) scan(path string) {

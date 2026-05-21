@@ -1,46 +1,38 @@
 # GoX for LLM agents
 
-GoX compiles `.gox` templates to `.go`. You write HTML-like templates as typed Go expressions; the `gox` CLI generates `.x.go` next to each `.gox`.
+GoX compiles `.gox` templates to `.go`. Write HTML-like templates as typed Go expressions; the `gox` CLI generates `.x.go` next to each `.gox`.
 
 ## Prerequisites
 
-Before doing any GoX work, verify the tooling is in place. Run this check first:
+Run `gox ver` first — it must print a version (e.g. `v0.1.27`). Without `gox` on `PATH`, generation fails and builds error with `undefined: example` for every template.
 
-```sh
-gox ver        # must print a version, e.g. v0.1.27
-```
+Install:
+- **Prebuilt binary (recommended):** download from [GitHub Releases](https://github.com/doors-dev/gox/releases), put on `PATH`.
+- **From source:** `make install` — requires Go, Cargo, and a native toolchain (bundled Rust formatter). **No `go install ...@latest` shortcut** — native deps prevent it.
 
-If `gox` is not on `PATH`, the agent cannot generate `.x.go` and the build will fail with errors like `undefined: example` for every template. Install it before continuing:
+Stop and ask before installing if the environment forbids network access or global installs.
 
-- **Prebuilt binary (recommended for agents, CI, and most users):** download the matching archive from [GitHub Releases](https://github.com/doors-dev/gox/releases) and put the `gox` binary on `PATH`.
-- **From source:** clone the repo and run `make install`. This builds the bundled Rust formatter alongside the Go binary, so a working native toolchain plus Go and Cargo are required. There is **no `go install ...@latest` shortcut** — `gox` includes native dependencies that the simple Go install path cannot build.
+The Go module side is automatic: `go get github.com/doors-dev/gox` (or just `import` and `go mod tidy`). **Keep CLI and module versions in sync** — generated files carry a version marker and refuse mismatched runtimes. `gox ver` and the `// Managed by GoX vX.Y.Z` header must agree.
 
-Stop and ask the user before installing if the environment forbids network access or global installs.
-
-The Go module side is handled automatically — `go get github.com/doors-dev/gox` (or just adding an `import "github.com/doors-dev/gox"` and running `go mod tidy`) pulls the library used by generated `.x.go`. **Keep the CLI version and the module version in sync**: generated files carry a version marker and refuse to load with mismatched runtimes. `gox ver` and the `// Managed by GoX vX.Y.Z` header at the top of any `.x.go` should agree.
-
-**Install the editor extension — always recommended.** `.gox` is not Go, so without an extension the editor highlights every template as broken syntax, breaks go-to-definition, and disables completion across `.gox` ↔ `.go` boundaries. The extensions also start the GoX language server (which proxies `gopls`), so the experience matches working in plain Go.
-
+**Editor extension (always recommended).** Without it, `.gox` looks broken, go-to-definition/completion across `.gox`↔`.go` are disabled. Extensions also start the GoX language server (proxies `gopls`).
 - VS Code: [`doors-dev/vscode-gox`](https://marketplace.visualstudio.com/items?itemName=doors-dev.gox)
 - Neovim: [`doors-dev/nvim-gox`](https://github.com/doors-dev/nvim-gox)
 
-This applies whether you are coding by hand or driving an agent: most agents (Claude Code, Cursor, Copilot, etc.) run inside VS Code, and the extension lets both you and the agent see real diagnostics on `.gox`.
-
 ## Default stack rule
 
-- **If the project already depends on [`github.com/doors-dev/doors`](https://github.com/doors-dev/doors) — do NOT install or use `goxx`.** This document does not describe Doors-specific APIs or behavior.
-- **If the project uses GoX without Doors — install [`github.com/doors-dev/goxx`](https://github.com/doors-dev/goxx) by default.** `gox` core is intentionally minimal; `goxx` provides the HTTP render helper, parallel rendering, and class/proxy helpers that almost every standalone GoX app ends up needing.
+- **If `go.mod` has `github.com/doors-dev/doors` — do NOT install or use `goxx`.** This doc does not cover Doors-specific APIs.
+- **If GoX is used without Doors — install [`github.com/doors-dev/goxx`](https://github.com/doors-dev/goxx) by default.** It provides HTTP render, parallel rendering, and class/proxy helpers most standalone GoX apps need.
 
-Check before adding `goxx`: `grep doors-dev/doors go.mod`. If Doors is present, skip `goxx` entirely.
+Check first: `grep doors-dev/doors go.mod`. If Doors is present, skip `goxx`.
 
 ## Golden rule
 
-**Always edit `.gox` files. Never edit or hand-write `.x.go` files, and never write templates in the "generated" cursor style directly.** The `.x.go` output is a build artifact — it is overwritten on every `gox gen` (and by the language server on save). If you need to change template output, edit the `.gox` source and regenerate.
+**Always edit `.gox` files. Never edit/hand-write `.x.go` files. Never write templates in cursor style directly.** `.x.go` is overwritten on every `gox gen` (and by the language server on save). The cursor API is for runtime extension points (`Editor`, `Proxy`, `Printer`, custom `Modify`), not authoring.
 
-Do not:
-- hand-write `gox.Elem(func(cur gox.Cursor) error { ... })` as an authoring style — that is what `.gox` compiles *to*, not what humans/LLMs write. The cursor API is for runtime extension points (`Editor`, `Proxy`, `Printer`, custom `Modify`), not for general templating.
-- create new files with the `.x.go` suffix — that suffix is reserved for generated files and GoX may delete orphans.
-- treat `.x.go` as the source of truth for template semantics — read the `.gox` source first. Generated `.x.go` can still be useful as a debugging/reference aid when you need to understand the lowered cursor calls, source-map positions, or low-level APIs such as `gox.Editor`.
+Don't:
+- Hand-write `gox.Elem(func(cur gox.Cursor) error { ... })` as authoring style — that's what `.gox` compiles *to*.
+- Create new `.x.go` files (suffix is reserved; GoX may delete orphans).
+- Treat `.x.go` as source of truth — read `.gox` first. Generated `.x.go` is useful only as a debugging/reference aid for lowered cursor calls, source-map positions, or low-level APIs.
 
 ## Workflow
 
@@ -51,48 +43,37 @@ gox gen ./pkg     # regenerate a specific path
 go run .          # build/run as normal Go
 ```
 
-After editing a `.gox` file, run `gox gen` before `go build` / `go run` / `go test`. If you see "undefined: MyElem" it usually means you forgot to regenerate.
+After editing `.gox`, run `gox gen` before `go build`/`go run`/`go test`. "undefined: MyElem" usually means missing regen.
 
-**Always run `gox gen` after `gox fmt`.** Formatting can shift lines and tokens in `.gox`, which invalidates the existing `.x.go` source-map. Regenerate immediately so the `.x.go` stays in sync and so language-server features (go-to-def, errors, hover) keep pointing at the right spots.
+**Always run `gox gen` after `gox fmt`.** Formatting shifts positions and invalidates the source map.
 
-A typical package has all three kinds of files side by side:
+A typical package has all three side by side:
 ```
 main.go      # regular Go
 page.gox     # template source (edit this)
-page.x.go    # generated Go (do not edit)
+page.x.go    # generated (do not edit)
 ```
 
 ## Syntax essentials
 
-A `.gox` file is a Go file plus the `elem` keyword and HTML literals. Everything else (imports, types, methods, regular functions) is standard Go.
-
-Use `.gox` when the file needs GoX template syntax: `elem`, HTML literals, fragments, placeholders, raw blocks, or template control flow. It is also normal for a `.gox` file to contain nearby regular Go declarations that support those templates: types, constructors, methods, constants, helper functions, `Modify` implementations, etc.
-
-Do not use `.gox` for every file. If a file contains only ordinary Go and no GoX/HTML syntax, make it a regular `.go` file.
+A `.gox` file is a Go file plus the `elem` keyword and HTML literals. Use `.gox` only when the file needs template syntax (`elem`, HTML literals, fragments, placeholders, raw blocks, template control flow). Otherwise use `.go`. Top-level Go declarations (`import`, `type`, `func`, methods) are always normal Go and live outside `elem` bodies.
 
 ### HTML literals are Go expressions
 
-Inside `.gox`, `<tag>...</tag>` is a value of type `gox.Elem`. It can appear anywhere any other Go expression can:
+Inside `.gox`, `<tag>...</tag>` is a `gox.Elem` value. Use anywhere a Go expression goes:
 
 ```gox
-var greeting gox.Elem = <h1>Hi</h1> // var initializer
-
-type Card struct {
-    Body gox.Elem
-}
-
-card := Card{Body: <p>hello</p>} // composite literal
-
-func make() gox.Elem {
-    return <b>x</b>
-}
+var greeting gox.Elem = <h1>Hi</h1>
+type Card struct { Body gox.Elem }
+card := Card{Body: <p>hello</p>}
+func make() gox.Elem { return <b>x</b> }
 ```
 
-Because `gox.Elem` implements `Main() gox.Elem`, it also satisfies `gox.Comp` and plugs into any slot that expects a component.
+`gox.Elem` implements `Main() gox.Elem`, satisfying `gox.Comp`.
 
 ### `elem` keyword
 
-Shorthand for a function/method that returns `gox.Elem` with an HTML body:
+Shorthand for a function/method returning `gox.Elem`:
 
 ```gox
 elem Greeting(name string) {
@@ -100,66 +81,41 @@ elem Greeting(name string) {
 }
 ```
 
-has the same generated API shape as writing a regular function in `.gox`:
-
+Equivalent generated API to:
 ```gox
 func Greeting(name string) gox.Elem {
     return <h1>Hello, ~(name)!</h1>
 }
 ```
 
-That equivalence describes the generated API shape. For authoring templates, prefer `elem` syntax for top-level functions and component methods.
-
-Important render-time boundary: an `elem` body is evaluated when the element renders. In an ordinary Go function that returns an HTML literal, the returned literal's content still renders later, but any ordinary Go code before `return <...>` runs immediately when the function is called:
+**Render-time vs call-time:** an `elem` body evaluates when the element renders. A regular function returning `<...>` runs Go code before the `return` *immediately when called*. Idiom: use `elem` with a top `~{ ... }` setup block:
 
 ```gox
 elem Page() {
-    ~{
-        // render-time setup
-    }
+    ~{ /* render-time setup */ }
     <main>...</main>
 }
-
-func Page() gox.Elem {
-    // call-time setup, before rendering
-    return <main>...</main>
-}
 ```
 
-The idiomatic pattern is: use `elem`, put render-time setup at the top in `~{ ... }`, then render the markup. Use ordinary `.go`/`.gox` functions returning `gox.Elem` only when you intentionally want call-time setup.
+Visibility is standard Go: `elem Foo` exported, `elem foo` package-private.
 
-Generated `elem` functions are ordinary Go functions. Go visibility works the same as in `.go` files: `elem Greeting(...)` is exported from the package, while `elem greeting(...)` is package-private.
-
-Works in every function shape:
-
+Method form (typically `gox.Comp.Main`):
 ```gox
-// top-level function
-elem Header() {
-    <h1>X</h1>
-}
-
-// method (typically to implement gox.Comp.Main)
-elem (u User) Main() {
-    <li>~(u.Name)</li>
-}
+elem (u User) Main() { <li>~(u.Name)</li> }
 ```
 
-Anonymous `elem() { ... }` exists, but do not use an empty-argument anonymous elem as a generic wrapper. Prefer a named `elem` helper for reusable markup, pass expressions as arguments/slots when possible, and use anonymous `elem` only when a true inline template function is the clearest fit.
+Anonymous `elem() { ... }` exists. Prefer named helpers; use anonymous only when an inline template fn is the clearest fit (not as a generic empty-arg wrapper).
 
-**Pitfall:** `elem` is a reserved keyword in `.gox`. You cannot use it as a variable, parameter, or field name (e.g. `func (w Wrap) Proxy(cur gox.Cursor, elem gox.Elem) error` is a parse error — rename to `el`).
+**Pitfall:** `elem` is a reserved keyword. Cannot be used as variable/parameter/field name (e.g. `Proxy(cur, elem gox.Elem)` is a parse error — rename to `el`).
 
-### Go statements inside an `elem` body: use `~{ ... }`
+### Go statements: `~{ ... }`
 
-An `elem` body is in template mode. HTML literals, text, placeholders, template control flow, comments, and raw blocks can appear directly. Plain Go statements such as `x := 1`, `type T struct{}`, `sort.Slice(...)`, or `if err != nil { ... }` **cannot** be written bare inside an `elem` body.
-
-Use a Go snippet block `~{ ... }` for local Go statements:
+`elem` body is template mode. Plain Go statements (`x := 1`, `if err != nil`, `sort.Slice(...)`, etc.) **cannot** appear bare. Wrap them in `~{ ... }`:
 
 ```gox
 elem UserList() {
     ~{
-        type User struct {
-            Name string
-        }
+        type User struct { Name string }
         users := []User{{Name: "Ada"}, {Name: "Ben"}}
     }
     <ul>
@@ -170,75 +126,48 @@ elem UserList() {
 }
 ```
 
-Top-level declarations (`import`, `type`, `func`, methods) are still normal Go and live outside `elem` bodies. Inside an `elem`, reach for `~{ ... }` whenever you need statements; reach for `~(expr)` when you need to render an expression.
+Inside `~{ ... }` you're in the generated render function (returns `error`).
 
-Inside a `~{ ... }` snippet you are writing code in the generated render function, whose return value is `error`.
-
-A top-of-`elem` `~{ ... }` block, before any HTML has been emitted, is a common render-time setup pattern. Put validation, data loading, derived values, and whole-component guards there. From that position it is okay to `return nil` to make this entire `elem` render nothing, or `return err` for a real failure that should abort rendering and be handled by the caller/HTTP error path:
+**Top-of-`elem` setup block** (before any HTML emitted): validation, data loading, derived values, whole-component guards. From there, `return nil` skips the whole element; `return err` aborts with error:
 
 ```gox
 elem MaybePanel(show bool) {
-    ~{
-        if !show {
-            return nil
-        }
-    }
+    ~{ if !show { return nil } }
     <section>Visible</section>
 }
 ```
 
-Do not use `return nil` from a snippet after output has started, especially inside a tag. It returns from the whole render function before enclosing tags are closed, so it can leave broken HTML:
+**Don't `return nil` after output starts** — it exits before tags close, leaving broken HTML:
 
 ```gox
 elem BrokenPanel() {
     <div>
-        ~{
-            return nil // bad: exits before </div> is emitted
-        }
+        ~{ return nil }   // bad: exits before </div>
     </div>
 }
 ```
 
-Inside already-open markup, use `~(if ...)` or an inline `~func { return nil }` to skip only a child. Returning a non-nil error from an inner snippet is allowed only for a real critical failure; it still aborts rendering rather than closing the surrounding tags.
+Inside open markup, use `~(if ...)` or an inline `~func { return nil }` to skip only a child:
 
 ```gox
 elem OptionalChild(show bool) {
     <div>
-        ~(if show {
-            <span>Visible</span>
-        })
+        ~(if show { <span>Visible</span> })
         ~func {
-            if !show {
-                return nil
-            }
+            if !show { return nil }
             return <strong>Ready</strong>
         }
     </div>
 }
 ```
 
-If a real error occurs inside already-open markup, returning it is fine when the whole render should fail and the outer renderer will handle that failure:
+Returning a real non-nil error mid-markup is fine — the whole render aborts and the outer renderer handles failure.
 
-```gox
-elem CriticalChild() {
-    <div>
-        ~{
-            if err := check(); err != nil {
-                return err
-            }
-        }
-        <span>OK</span>
-    </div>
-}
-```
-
-HTML tags also create Go scopes in the generated code. Variables declared inside a tag are scoped to that tag body. Declare values in a top-level `~{ ... }` before the tag if later siblings need them:
+**HTML tags create Go scopes.** Variables declared inside a tag body aren't visible to siblings. Declare shared values in a top-level `~{ ... }`:
 
 ```gox
 elem SharedValue() {
-    ~{
-        label := "GoX"
-    }
+    ~{ label := "GoX" }
     <h1>~(label)</h1>
     <p>~(label)</p>
 }
@@ -246,50 +175,39 @@ elem SharedValue() {
 
 ### Placeholders: `~(expr)`
 
-Insert any Go expression into HTML:
-
 ```gox
 <p>~(user.Name)</p>
-<p>~(a, " ", b, " ", c)</p>   // multi-arg: rendered left to right
+<p>~(a, " ", b, " ", c)</p>   // multi-arg, left-to-right
 ```
 
-Parentheses can be **omitted only for literals** — string, numeric, and composite literals:
-
+Parens **omittable only for literals** (string, numeric, composite):
 ```gox
 <p>~"hello" ~42 ~User{Name: "Z"}</p>
 ```
 
-Pitfall: `~name` (bare identifier) is a **parse error**. Always write `~(name)`. Only literal forms survive without parens.
-
-Pitfall: adjacent placeholders do not insert whitespace. `~"a" ~"b"` renders as `a b` because of the literal space between them; `~"a"~"b"` renders `ab`. If in doubt, put spaces inside a single `~(...)` call: `~("a ", b)`.
+**Pitfalls:**
+- `~name` (bare identifier) is a parse error. Always `~(name)`.
+- Adjacent placeholders don't insert whitespace: `~"a" ~"b"` renders `a b` (literal space); `~"a"~"b"` renders `ab`. For safety: `~("a ", b)`.
 
 ### Text whitespace
 
-GoX normalizes template indentation and blank lines, but preserves spaces that are part of text content. A leading or trailing space next to real text is intentional and appears in output:
+Indentation and blank lines are normalized; intentional spaces in text are preserved.
 
 ```gox
-<span> Text</span>      // <span> Text</span>
-<span>Text </span>      // <span>Text </span>
-<span>Text ~(v)</span>  // text node is "Text ", then v
+<span> Text</span>      → <span> Text</span>
+<span>Text </span>      → <span>Text </span>
+<span>Text ~(v)</span>  → text "Text ", then v
 ```
 
-For multi-line text, indentation used to line up the template is removed. If the line has an extra space before or after the actual text, that extra space is preserved:
-
+Multi-line: alignment indentation is removed; extra leading/trailing space is kept:
 ```gox
-<span>
-     Text
-</span>
-// renders: <span> Text</span>
-
-<span>
-    Text
-</span>
-// renders: <span>Text</span>
+<span>     Text </span>  // → <span> Text</span>  (one extra leading space kept)
+<span>    Text </span>   // → <span>Text</span>   (no extras)
 ```
 
-Adjacent text-only lines are joined with a single space (`One` then `Two` renders `One Two`). Blank lines and whitespace-only lines render nothing. Text next to tags does not get an automatic separator: write an explicit leading/trailing space in the text when you need one.
+Adjacent text-only lines join with one space. Blank/whitespace-only lines render nothing. Text adjacent to tags has no automatic separator — write explicit space.
 
-`gox fmt` removes indentation and blank/edge whitespace that has no output effect; spaces that would be emitted are preserved.
+`gox fmt` removes inert whitespace; emitted spaces are preserved.
 
 ### Control flow: `~(if ...)`, `~(for ...)`
 
@@ -304,23 +222,16 @@ Wrap the statement in `~(...)`:
     Bye.
 })
 
-~(for _, u := range users {
-    <li>~(u.Name)</li>
-})
-
-~(for i := 0; i < 3; i++ {
-    <span>~(i)</span>
-})
+~(for _, u := range users { <li>~(u.Name)</li> })
+~(for i := 0; i < 3; i++ { <span>~(i)</span> })
 ```
 
-### Fragments / containers: `<>...</>`
+### Fragments: `<>...</>`
 
-Groups children without emitting a wrapper tag. Use for children slots and lists:
+Group children without a wrapper tag:
 
 ```gox
-elem Layout(body gox.Elem) {
-    <body>~(body)</body>
-}
+elem Layout(body gox.Elem) { <body>~(body)</body> }
 
 Layout(<>
     <h1>Title</h1>
@@ -330,40 +241,34 @@ Layout(<>
 
 ### Attributes
 
-- String/numeric literals on the right: `<div class="card" tabindex="0">`.
+- String/numeric literal: `<div class="card" tabindex="0">`.
 - Go expression in parens: `<div id=(id) title=(user.Bio)>`.
-- Function literal attribute, evaluated at render: `<input checked=func { return u.Agreed }>`.
-- Bare attribute (no value): `<input type="text" required>` — equivalent to `required=(true)`.
-- `nil` or `false` **omits the attribute** entirely (a stray space may remain between neighbours — cosmetic only).
-- `true` renders as a bare name: `checked=(true)` → `checked`.
-- Attribute names are **case sensitive**: `class` and `Class` are different attributes (both would be emitted).
-- Emitted attributes are sorted alphabetically in the output — do not rely on source order when diffing HTML.
+- Function literal (eval at render): `<input checked=func { return u.Agreed }>`.
+- Bare attribute: `<input required>` ≡ `required=(true)`.
+- `nil` or `false` → attribute omitted (cosmetic stray space may remain).
+- `true` → bare name: `checked=(true)` → `checked`.
+- **Names case-sensitive**: `class` ≠ `Class` (both emitted).
+- **Output order: alphabetical**, not source order.
 
-Attribute values are not text placeholders. Do not put `~` after `=` in attributes. Use `id=(id)`, `href=(item.Href)`, `class=(tone)`, or `checked=func { return ok }`; not `id=~(id)`, `href=~(item.Href)`, `class=~(tone)`, or `checked=~func { ... }`.
+**No `~` in attribute values.** Use `id=(id)`, `class=(tone)`, `checked=func { return ok }` — never `id=~(id)` or `checked=~func { ... }`.
 
 ### Attribute Modifiers
 
-Attribute modifiers are **most commonly provided by third-party libraries** (`goxx.Class`, component kits, etc.). Attach them inside parentheses **inside the opening tag**:
+Most modifiers come from third-party libs (`goxx.Class`, component kits). Attach inside parens **inside the opening tag**:
 
 ```gox
 <button (goxx.Class("primary"))>Go</button>
-<button (goxx.Class("a"), TestID("save"))>Multi</button>   // multiple, comma-separated
+<button (goxx.Class("a"), TestID("save"))>Multi</button>   // comma-separated
 ```
 
-**Writing your own `Modify` is a reasonable thing to do** when you want to package a reusable set of attributes under one name (design-system presets, analytics tags, form-field conventions, etc.). It is a single method:
+**Writing your own `Modify`** is fine for reusable attribute bundles (design-system presets, analytics, form conventions):
 
 ```go
 type Modify interface {
     Modify(ctx context.Context, tag string, attrs gox.Attrs) error
 }
-```
 
-Example — a reusable "primary CTA" attribute bundle:
-
-```go
-type PrimaryCTA struct {
-    Label string
-}
+type PrimaryCTA struct { Label string }
 
 func (p PrimaryCTA) Modify(_ context.Context, _ string, attrs gox.Attrs) error {
     attrs.Get("class").Set("btn btn-primary")
@@ -371,228 +276,146 @@ func (p PrimaryCTA) Modify(_ context.Context, _ string, attrs gox.Attrs) error {
     attrs.Get("aria-label").Set(p.Label)
     return nil
 }
-
-// Usage:
-// <button (PrimaryCTA{Label: "Save changes"})>Save</button>
+// Usage: <button (PrimaryCTA{Label: "Save"})>Save</button>
 ```
 
-Inside `Modify`, mutate attributes via `attrs.Get(name).Set(value)` — not `attrs.Set(...)`, which does not exist on the type. For quick inline helpers without declaring a type, use `gox.ModifyFunc(func(ctx, tag, attrs) error { ... })`.
+Mutate via `attrs.Get(name).Set(value)` — **not** `attrs.Set(...)` (doesn't exist). For inline use: `gox.ModifyFunc(func(ctx, tag, attrs) error { ... })`.
 
 ### Void / self-closing elements
 
-Standard HTML void tags (`<br>`, `<hr>`, `<img>`, `<input>`, `<meta>`, `<link>`, …) may be written `<br>`, `<br/>`, or `<br />` — all three render as `<br>` (no closing tag, as HTML requires). Writing `</br>` is an error.
+Standard HTML void tags (`<br>`, `<hr>`, `<img>`, `<input>`, `<meta>`, `<link>`, …) accept `<br>`, `<br/>`, `<br />` — all render `<br>`. **`</br>` is an error.**
 
 ### Reading third-party docs: naming → syntax
 
-When a library/API describes a value as:
+- **`AttrMod` / "modifier"** → modifier syntax: `<tag (x)>`.
+- **`Proxy`** → proxy syntax: `~>(x) nextItem`.
+- **Both** (e.g. `goxx.Class`) → **default to modifier**. Use proxy only when you can't reach the target tag (wrapping a component whose outer tag you don't author):
+  ```gox
+  ~>(goxx.Class("test").Remove("test2")) ~(test2())
+  ```
 
-- **`AttrMod` / "attribute mod" / "attribute modifier" / "modifier"** → use it with **modifier syntax**: `<tag (x)>`.
-- **`Proxy`** → use it with **proxy syntax**: `~>(x) nextItem`.
-- Described as **both** (e.g. `goxx.Class`) → **default to modifier syntax**. Reach for proxy syntax only when you cannot reach the target tag directly — typically when wrapping a component whose outer tag you don't author:
-
-    ```gox
-    ~>(goxx.Class("test").Remove("test2")) ~(test2())
-    ~// the first real tag inside test2() will get class "test" and lose "test2"
-    ```
-
-Picking the wrong syntax usually produces a compile error or a no-op, not a silent bug — but knowing the convention up-front saves the round trip.
+Picking the wrong syntax usually produces a compile error or a no-op, not a silent bug.
 
 ### Per-attribute value hooks: `Mutate` and `Output`
 
-
-These run on individual attribute *values*, not on the whole attribute set. Useful when a value needs to compose with a previous one, or wants to control its own serialization.
+Run on individual attribute *values* (not the whole attribute set):
 
 ```go
-// Combine with the previous value stored under the same name.
 type Mutate interface {
-    Mutate(name string, prev any) (newValue any)
+    Mutate(name string, prev any) (newValue any)  // combine with previous value under same name
 }
-
-// Provide serialized attribute bytes; GoX still escapes/writes them.
 type Output interface {
-    Output(w io.Writer) error
+    Output(w io.Writer) error  // value renders into attribute slot; GoX still escapes
 }
 ```
 
-`Mutate` is how `class`-style accumulators are built: each time the same attribute name is set, the new value can inspect the previous one and merge. `Output` is how a value renders into an attribute slot without going through the default `fmt.Fprint`, but escaping is still applied.
+`Mutate` builds class-style accumulators. `Output` controls serialization while keeping default escape.
 
 ### Text escaping
 
-Text and placeholder values are HTML-escaped by default:
-
+Text/placeholders are HTML-escaped:
 ```gox
 <p>~("<script>")</p>   // → &lt;script&gt;
 ```
 
-To emit literal HTML, use the raw block `<:>...</:>`:
-
+Raw block `<:>...</:>` emits literal HTML, whitespace preserved verbatim:
 ```gox
 <svg viewBox="0 0 24 24">
-    <:>
-        <path d="..." />
-    </:>
+    <:><path d="..." /></:>
 </svg>
 ```
 
-Whitespace inside `<:>` blocks is preserved verbatim.
-
-Raw blocks are useful for large static SVG/HTML fragments that should be emitted as literal markup.
+Useful for static SVG/HTML fragments. **Never pipe untrusted input through it.**
 
 ### Components (`gox.Comp`)
 
-Anything with `Main() gox.Elem` is a component. In `.gox` files, implement that method with `elem` method syntax, not by hand-writing `func (c Component) Main() gox.Elem`:
+Anything with `Main() gox.Elem` is a component. In `.gox`, implement with `elem` method syntax:
 
 ```gox
-type Card struct {
-    Title string
-}
+type Card struct { Title string }
 
 elem (c Card) Main() {
     <article>~(c.Title)</article>
 }
 ```
 
-`gox.Elem` already implements `Main() gox.Elem`, so it is passable anywhere `gox.Comp` is expected.
-
-Render a component the same way you render any other Go expression: put it in a normal placeholder. There is no separate component-call syntax; `~(...)` is just the ordinary expression placeholder. Only attribute modifiers (`<tag (x)>`) and proxies (`~>(x) ...`) have special attachment syntax.
-
+Render via normal placeholder (no JSX-style `<MyComp/>`):
 ```gox
-~(myComponent)                 // needs parens — identifier
-~User{Name: "Z"}               // composite literal, parens optional
+~(myComponent)        // identifier needs parens
+~User{Name: "Z"}      // composite literal, parens optional
 ```
 
-There is no JSX-style `<MyComp/>`. Only HTML tag names go between `<...>`.
+### `elem` helper vs component struct
 
-### Choosing `elem` helper vs component struct
-
-Use a plain `elem Helper(args...)` for small, stateless fragments when the parameters are few and the helper does not need its own methods:
-
+Plain `elem Helper(args...)` for small stateless fragments with few params:
 ```gox
-elem Badge(label string) {
-    <span class="badge">~(label)</span>
-}
+elem Badge(label string) { <span class="badge">~(label)</span> }
 ```
 
-Use a struct component with `Main()` when the UI is a real reusable unit with named props, shared data, local/derived state, setup logic, or helper render methods.
+Use a component struct when:
+- Many positional args would be needed
+- Named fields read clearer (`Title`, `Body`, `Items`, callbacks, state)
+- Multiple render helpers share data (receiver methods)
+- Repeated composite-literal usage
+- Constructor needs setup/defaults
+- Must satisfy `gox.Comp`
 
-Good reasons to choose a component struct:
-
-- The call site would otherwise pass many positional arguments.
-- The values are clearer as named fields (`Title`, `Body`, `Items`, `Active`, callbacks, state handles).
-- Several render helpers need the same data; make them receiver methods.
-- The component is rendered repeatedly as composite literals.
-- A constructor needs to initialize defaults, local state, derived values, callbacks, or other setup before rendering.
-- The component should satisfy APIs that accept `gox.Comp`.
-
-Keep the requested HTML shape intact when extracting helpers or components. If the output needs a wrapper around several children, render that wrapper in the parent and call the helpers/components inside it. Move a wrapper into a component only when the component itself owns that wrapper.
+**Keep HTML shape intact when extracting:** render parent wrappers in the parent, call helpers/components inside. Move a wrapper into a component only when the component owns it.
 
 ```gox
 <section>
-    ~Card{
-        Title: "Build",
-        Body:  <p>Use GoX</p>,
-    }
-    ~Card{
-        Title: "Review",
-        Body:  <p>Check output</p>,
-    }
+    ~Card{Title: "Build", Body: <p>Use GoX</p>}
+    ~Card{Title: "Review", Body: <p>Check output</p>}
 </section>
 ```
 
-Pattern — data-shaped component with child content:
+**Patterns:**
 
+Data-shaped with child slot:
 ```gox
 type Card struct {
     Title string
     Body gox.Elem
 }
-
 elem (c Card) Main() {
     <article>
         <h2>~(c.Title)</h2>
         ~(c.Body)
     </article>
 }
-
-~Card{
-    Title: "Profile",
-    Body:  <p>Ada</p>,
-}
 ```
 
-Pattern — component with receiver helpers that share fields:
-
+Receiver helpers sharing fields:
 ```gox
-type MenuItem struct {
-    Slug string
-    Title string
-    Path string
-}
-
 type Menu struct {
     Active string
     Items []MenuItem
 }
-
 elem (m Menu) Main() {
-    <ul>
-        ~(for _, item := range m.Items {
-            ~(m.item(item))
-        })
-    </ul>
+    <ul>~(for _, item := range m.Items { ~(m.item(item)) })</ul>
 }
-
 elem (m Menu) item(item MenuItem) {
-    <li
-        class=func {
-            if item.Slug == m.Active {
-                return "active"
-            }
-            return nil
-        }>
+    <li class=func {
+        if item.Slug == m.Active { return "active" }
+        return nil
+    }>
         <a href=(item.Path)>~(item.Title)</a>
     </li>
 }
 ```
 
-
-Pattern — constructor returns `gox.Comp` when setup should be hidden from callers:
-
+Constructor returning `gox.Comp` to hide setup:
 ```go
 func NewSearch(users []User) gox.Comp {
-    return searchBox{
-        Users: users,
-        // Initialize defaults or derived values here.
-    }
+    return searchBox{Users: users}
 }
-
-type searchBox struct {
-    Users []User
-}
-
+type searchBox struct { Users []User }
 // elem (s searchBox) Main() { ... }
 ```
 
-Pattern — compose a page from parts:
-
+Page composition with named slots:
 ```gox
-elem MarketingPage() {
-    ~(PageShell{
-        Header: <header>Product</header>,
-        Body: <>
-            ~(Hero("Build faster"))
-            ~(FeatureList([]string{"Typed", "Composable"}))
-        </>,
-        Footer: <footer>Done</footer>,
-    })
-}
-
-type PageShell struct {
-    Header gox.Elem
-    Body gox.Elem
-    Footer gox.Elem
-}
-
+type PageShell struct { Header, Body, Footer gox.Elem }
 elem (p PageShell) Main() {
     <div class="page">
         ~(p.Header)
@@ -602,16 +425,13 @@ elem (p PageShell) Main() {
 }
 ```
 
-For page composition, keep small sections as plain `elem` helpers when they have only a couple of inputs. Use a shell/layout component when the page has named slots (`Header`, `Body`, `Aside`, `Footer`), shared settings, or repeated structure. The call site should read as an assembly of parts, not as one giant template or a long positional argument list.
+**Don't use `Main` as a field name** — collides with the render method (or tempts `~(p.Main)` rendering the method value). Use `Body`, `Content`, `Children`, `MainContent`.
 
-Do not use `Main` as a component field name. `Main()` is the render method required by `gox.Comp`; a field named `Main` collides with it, or tempts code like `~(p.Main)` to render the method value instead of the intended slot. Use `Body`, `Content`, `Children`, or a more specific name such as `MainContent`.
-
-If all you need is "wrap these children in a tag", prefer an `elem Layout(body gox.Comp)` helper. If the wrapper has named configuration, state, or multiple helper methods, make it a component.
-
+For "wrap children in a tag" → `elem Layout(body gox.Comp)`. Named config/state/multiple methods → component.
 
 ### Children / slot pattern
 
-Pass an `Elem` as a function argument or struct field and render it in the child position. Fragments (`<>...</>`) are the idiomatic way to build a multi-node child:
+Pass `Elem`/`Comp` as arg or struct field. Fragments build multi-node children:
 
 ```gox
 elem Card(title string, body gox.Comp) {
@@ -627,21 +447,7 @@ elem Card(title string, body gox.Comp) {
 </>))
 ```
 
-The same idea works via a struct field that holds `gox.Elem` (or `gox.Comp` that accepts also components with `Main() gox.Elem` besides plain `gox.Elem`):
-
-```gox
-type Page struct {
-    Title string
-    Body gox.Elem
-}
-
-elem (p Page) Main() {
-    <section>
-        <h1>~(p.Title)</h1>
-        ~(p.Body)
-    </section>
-}
-```
+Same idea via struct field of type `gox.Elem` or `gox.Comp` (the latter accepts plain `gox.Elem` too).
 
 ### Comments
 
@@ -651,19 +457,15 @@ elem (p Page) Main() {
 <!-- emitted HTML comment -->
 ```
 
-### Inline func expression: `~func { ... }`
+### Inline func: `~func { ... }`
 
-Evaluated at render time; the return value is inserted where it appears. Use `~func { ... }` when you need render-time work at a specific point and the logic is too complex for an inline `~(if ...)` or simple placeholder.
-
-Inside the function literal you can write normal Go: `switch`, early returns, local variables, error handling, etc. It may return text, a component, or an HTML literal.
+Render-time evaluation; the return value (text, component, or HTML literal) is inserted at that point. Use when logic exceeds a simple `~(if ...)`:
 
 ```gox
 <div>
     ~func {
         user, err := db.Get(id)
-        if err != nil {
-            return <span>error</span>
-        }
+        if err != nil { return <span>error</span> }
         switch user.Role {
         case "admin":
             return <strong>~(user.Name)</strong>
@@ -673,93 +475,61 @@ Inside the function literal you can write normal Go: `switch`, early returns, lo
 </div>
 ```
 
-For simple reusable markup, prefer a named `elem` helper. For simple conditional markup, prefer `~(if ...)`. Function literals also work inside attributes (shown above).
-
-### Go snippets: `~{ ... }`
-
-Switch to plain Go statements:
-
-```gox
-elem page() {
-    ~{
-        users := loadUsers()
-        sort.Slice(users, func(i, j int) bool {
-            return users[i].Name < users[j].Name
-        })
-    }
-    <ul>
-        ~(for _, u := range users {
-            <li>~(u.Name)</li>
-        })
-    </ul>
-}
-```
+For simple reuse → named `elem`. For simple conditions → `~(if ...)`. Works in attributes too.
 
 ### Proxies: `~>(p) nextItem`
 
-A `Proxy` captures the next renderable item at render time. That item can be an element, component placeholder, inline `~func`, raw block, text node, control-flow block, or ordinary placeholder — not only an HTML tag.
+A `Proxy` captures the next renderable item at render time (element, component placeholder, `~func`, raw block, text, control-flow, or placeholder).
 
-Proxy syntax captures **one item only**. In `~>(p) Text ~(dd)`, the proxy sees only the `Text` item; `~(dd)` is a following sibling. To proxy several values together, group them into one item: use a wrapper element, a fragment/container, or one multi-value placeholder such as `~>(p) ~("Text ", dd)`.
+**Captures one item only.** `~>(p) Text ~(dd)` captures only `Text`. Group siblings into one item: wrapper element, fragment, or multi-value placeholder `~>(p) ~("Text ", dd)`.
 
-Proxies can be chained. `~>(proxy1) ~>(proxy2) item` is the same as `~>(proxy1, proxy2) item`. The list is written outermost first: `proxy2` handles the original item first, then `proxy1` captures the result.
+Chain: `~>(p1) ~>(p2) item` ≡ `~>(p1, p2) item`. Outermost first; `p2` wraps the original, then `p1` wraps the result.
 
-**In the vast majority of cases, proxy values come from third-party libraries** (`goxx.Parallel`, `goxx.Class` as a proxy, `goxx.ProxyMod(...)`, telemetry, styling kits, etc.) — you import and attach them, you rarely author them.
+**Most proxies come from third-party libs** (`goxx.Parallel`, `goxx.Class` as proxy, `goxx.ProxyMod`). You import and attach them.
 
-**Do not write a custom `Proxy` unless the task explicitly asks for a low-level rendering transform and simpler tools cannot express it.** Treat custom proxies as a last resort. If the goal is "wrap content in another tag", write a normal component/slot helper. If the goal is "set attributes on this element", write a `Modify`. If the goal is "attach attributes through a wrapping component", use `goxx.ProxyMod` or `goxx.Class` as a proxy. Custom proxies require careful cursor lifecycle handling and are easy to get wrong.
+**Don't write a custom `Proxy` unless you truly need a low-level rendering transform.** Last resort. To wrap content → component/slot. To set attributes → `Modify`. To attach attributes through a wrapping component → `goxx.ProxyMod` or `goxx.Class`. Custom proxies require careful cursor lifecycle.
 
-Custom `Proxy` is reserved for transforming captured output before it is emitted — e.g. rewriting attributes on many descendants, running captured output through a filtering printer, collecting render metrics, or rebasing output into a different target.
+Custom `Proxy` is for transforming captured output before emission — rewriting attrs on descendants, filtering printers, render metrics, retargeted output.
 
-Usage (common side):
-
+Common usage:
 ```gox
 ~>(goxx.Parallel()) <section>~(SlowStats())</section>
-~>(Track) ~func {
-    return <span>computed</span>
-}
+~>(Track) ~func { return <span>computed</span> }
 ~>(Track) ~("Text ", dd)
 ~>(Track) Text
-~>(proxy1) ~>(proxy2) <div>same as comma list</div>
-~>(proxy1, proxy2) <div>same as chained form</div>
+~>(p1, p2) <div>chained</div>
 ```
 
-Proxy type and sample implementation (uncommon side — only needed for real output transforms):
-
+Type and sample (rarely needed):
 ```go
 type Proxy interface {
-    Proxy(cur gox.Cursor, e gox.Elem) error   // parameter name cannot be `elem` in .gox
+    Proxy(cur gox.Cursor, e gox.Elem) error  // param name can't be `elem` in .gox
 }
 
 func (wrap) Proxy(cur gox.Cursor, e gox.Elem) error {
-    if err := cur.Init("section"); err != nil {
-        return err
-    }
-    if err := cur.Submit(); err != nil {
-        return err
-    }
-    if err := e(cur); err != nil {
-        return err
-    }
+    if err := cur.Init("section"); err != nil { return err }
+    if err := cur.Submit(); err != nil { return err }
+    if err := e(cur); err != nil { return err }
     return cur.Close()
 }
 ```
 
-For a one-off without declaring a type, use `gox.ProxyFunc(func(cur, e) error { ... })`.
+For one-offs: `gox.ProxyFunc(func(cur, e) error { ... })`.
 
 ## Rendering at runtime
 
 ```go
 elem := Greeting("World")
-elem.Render(ctx, w)          // writes HTML to any io.Writer
+elem.Render(ctx, w)          // writes HTML to io.Writer
 elem.Print(ctx, customPrint) // streams jobs to a custom Printer
 ```
 
-`gox.Elem` is templ-compatible: it implements `Render(ctx, w) error` so it drops into any `templ`-expecting API.
+`gox.Elem` is templ-compatible (implements `Render(ctx, w) error`).
 
 ### `Cursor.Any` value handling
 
-The `~(expr)` placeholder ultimately calls `Cursor.Any` (or `Cursor.Many` for multi-arg). It has dedicated handling for:
-
-- `string`, `[]string` (each item rendered)
+`~(expr)` calls `Cursor.Any` (or `Many` for multi-arg). Dedicated handling:
+- `string`, `[]string`
 - `gox.Elem`, `[]gox.Elem`
 - `gox.Comp`, `[]gox.Comp`
 - `gox.Job`, `[]gox.Job`
@@ -767,57 +537,54 @@ The `~(expr)` placeholder ultimately calls `Cursor.Any` (or `Cursor.Many` for mu
 - `gox.Templ` (anything with `Render(ctx, w) error`, e.g. `templ.Component`)
 - `[]any`
 
-Anything else falls back to escaped `fmt.Fprint`. `nil` Elem/Comp render as nothing.
+Else: escaped `fmt.Fprint`. `nil` Elem/Comp render nothing.
 
-### Raw HTML: `<:>...</:>` and `gox.EditorFunc`
+### Raw HTML
 
-`<:>...</:>` emits content verbatim, whitespace included. For programmatic raw output, drop an `Editor` through a placeholder:
-
+`<:>...</:>` for static raw. For programmatic raw output, drop an `Editor` through a placeholder:
 ```gox
 ~(gox.EditorFunc(func(cur gox.Cursor) error {
     return cur.Raw("<mark>unescaped</mark>")
 }))
 ```
 
-Never pipe untrusted input through either — these are escape hatches for trusted content.
+Never pipe untrusted input through these.
 
 ## Runtime extension interfaces
 
-Only reach for these when ordinary templating cannot express what you need. They live in regular `.go` files, not `.gox`.
+Reach for these only when ordinary templating can't express the need. They live in `.go` files, not `.gox`.
 
-- `gox.Editor` — `Edit(cur gox.Cursor) error`. Direct cursor access for low-level job emission. Use `gox.EditorFunc` for one-offs.
-- `gox.Proxy` — `Proxy(cur gox.Cursor, e gox.Elem) error`. Intercepts the next renderable item. Use existing proxies (`goxx.Parallel`, `goxx.Class`, `goxx.ProxyMod`) unless you truly need a low-level output transform.
-- `gox.Modify` — `Modify(ctx, tag, attrs Attrs) error`. Head-level attribute transformer attached via `<tag (Modifier)>`. Use `gox.ModifyFunc`.
-- `gox.Mutate` — `Mutate(name, prev any) any`. Value-level: combine with an existing attribute value under the same name.
-- `gox.Output` — `Output(w io.Writer) error`. Value controls its own attribute serialization; GoX still escapes/writes it through the normal attribute path.
-- `gox.Printer` — consumer of the `Job` stream. Custom printers can buffer, transform, or reroute rendering.
+- `gox.Editor` — `Edit(cur gox.Cursor) error`. Direct cursor for low-level emission. Use `gox.EditorFunc` for one-offs.
+- `gox.Proxy` — `Proxy(cur gox.Cursor, e gox.Elem) error`. Intercepts next renderable. Prefer existing proxies.
+- `gox.Modify` — `Modify(ctx, tag, attrs Attrs) error`. Head-level attribute transformer (`<tag (Modifier)>`). Use `gox.ModifyFunc`.
+- `gox.Mutate` — `Mutate(name, prev any) any`. Value-level: combine with existing attribute under same name.
+- `gox.Output` — `Output(w io.Writer) error`. Value controls own serialization (still escaped).
+- `gox.Printer` — consumes the `Job` stream. Custom printers can buffer/transform/reroute.
 
-Cursor lifecycle rules when writing an `Editor` or low-level code:
-1. Regular element: `Init(tag)` → `AttrSet`/`AttrMod` → `Submit()` → children → `Close()`.
+**Cursor lifecycle when writing `Editor` / low-level code:**
+1. Regular: `Init(tag)` → `AttrSet`/`AttrMod` → `Submit()` → children → `Close()`.
 2. Void: `InitVoid(tag)` → `AttrSet` → `Submit()` (no `Close`).
-3. Container: `InitContainer()` → children → `Close()` (emits no tag).
+3. Container: `InitContainer()` → children → `Close()` (no tag).
 
-Before `Submit()` you may mutate attributes; after `Submit()` you may emit children but the head is frozen.
+Before `Submit()` you may mutate attributes; after, the head is frozen but children may be emitted.
 
 ## `goxx` — the standard extension package
 
-Reminder: only use `goxx` when the project is **not** using Doors. If `go.mod` contains `github.com/doors-dev/doors`, stop; this document does not define the Doors path.
+**Reminder: only when the project doesn't use Doors.** If `go.mod` has `github.com/doors-dev/doors`, stop.
 
 ```sh
 go get github.com/doors-dev/goxx
 ```
 
-`goxx` is a thin extension on top of `gox` that provides the batteries most standalone GoX apps want.
-
 ### HTTP render helper
 
-`goxx.Render` buffers the full response before anything is written to the response writer, so a render failure can still produce a clean error status:
+`goxx.Render` buffers the full response before any byte is written, so render failure can still send a clean error status:
 
 ```go
 func handlePage(w http.ResponseWriter, r *http.Request) {
     out, err := goxx.Render(r.Context(), Page())
     if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-        return // client/deadline went away, no body
+        return
     }
     if err != nil {
         http.Error(w, "render failed", http.StatusInternalServerError)
@@ -829,36 +596,13 @@ func handlePage(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
-If you want to serve a custom GoX error page, render that page only after checking for context cancellation/deadline errors. If the error page render also fails, fall back to `http.Error`; `goxx.Render` has not written to the response yet, so it is still safe to choose the fallback status/body:
+To serve a custom GoX error page on failure: render it after checking ctx errors. If the error-page render also fails, fall back to `http.Error` — safe, no bytes written yet.
 
-```go
-func handlePage(w http.ResponseWriter, r *http.Request) {
-    out, err := goxx.Render(r.Context(), Page())
-    if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-        return
-    }
-    if err != nil {
-        errOut, errPageErr := goxx.Render(r.Context(), ErrorPage())
-        if errPageErr != nil {
-            http.Error(w, "render failed", http.StatusInternalServerError)
-            return
-        }
-        w.Header().Set("Content-Type", "text/html; charset=utf-8")
-        w.WriteHeader(http.StatusInternalServerError)
-        errOut.WriteTo(w)
-        return
-    }
-    w.Header().Set("Content-Type", "text/html; charset=utf-8")
-    w.WriteHeader(http.StatusOK)
-    out.WriteTo(w)
-}
-```
-
-For non-HTTP code that passes a printer directly to `elem.Print(ctx, printer)`, use `goxx.NewPrinter(w)` and `goxx.WriterError(err)` to distinguish writer failures from render failures.
+For non-HTTP code passing a printer to `elem.Print(ctx, printer)`, use `goxx.NewPrinter(w)` and `goxx.WriterError(err)` to distinguish writer vs render failures.
 
 ### Parallel rendering
 
-Mark independent slow fragments with `~>(goxx.Parallel())`. They render on background workers in parallel while output order stays deterministic.
+Mark independent slow fragments with `~>(goxx.Parallel())`. They render on background workers; output order stays deterministic.
 
 ```gox
 elem Page() {
@@ -870,13 +614,13 @@ elem Page() {
 }
 ```
 
-Use it for DB queries, outbound HTTP, filesystem reads, heavy computation — anything that can wait independently. Default pool is seven workers plus the caller; tune via `goxx.NewPrinter(w, goxx.WithWorkers(n))` (pass `0` to use unbounded goroutines instead of a bounded pool).
+Use for DB queries, outbound HTTP, FS reads, heavy compute. Default pool: 7 workers + caller; tune via `goxx.NewPrinter(w, goxx.WithWorkers(n))` (`0` = unbounded).
 
-Extend the pipeline with a custom printer via `goxx.WithPrinter(factory)`; add `goxx.WithFlat()` when your printer wants expanded content instead of `*gox.JobComp` values. But you don't need custom printers most of the time.
+Custom printer: `goxx.WithPrinter(factory)` (+ `goxx.WithFlat()` if printer wants expanded content rather than `*gox.JobComp`). Rarely needed.
 
 ### `goxx.Class` — three-in-one class helper
 
-`goxx.Class` builds an immutable class set that can be used as an attribute modifier, as an attribute value, or as a proxy — pick whichever fits the call site. Inputs are split with `strings.Fields`, so variadic and space-separated forms are equivalent.
+Builds an immutable class set. Inputs split with `strings.Fields` (variadic and space-separated equivalent).
 
 ```go
 goxx.Class("button", "primary")
@@ -884,38 +628,32 @@ goxx.Class("button primary")
 goxx.Class("button").Add("primary").Filter("hidden")
 ```
 
-Three ways to attach it:
-
+Three attachment styles:
 ```gox
-// 1. As an attribute modifier (merges with any class="..." on the same element)
+// 1. Modifier (merges with class="..." on same element)
 <button (goxx.Class("button primary")) class="wide">Save</button>
 // → class="wide button primary"
 
-// 2. As the value of the class attribute directly (not recommended)
+// 2. Attribute value (not recommended)
 <button class=(goxx.Class("button", "primary"))>Save</button>
 
-// 3. As a proxy — propagates through containers and components
-//    until it reaches the first real element
+// 3. Proxy — propagates through containers/components to first real element
 ~>(goxx.Class("button primary")) <button>Save</button>
 ```
 
-`Filter` filters matches regardless of whether the class was added before or after:
-
+`Filter` removes matches regardless of order:
 ```go
 goxx.Class("button").Filter("hidden").Add("hidden").String() // "button"
 ```
 
-Useful for wrapping a component that already ships with a class you don't want:
-
+Useful for stripping a class baked into a component:
 ```gox
 ~>(goxx.Class("primary").Filter("disabled")) ~(BaseButton())
 ```
 
-### `goxx.ProxyMod` — attach a `Modify` through wrappers
+### `goxx.ProxyMod` — attach `Modify` through wrappers
 
-Turns a `gox.Modify` into a proxy that carries the modifier through leading components and containers until the first real element, then applies it once. Good for cross-cutting attributes like test ids that you do not want baked into component APIs:
-
-Because `ProxyMod` and `goxx.Class` attach attributes, the captured item must begin with an element, component, or container that eventually begins with an element. Text before the first element is an error for these proxies.
+Carries a modifier through leading components/containers to the first real element, applies once. Good for cross-cutting attributes (test ids):
 
 ```go
 func TestID(id string) gox.Proxy {
@@ -932,36 +670,36 @@ elem Toolbar() {
 }
 ```
 
-(`goxx.Class(...)` used as a proxy is built on this machinery.)
+Captured item must begin with element/component/container that resolves to an element. Text first → error. (`goxx.Class` as proxy uses this machinery.)
 
-## Common pitfalls checklist
+## Common pitfalls
 
-1. **Edited `.x.go` by hand** — changes will be blown away on next `gox gen`. Always edit the `.gox`.
-2. **Wrote a new template in "cursor style"** (`gox.Elem(func(cur gox.Cursor) error { ... })`) in a `.go` file — don't; write `.gox` and let generation produce this.
-3. **Wrote plain Go statements bare inside an `elem` body** — parse error. Wrap statements in `~{ ... }`, then render values with `~(...)`.
-4. **Put render-time setup before `return <...>` in an ordinary function** — code before the return runs when the function is called. Prefer `elem` with a top-level `~{ ... }` snippet for render-time setup.
-5. **Forgot to run `gox gen`** after editing `.gox` — build fails with "undefined" for new/renamed elems.
-6. **Forgot to run `gox gen` after `gox fmt`** — formatting shifts positions and invalidates the source map; regenerate so `.x.go` matches.
-7. **Used `elem` as an identifier name** — it is a reserved keyword in `.gox`. `func (w W) Proxy(cur gox.Cursor, elem gox.Elem)` is a parse error. Rename the parameter.
-8. **Used `return nil` inside already-open markup** — this stops the whole render before closing tags are emitted. Put whole-component guards in a top-of-`elem` `~{ ... }` block; use `~(if ...)` or `~func { return nil }` to skip only a child. Return a non-nil error inside markup only for a real critical failure.
-9. **Expected variables declared inside a tag to be visible later** — tags create Go scopes in generated code. Declare shared values in a top-level snippet before the tag.
-10. **`~name` without parens** — parse error. Use `~(name)`. Paren-less form is literals only (string, number, composite literal).
-11. **Mixed `class` and `Class`** — treated as two separate attributes. Pick one casing (lower by default).
-12. **Relied on source order of attributes** — output order is alphabetical.
-13. **Tried `<MyComponent/>`** — no such thing. Render components via `~(myComponent)` or composite literal placeholder.
-14. **Used `Main` as a component field name** — `Main()` is the component render method. Name slots `Body`, `Content`, `Children`, or `MainContent` instead.
-15. **Put ordinary-only Go code in `.gox`** — `.gox` can contain regular Go declarations, but use a `.go` file when there is no GoX/HTML syntax in the file.
-16. **Expected different visibility rules for `elem`** — generated `elem` functions are normal Go functions. Uppercase names are exported; lowercase names are package-private.
-17. **Used placeholder syntax inside an attribute value** — `~(...)` is for text/template positions. In attributes, write `id=(id)`, `href=(item.Href)`, `class=(tone)`, or `checked=func { return ok }`; not `id=~(id)` or `checked=~func { ... }`.
-18. **Dropped a required parent wrapper around several children** — if the expected output has `<section>`, `<ul>`, `<main>`, a shell, or another grouping parent around multiple helpers/components, render that parent in the caller and place the helper/component calls inside it.
-19. **Called `attrs.Set(...)` inside a `Modify`** — the method is `attrs.Get(name).Set(value)`.
-20. **Used `</br>` or `</input>`** — void tags have no closing form. Use `<br>`, `<br/>`, or `<br />`.
-21. **Unescaped injection via `~(untrustedHTML)`** — this escapes. Use `<:>...</:>` or `gox.EditorFunc` + `cur.Raw(...)` only for trusted/literal HTML, never for user input.
-22. **Whitespace between placeholders** — `~(a) ~(b)` has no space; `~(a," ",b)` has one.
-23. **Expected template indentation/newlines to render verbatim** — indentation and blank lines are normalized, but intentional leading/trailing spaces in text are preserved. Use raw blocks for verbatim whitespace-sensitive content.
-24. **Expected a proxy to capture several siblings** — `~>(p) Text ~(v)` captures only `Text`. Group siblings into one item, such as `~>(p) ~("Text ", v)`, a fragment, or a wrapper element.
-25. **Authored a custom `Proxy` for ordinary wrapping or attributes** — avoid it. Use components/fragments for wrapping, `Modify` for attributes, and `goxx.ProxyMod`/`goxx.Class` to carry modifiers through components.
-26. **Imported `gox` but never used it in `.gox`** — allowed, but the generated `.x.go` references `gox.Elem`, so make sure the module is in `go.mod` (`go get github.com/doors-dev/gox`).
-27. **Version drift** — generated files carry a GoX version marker. If CI uses a different `gox` binary than you, regenerate with the matching version.
-28. **Added `goxx` to a project that already depends on Doors** — if `go.mod` contains `github.com/doors-dev/doors`, skip `goxx`; this document does not define the Doors path.
-29. **Wrote a raw `http.Handler` that calls `Elem.Render(ctx, w)` directly** — works, but on render failure you have already written bytes and cannot send an error status. Prefer `goxx.Render(ctx, elem)` which buffers first, then commit with `out.WriteTo(w)`.
+1. **Edited `.x.go` by hand** — gone on next `gen`. Edit `.gox`.
+2. **Wrote new templates in cursor style** (`gox.Elem(func(cur)...)`) in `.go` — write `.gox` instead.
+3. **Plain Go statements bare in `elem` body** — wrap in `~{ ... }`.
+4. **Render-time setup before `return <...>` in regular func** — runs at call time, not render. Use `elem` + top `~{ ... }`.
+5. **Forgot `gox gen` after edit** — "undefined" build errors.
+6. **Forgot `gox gen` after `gox fmt`** — source map drifts.
+7. **Used `elem` as identifier name** — reserved keyword. Rename.
+8. **`return nil` inside open markup** — breaks HTML. Guard at top of `elem`, or use `~(if ...)`/`~func { return nil }` for child-only skips.
+9. **Variable from tag scope referenced later** — tags create scopes. Declare in top-level snippet.
+10. **`~name` without parens** — parse error. Always `~(name)`. Parenless = literals only.
+11. **Mixed `class` and `Class`** — separate attributes. Pick one casing.
+12. **Relied on attribute source order** — output is alphabetical.
+13. **Tried `<MyComponent/>`** — no JSX. Use `~(myComponent)` or composite-literal placeholder.
+14. **Used `Main` as field name** — collides with render method. Rename.
+15. **Pure-Go file as `.gox`** — use `.go` when no GoX/HTML syntax.
+16. **Expected different `elem` visibility** — same as Go (uppercase = exported).
+17. **`~(...)` in attribute** — text/template positions only. Use `id=(id)`, `checked=func { ... }`.
+18. **Dropped required parent wrapper** — render the parent in the caller, helpers/components inside.
+19. **Called `attrs.Set(...)` in `Modify`** — method is `attrs.Get(name).Set(value)`.
+20. **`</br>` / `</input>`** — void tags have no closing. Use `<br>`, `<br/>`, `<br />`.
+21. **Unescaped via `~(untrustedHTML)`** — that escapes. `<:>...</:>` or `gox.EditorFunc + cur.Raw` for trusted only.
+22. **Whitespace between placeholders** — `~(a) ~(b)` has space; `~(a)~(b)` doesn't. `~(a, " ", b)` for safety.
+23. **Expected raw template indentation/newlines** — normalized. Intentional spaces preserved. Use raw blocks for verbatim.
+24. **Expected proxy to capture multiple siblings** — captures one. Group via fragment/wrapper/multi-value placeholder.
+25. **Custom `Proxy` for ordinary wrapping/attributes** — use components/`Modify`/`goxx.ProxyMod` instead.
+26. **Imported `gox` but unused in `.gox`** — fine; generated `.x.go` references `gox.Elem`, so module must be in `go.mod`.
+27. **Version drift** — generated files have version markers; CI must use matching `gox`.
+28. **Added `goxx` to a Doors project** — skip `goxx`.
+29. **Raw `http.Handler` calling `Elem.Render(ctx, w)` directly** — failure leaves bytes written. Prefer `goxx.Render` (buffers first).

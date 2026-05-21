@@ -22,6 +22,7 @@ const (
 )
 
 func NewFile(path string) (File, bool) {
+	path = filepath.Clean(path)
 	if KindSource.Belongs(path) {
 		return File{
 			name: strings.TrimSuffix(path, KindSource.String()),

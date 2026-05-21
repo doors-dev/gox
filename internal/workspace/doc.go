@@ -101,21 +101,26 @@ func (d Doc) Init() {
 	if !d.sourceFile.Exists() {
 		d.targetRemove()
 		d.err = errors.New("The source .gox file no longer exists.")
+		slog.Error("Document init failed", "source", d.SourceFile().Path(), "target", d.TargetFile().Path(), "error", d.err)
 		return
 	}
 	err := d.Load()
 	if err != nil {
 		d.err = errors.New("Could not read the source .gox file: " + err.Error())
+		slog.Error("Document init failed", "source", d.SourceFile().Path(), "target", d.TargetFile().Path(), "error", d.err)
 		return
 	}
 	if d.tree != nil {
 		d.tree.Close()
 	}
-	d.Parse()
+	if err := d.Parse(); err != nil {
+		slog.Debug("Document parsed with syntax errors", "source", d.SourceFile().Path(), "target", d.TargetFile().Path(), "error", err)
+	}
 	d.Assemble()
 	needsUpdate, err := d.CheckTarget()
 	if err != nil {
 		d.err = err
+		slog.Error("Document init failed", "source", d.SourceFile().Path(), "target", d.TargetFile().Path(), "error", d.err)
 		return
 	}
 	if !needsUpdate {
@@ -124,8 +129,10 @@ func (d Doc) Init() {
 	err = d.TargetWrite()
 	if err != nil {
 		d.err = errors.New("Could not write the generated .x.go file: " + err.Error())
+		slog.Error("Document init failed", "source", d.SourceFile().Path(), "target", d.TargetFile().Path(), "error", d.err)
 		return
 	}
+	slog.Debug("Document initialized", "source", d.SourceFile().Path(), "target", d.TargetFile().Path(), "targetUpdated", needsUpdate)
 }
 
 func (d Doc) Save() error {

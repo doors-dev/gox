@@ -2,6 +2,7 @@ package workspace
 
 import (
 	"errors"
+	"log/slog"
 	"math"
 
 	"github.com/doors-dev/gox/internal/common"
@@ -32,6 +33,7 @@ func (d Doc) SourceUpdate(content string) (bool, error) {
 	edit, upd, err := d.source.Update(content)
 	if err != nil {
 		d.err = errors.New("Could not apply the edit.")
+		slog.Error("Document source update failed", "source", d.SourceFile().Path(), "target", d.TargetFile().Path(), "error", d.err)
 		return false, err
 	}
 	if !upd {
@@ -50,6 +52,7 @@ func (d Doc) SourcePatch(enc common.Encoding, ran common.Range, content string) 
 	edit, upd, err := d.source.Patch(r, content)
 	if err != nil {
 		d.err = errors.New("Could not apply the edit.")
+		slog.Error("Document source patch failed", "source", d.SourceFile().Path(), "target", d.TargetFile().Path(), "error", d.err)
 		return false, err
 	}
 	if !upd {

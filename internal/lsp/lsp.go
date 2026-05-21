@@ -74,12 +74,13 @@ type notifier interface {
 }
 
 type request struct {
-	data   json.RawMessage
-	cb     Callback
-	sess   *session
-	m      method
-	role   Role
-	locker sync.Locker
+	data     json.RawMessage
+	cb       Callback
+	sess     *session
+	m        method
+	role     Role
+	locker   sync.Locker
+	logAttrs []any
 }
 
 func (c *request) method() method {
@@ -106,13 +107,17 @@ func (c *request) res(result Json) {
 }
 
 func (c *request) err(err *common.Err) {
+	attrs := []any{"method", c.m, "msg", err.Msg, "error", err.Wire.Error()}
+	attrs = append(attrs, c.logAttrs...)
+	attrs = append(attrs, "roots", c.sess.rootsLocked())
 	if c.isCall() {
-		slog.Error("Error response to call", "method", c.m, "role", c.role, "msg", err.Msg, "error", err.Wire.Error())
+		attrs = append(attrs, "role", c.role)
+		slog.Error("Error response to call", attrs...)
 		c.sess.logError("Error response to call: [method=" + string(c.m) + ", role=" + string(c.role) + ", msg=" + err.Msg + ", error=" + err.Wire.Error() + "]")
 		c.cb(Response{Err: err.Wire})
 		c.sess.showError(err.Error())
 	} else {
-		slog.Error("Error \"response\" to notification", "method", c.m, "msg", err.Msg, "error", err.Wire.Error())
+		slog.Error("Error \"response\" to notification", attrs...)
 		c.sess.logError("Error \"response\" to notification: [method=" + string(c.m) + ", msg=" + err.Msg + ", error=" + err.Wire.Error() + "]")
 		c.sess.showError(err.Error())
 	}
@@ -148,13 +153,17 @@ func (c *request) proxy(params Json, handler func(res Json)) {
 		c.locker.Lock()
 		defer c.locker.Unlock()
 		if r.Err != nil {
-			slog.Error("Got error response to call", "method", c.m, "from", c.role.Revert(), "error", r.Err.Error())
+			attrs := []any{"method", c.m, "from", c.role.Revert(), "error", r.Err.Error()}
+			attrs = append(attrs, c.logAttrs...)
+			slog.Error("Got error response to call", attrs...)
 			c.cb(r)
 			return
 		}
 		node, err := sonic.Get(r.Result)
 		if err != nil {
-			slog.Error("Response parsing error", "method", c.m, "from", c.role.Revert(), "error", err.Error())
+			attrs := []any{"method", c.m, "from", c.role.Revert(), "error", err.Error()}
+			attrs = append(attrs, c.logAttrs...)
+			slog.Error("Response parsing error", attrs...)
 			c.sess.logError("Response parsing error: [method=" + string(c.m) + ", from=" + string(c.role.Revert()) + ", error=" + err.Error() + "]")
 			c.cb(r)
 			return
@@ -170,7 +179,6 @@ func (r Router) Notification(role Role, n Request) {
 	r.session.man().Lock()
 	defer r.session.man().Unlock()
 	m := method(n.Method)
-	slog.Debug("Notification", "method", m, "from", role)
 	var handler onNotif
 	var ok bool
 	switch role {
@@ -183,22 +191,26 @@ func (r Router) Notification(role Role, n Request) {
 	}
 	if ok {
 		req := &request{
-			data:   n.Params,
-			sess:   r.session,
-			role:   role,
-			m:      m,
-			locker: r.session.man(),
+			data:     n.Params,
+			sess:     r.session,
+			role:     role,
+			m:        m,
+			locker:   r.session.man(),
+			logAttrs: nil,
 		}
 		node, err := sonic.Get(n.Params)
 		if err != nil {
-			slog.Error("Notification parsing error", "method", m, "from", role, "error", err.Error())
+			slog.Error("Notification parsing error", "method", m, "from", role, "error", err.Error(), "roots", r.session.rootsLocked())
 			r.session.logError("Notification parsing error: [method=" + string(m) + ", from=" + string(role) + ", error=" + err.Error() + "]")
 			req.err(common.FromErr(jsonrpc.ErrParse, err))
 			return
 		}
+		req.logAttrs = requestLogAttrs(&node)
+		slog.Debug("Notification", append([]any{"method", m, "from", role}, req.logAttrs...)...)
 		handler(req, &node)
 		return
 	}
+	slog.Debug("Notification", "method", m, "from", role)
 	r.session.bridge.Notify(role.Revert(), n)
 }
 
@@ -206,7 +218,6 @@ func (r Router) Call(role Role, call Request, cb Callback) {
 	r.session.man().Lock()
 	defer r.session.man().Unlock()
 	m := method(call.Method)
-	slog.Debug("Call", "method", m, "from", role)
 	var handler onCall
 	var ok bool
 	switch role {
@@ -219,23 +230,27 @@ func (r Router) Call(role Role, call Request, cb Callback) {
 	}
 	if ok {
 		req := &request{
-			sess:   r.session,
-			role:   role,
-			m:      m,
-			data:   call.Params,
-			cb:     cb,
-			locker: r.session.man(),
+			sess:     r.session,
+			role:     role,
+			m:        m,
+			data:     call.Params,
+			cb:       cb,
+			locker:   r.session.man(),
+			logAttrs: nil,
 		}
 		node, err := sonic.Get(call.Params)
 		if err != nil {
-			slog.Error("Call parsing error ", "method", m, "from", role, "error", err.Error())
+			slog.Error("Call parsing error", "method", m, "from", role, "error", err.Error(), "roots", r.session.rootsLocked())
 			r.session.logError("Call parsing error: [method=" + string(m) + ", from=" + string(role) + ", error=" + err.Error() + "]")
 			req.err(common.FromErr(jsonrpc.ErrParse, err))
 			return
 		}
+		req.logAttrs = requestLogAttrs(&node)
+		slog.Debug("Call", append([]any{"method", m, "from", role}, req.logAttrs...)...)
 		handler(req, &node)
 		return
 	}
+	slog.Debug("Call", "method", m, "from", role)
 	r.session.bridge.Call(role.Revert(), call, cb)
 }
 

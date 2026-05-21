@@ -2,10 +2,12 @@ package workspace
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/doors-dev/gox/internal/catalog/grammer"
 	"github.com/doors-dev/gox/internal/common"
@@ -155,9 +157,39 @@ func TestManagerWorkspaceLifecycleAndFileValidation(t *testing.T) {
 		t.Fatalf("Doc(pathA) = (%v, %v), want source doc", docA, kindA)
 	}
 
+	slashedManager := NewManager()
+	slashedManager.EnsureWorkspaces([]string{string(docpath.URIFromPath(dirA)) + "/"})
+	if doc, kind := slashedManager.Doc(string(docpath.URIFromPath(pathA))); doc == nil || kind != KindSource {
+		t.Fatalf("Doc(pathA) with trailing slash workspace = (%v, %v), want source doc", doc, kind)
+	}
+	slashedManager.RemoveWorkspace(string(docpath.URIFromPath(dirA)))
+	if doc, kind := slashedManager.Doc(string(docpath.URIFromPath(pathA))); doc != nil || kind != KindSource {
+		t.Fatalf("Doc(pathA) after slash-normalized remove = (%v, %v), want nil source kind", doc, kind)
+	}
+	slashedManager.AddWorkspace(string(docpath.URIFromPath(dirA)) + "/")
+	if doc, kind := slashedManager.Doc(string(docpath.URIFromPath(pathA))); doc == nil || kind != KindSource {
+		t.Fatalf("Doc(pathA) after slash-normalized add = (%v, %v), want source doc", doc, kind)
+	}
+	slashedManager.RemoveWorkspace(string(docpath.URIFromPath(dirA)))
+
+	removedWorkspace := manager.workspaces[0]
 	manager.RemoveWorkspace(string(docpath.URIFromPath(dirA)))
+	select {
+	case <-removedWorkspace.done:
+	case <-time.After(time.Second):
+		t.Fatal("removed workspace scanner did not stop")
+	}
 	if doc, kind := manager.Doc(string(docpath.URIFromPath(pathA))); doc != nil || kind != KindSource {
 		t.Fatalf("Doc(pathA) after remove = (%v, %v), want nil source kind", doc, kind)
+	}
+	if err := os.Remove(docA.TargetFile().Path()); err != nil && !errors.Is(err, os.ErrNotExist) {
+		t.Fatal(err)
+	}
+	time.Sleep(600 * time.Millisecond)
+	if _, err := os.Stat(docA.TargetFile().Path()); err == nil {
+		t.Fatalf("removed workspace regenerated target %s", docA.TargetFile().Path())
+	} else if !errors.Is(err, os.ErrNotExist) {
+		t.Fatal(err)
 	}
 
 	emptyDir := t.TempDir()
