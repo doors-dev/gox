@@ -25,10 +25,6 @@ func (s *session) ensureWorkspaces(uris []string) {
 	s.manager.EnsureWorkspaces(uris)
 }
 
-func (s *session) ensureWorkspacesLocked(uris []string) {
-	s.manager.EnsureWorkspacesLocked(uris)
-}
-
 func (s *session) addWorkspace(uri string) {
 	s.manager.AddWorkspace(uri)
 }

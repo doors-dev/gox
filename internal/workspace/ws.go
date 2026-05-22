@@ -36,7 +36,6 @@ type workspace struct {
 	root   string
 	lock   sync.Locker
 	done   chan struct{}
-	stop   sync.Once
 }
 
 func (w *workspace) Load(file File) Doc {
@@ -57,11 +56,9 @@ func (w *workspace) load(file File) Doc {
 }
 
 func (w *workspace) ticker() {
-	ticker := time.NewTicker(250 * time.Millisecond)
-	defer ticker.Stop()
 	for {
 		select {
-		case <-ticker.C:
+		case <-time.After(250 * time.Millisecond):
 		case <-w.done:
 			return
 		}
@@ -87,9 +84,7 @@ func (w *workspace) Root() string {
 }
 
 func (w *workspace) Stop() {
-	w.stop.Do(func() {
-		close(w.done)
-	})
+	close(w.done)
 }
 
 func (w *workspace) scan(path string) {

@@ -34,12 +34,6 @@ func (m *manager) Unlock() {
 }
 
 func (m *manager) EnsureWorkspaces(uris []string) {
-	m.Lock()
-	defer m.Unlock()
-	m.EnsureWorkspacesLocked(uris)
-}
-
-func (m *manager) EnsureWorkspacesLocked(uris []string) {
 	toRemove := make([]string, 0)
 	paths := make([]string, 0, len(uris))
 	for _, uri := range uris {
