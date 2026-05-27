@@ -189,25 +189,34 @@ Parens **omittable only for literals** (string, numeric, composite):
 - `~name` (bare identifier) is a parse error. Always `~(name)`.
 - Adjacent placeholders don't insert whitespace: `~"a" ~"b"` renders `a b` (literal space); `~"a"~"b"` renders `ab`. For safety: `~("a ", b)`.
 
+
 ### Text whitespace
 
-Indentation and blank lines are normalized; intentional spaces in text are preserved.
+GoX normalizes template indentation and blank lines, but preserves spaces that are part of text content. A leading or trailing space next to real text is intentional and appears in output:
 
 ```gox
-<span> Text</span>      → <span> Text</span>
-<span>Text </span>      → <span>Text </span>
-<span>Text ~(v)</span>  → text "Text ", then v
+<span> Text</span>      // <span> Text</span>
+<span>Text </span>      // <span>Text </span>
+<span>Text ~(v)</span>  // text node is "Text ", then v
 ```
 
-Multi-line: alignment indentation is removed; extra leading/trailing space is kept:
+For multi-line text, indentation used to line up the template is removed. If the line has an extra space before or after the actual text, that extra space is preserved:
+
 ```gox
-<span>     Text </span>  // → <span> Text</span>  (one extra leading space kept)
-<span>    Text </span>   // → <span>Text</span>   (no extras)
+<span>
+     Text
+</span>
+// renders: <span> Text</span>
+
+<span>
+    Text
+</span>
+// renders: <span>Text</span>
 ```
 
-Adjacent text-only lines join with one space. Blank/whitespace-only lines render nothing. Text adjacent to tags has no automatic separator — write explicit space.
+Adjacent text-only lines are joined with a single space (`One` then `Two` renders `One Two`). Blank lines and whitespace-only lines render nothing. Text next to tags does not get an automatic separator: write an explicit leading/trailing space in the text when you need one.
 
-`gox fmt` removes inert whitespace; emitted spaces are preserved.
+`gox fmt` removes indentation and blank/edge whitespace that has no output effect; spaces that would be emitted are preserved.
 
 ### Control flow: `~(if ...)`, `~(for ...)`
 
