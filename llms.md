@@ -152,16 +152,24 @@ Inside open markup, use `~(if ...)` or an inline `~func { return nil }` to skip 
 ```gox
 elem OptionalChild(show bool) {
     <div>
+        ~// prefereable form:
         ~(if show { <span>Visible</span> })
+        ~// in case of complex logic:
         ~func {
-            if !show { return nil }
+            if one {
+                return nil
+            }
+            if second {
+                return nil
+            }
+            /* ... */
             return <strong>Ready</strong>
         }
     </div>
 }
 ```
 
-Returning a real non-nil error mid-markup is fine — the whole render aborts and the outer renderer handles failure.
+Returning a real non-nil error mid-markup is not recommended — the whole render aborts and the outer renderer handles failure. Prefer expicit render of err != nil branch.
 
 **HTML tags create Go scopes.** Variables declared inside a tag body aren't visible to siblings. Declare shared values in a top-level `~{ ... }`:
 
@@ -187,12 +195,12 @@ Parens **omittable only for literals** (string, numeric, composite):
 
 **Pitfalls:**
 - `~name` (bare identifier) is a parse error. Always `~(name)`.
-- Adjacent placeholders don't insert whitespace: `~"a" ~"b"` renders `a b` (literal space); `~"a"~"b"` renders `ab`. For safety: `~("a ", b)`.
+-  whitespace: `~"a" ~"b"` renders `ab` and `~"a"~"b"` renders `ab`. For space to appear: `~("a", " ", "b")`.
 
 
 ### Text whitespace
 
-GoX normalizes template indentation and blank lines, but preserves spaces that are part of text content. A leading or trailing space next to real text is intentional and appears in output:
+Template indentation and blank lines are normilized, but spaces that are part of text content are preserved. A leading or trailing space next to real text is intentional and appears in output:
 
 ```gox
 <span> Text</span>      // <span> Text</span>
@@ -204,12 +212,12 @@ For multi-line text, indentation used to line up the template is removed. If the
 
 ```gox
 <span>
-     Text
+\t Text
 </span>
 // renders: <span> Text</span>
 
 <span>
-    Text
+\tText
 </span>
 // renders: <span>Text</span>
 ```
@@ -250,7 +258,7 @@ Layout(<>
 
 ### Attributes
 
-- String/numeric literal: `<div class="card" tabindex="0">`.
+- String/numeric literal: `<div class="card" tabindex=0>`.
 - Go expression in parens: `<div id=(id) title=(user.Bio)>`.
 - Function literal (eval at render): `<input checked=func { return u.Agreed }>`.
 - Bare attribute: `<input required>` ≡ `required=(true)`.
