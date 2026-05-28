@@ -90,140 +90,145 @@ pub fn new_parser() -> topiary_tree_sitter_facade::Parser {
     parser
 }
 
-pub struct Query {
-    script: topiary_tree_sitter_facade::Query,
-    style: topiary_tree_sitter_facade::Query,
-    impl_close: topiary_tree_sitter_facade::Query,
-    remove: topiary_tree_sitter_facade::Query,
-    shift: topiary_tree_sitter_facade::Query,
-    keep: topiary_tree_sitter_facade::Query,
-    align: topiary_tree_sitter_facade::Query,
+pub struct CureNodes<'a> {
+    pub imlicid_close: Vec<Node<'a>>,
+    pub remove: Vec<Node<'a>>,
 }
 
-impl Query {
-    fn query<'a>(
-        query: &topiary_tree_sitter_facade::Query,
+const CURE_QUERY: &str = r#"
+(gox_implicit_close_head) @implicit_close
+
+[(gox_redundant) (gox_space_filler) (gox_erroneous_close_head)] @remove
+"#;
+
+
+pub struct PostNodes<'a> {
+    pub scripts: Vec<Node<'a>>,
+    pub styles: Vec<Node<'a>>,
+    pub shift: Vec<Node<'a>>,
+    pub keep: Vec<Node<'a>>,
+    pub align: Vec<Node<'a>>,
+    pub antiline: Vec<Node<'a>>,
+}
+
+const POST_PROCESS_QUERY: &str = r#"
+(gox_script_head) @script
+
+(gox_style_head) @style
+
+[(comment) (gox_comment) (gox_tilde_comment)] @shift
+
+[(raw_string_literal) (gox_raw_head)] @keep
+
+[(gox_plain_text)] @align
+
+(func_literal
+  body: (block
+    .
+    "{"
+    .
+    "}"
+    .
+  ) @antiline
+)
+
+(gox_func
+  body: (block
+    .
+    "{"
+    .
+    "}"
+    .
+  ) @antiline
+)
+"#;
+
+pub struct Queries {
+    cure: topiary_tree_sitter_facade::Query,
+    post: topiary_tree_sitter_facade::Query,
+}
+static QUERIES: OnceLock<Queries> = OnceLock::new();
+
+impl Queries {
+    pub fn cure<'a>(
+        &self,
         node: &'a topiary_tree_sitter_facade::Node,
         source: &[u8],
-    ) -> Vec<Node<'a>> {
+    ) -> CureNodes<'a> {
+        let capture_names = self.cure.capture_names();
+        let mut nodes = CureNodes {
+            imlicid_close: Vec::new(),
+            remove: Vec::new(),
+        };
         let mut cursor = topiary_tree_sitter_facade::QueryCursor::new();
-        let mut matches = query.matches(node, source, &mut cursor);
-        let mut nodes = Vec::new();
+        let mut matches = self.cure.matches(node, source, &mut cursor);
         while let Some(item) = matches.next() {
             for capture in item.captures.iter() {
-                nodes.push(capture.node.clone());
+                let name = capture_names[capture.index as usize];
+                match name {
+                    "implicit_close" => nodes.imlicid_close.push(capture.node.clone()),
+                    "remove" => nodes.remove.push(capture.node.clone()),
+                    _ => {}
+                }
             }
         }
         nodes
     }
-    pub fn scripts<'a>(
+    pub fn post<'a>(
         &self,
         node: &'a topiary_tree_sitter_facade::Node,
         source: &[u8],
-    ) -> Vec<Node<'a>> {
-        return Self::query(&self.script, node, source);
-    }
-    pub fn implicid_close<'a>(
-        &self,
-        node: &'a topiary_tree_sitter_facade::Node,
-        source: &[u8],
-    ) -> Vec<Node<'a>> {
-        return Self::query(&self.impl_close, node, source);
-    }
-    pub fn remove<'a>(
-        &self,
-        node: &'a topiary_tree_sitter_facade::Node,
-        source: &[u8],
-    ) -> Vec<Node<'a>> {
-        return Self::query(&self.remove, node, source);
-    }
-    pub fn styles<'a>(
-        &self,
-        node: &'a topiary_tree_sitter_facade::Node,
-        source: &[u8],
-    ) -> Vec<Node<'a>> {
-        return Self::query(&self.style, node, source);
-    }
-    pub fn shift<'a>(
-        &self,
-        node: &'a topiary_tree_sitter_facade::Node,
-        source: &[u8],
-    ) -> Vec<Node<'a>> {
-        Self::query(&self.shift, node, source)
-            .into_iter()
-            .filter(|n| n.start_position().row != n.end_position().row)
-            .collect()
-    }
-    pub fn keep<'a>(
-        &self,
-        node: &'a topiary_tree_sitter_facade::Node,
-        source: &[u8],
-    ) -> Vec<Node<'a>> {
-        Self::query(&self.keep, node, source)
-            .into_iter()
-            .filter(|n| n.start_position().row != n.end_position().row)
-            .collect()
-    }
-    pub fn align<'a>(
-        &self,
-        node: &'a topiary_tree_sitter_facade::Node,
-        source: &[u8],
-    ) -> Vec<Node<'a>> {
-        Self::query(&self.align, node, source)
-            .into_iter()
-            .filter(|n| n.start_position().row != n.end_position().row)
-            .collect()
+    ) -> PostNodes<'a> {
+        let capture_names = self.post.capture_names();
+        let mut nodes = PostNodes {
+            scripts: Vec::new(),
+            styles: Vec::new(),
+            shift: Vec::new(),
+            keep: Vec::new(),
+            align: Vec::new(),
+            antiline: Vec::new(),
+        };
+        let mut cursor = topiary_tree_sitter_facade::QueryCursor::new();
+        let mut matches = self.post.matches(node, source, &mut cursor);
+        while let Some(item) = matches.next() {
+            for capture in item.captures.iter() {
+                let name = capture_names[capture.index as usize];
+                let node = capture.node.clone();
+                match name {
+                    "script" => nodes.scripts.push(node),
+                    "style" => nodes.styles.push(node),
+                    "shift" => {
+                        if node.start_position().row != node.end_position().row {
+                            nodes.shift.push(node)
+                        }
+                    }
+                    "keep" => {
+                        if node.start_position().row != node.end_position().row {
+                            nodes.keep.push(node)
+                        }
+                    }
+                    "align" => {
+                        if node.start_position().row != node.end_position().row {
+                            nodes.align.push(node)
+                        }
+                    }
+                    "antiline" => {
+                        if node.start_position().row != node.end_position().row {
+                            nodes.antiline.push(node)
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        nodes
     }
 }
 
-static QUERY: OnceLock<Query> = OnceLock::new();
-
-const SCRIPT_QUERY: &str = r#"
-(gox_script_head) @cap
-"#;
-
-const STYLE_QUERY: &str = r#"
-(gox_style_head) @cap
-"#;
-
-const IMPLICID_CLOSE_QUERY: &str = r#"
-(gox_implicit_close_head) @cap
-"#;
-
-const REMOVE: &str = r#"
-[(gox_redundant) (gox_space_filler) (gox_erroneous_close_head)] @cap
-"#;
-
-const SHIFT: &str = r#"
-[(comment) (gox_comment) (gox_tilde_comment)] @cap
-"#;
-
-const ALIGN: &str = r#"
-[(gox_plain_text)] @cap
-"#;
-
-const KEEP: &str = r#"
-[(raw_string_literal) (gox_raw_head)] @cap
-"#;
-
-pub fn query() -> &'static Query {
-    QUERY.get_or_init(|| {
-        let script = topiary_tree_sitter_facade::Query::new(ts_lang(), SCRIPT_QUERY).unwrap();
-        let style = topiary_tree_sitter_facade::Query::new(ts_lang(), STYLE_QUERY).unwrap();
-        let impl_close =
-            topiary_tree_sitter_facade::Query::new(ts_lang(), IMPLICID_CLOSE_QUERY).unwrap();
-        let remove = topiary_tree_sitter_facade::Query::new(ts_lang(), REMOVE).unwrap();
-        let shift = topiary_tree_sitter_facade::Query::new(ts_lang(), SHIFT).unwrap();
-        let keep = topiary_tree_sitter_facade::Query::new(ts_lang(), KEEP).unwrap();
-        let align = topiary_tree_sitter_facade::Query::new(ts_lang(), ALIGN).unwrap();
-        Query {
-            script,
-            style,
-            impl_close,
-            remove,
-            shift,
-            keep,
-            align,
-        }
+pub fn queries() -> &'static Queries {
+    QUERIES.get_or_init(|| {
+        let cure = topiary_tree_sitter_facade::Query::new(ts_lang(), CURE_QUERY).unwrap();
+        let post = topiary_tree_sitter_facade::Query::new(ts_lang(), POST_PROCESS_QUERY).unwrap();
+        Queries { cure, post }
     })
 }

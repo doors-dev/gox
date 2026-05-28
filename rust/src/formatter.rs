@@ -36,17 +36,14 @@ pub fn format(input: &[u8], output: &mut Vec<u8>) -> Result<(), topiary_core::Fo
     }
     let tree = tree.unwrap();
     let root = tree.root_node();
-    let scripts = init::query().scripts(&root, formatted_gox.as_slice());
-    let styles = init::query().styles(&root, formatted_gox.as_slice());
-    let keep = init::query().keep(&root, formatted_gox.as_slice());
-    let shift = init::query().shift(&root, formatted_gox.as_slice());
-    let align = init::query().align(&root, formatted_gox.as_slice());
+    let post_nodes = init::queries().post(&root, formatted_gox.as_slice());
     let mut proc = PostProcessor::new(formatted_gox, output);
-    proc.add_externals(scripts, format_js, true);
-    proc.add_externals(styles, format_css, true);
-    proc.add_externals(keep, format_keep, false);
-    proc.add_externals(shift, format_shift, false);
-    proc.add_externals(align, format_align, false);
+    proc.add_externals(post_nodes.scripts, format_js, true);
+    proc.add_externals(post_nodes.styles, format_css, true);
+    proc.add_externals(post_nodes.keep, format_keep, false);
+    proc.add_externals(post_nodes.shift, format_shift, false);
+    proc.add_externals(post_nodes.align, format_align, false);
+    proc.add_externals(post_nodes.antiline, format_antiline, false);
     proc.write_out();
     let append_line = if let Some(b) = output.last()
         && *b == b'\n'
@@ -67,8 +64,9 @@ struct CureNode<'a> {
 }
 
 fn cure(input: &[u8], root: &topiary_tree_sitter_facade::Node) -> Option<Vec<u8>> {
-    let implicid_close = init::query().implicid_close(root, input);
-    let remove = init::query().remove(root, input);
+    let cure_nodes = init::queries().cure(root, input);
+    let implicid_close = cure_nodes.imlicid_close;
+    let remove = cure_nodes.remove;
     let total = implicid_close.len() + remove.len();
     if total == 0 {
         return None;
@@ -374,6 +372,38 @@ fn dump(content: &[u8]) -> io::Result<()> {
     Ok(())
 } */
 
+fn write_inline_body(out: &mut Vec<u8>, code: &str, indent: &Indent, indent_str: &str) {
+    write!(out, "\n").unwrap();
+    let advanced = indent.advance();
+    for line in code.lines() {
+        write!(out, "{}{}\n", advanced.indent(indent_str), line).unwrap();
+    }
+    write!(out, "{}", indent.indent(indent_str)).unwrap();
+}
+
+fn write_inline_errored_body(out: &mut Vec<u8>, code: &str, indent: &Indent, indent_str: &str) {
+    let min_indent = code
+        .lines()
+        .skip(1)
+        .filter(|l| !l.trim().is_empty())
+        .map(|l| l.len() - l.trim_start().len())
+        .min()
+        .unwrap_or(0);
+    write!(out, "\n").unwrap();
+    let advanced = indent.advance();
+    let mut first = true;
+    for line in code.lines() {
+        let trimmed = if !first && line.len() >= min_indent {
+            &line[min_indent..]
+        } else {
+            first = false;
+            line
+        };
+        write!(out, "{}{}\n", advanced.indent(indent_str), trimmed).unwrap();
+    }
+    write!(out, "{}", indent.indent(indent_str)).unwrap();
+}
+
 fn format_js(
     out: &mut Vec<u8>,
     code: &str,
@@ -387,17 +417,16 @@ fn format_js(
         biome_js_parser::JsParserOptions::default(),
     );
     let root = parsed.syntax();
+    if parsed.has_errors() {
+        write_inline_errored_body(out, code, &indent, indent_str);
+        return Ok(());
+    }
     let mut options = biome_js_formatter::context::JsFormatOptions::new(source_type);
     options.set_semicolons(biome_js_formatter::context::Semicolons::AsNeeded);
     init::indent().apply_js(&mut options);
     let formatted = biome_js_formatter::format_node(options, &root)?;
     let printed = formatted.print()?;
-    write!(out, "\n").unwrap();
-    let advanced = indent.advance();
-    for line in printed.into_code().lines() {
-        write!(out, "{}{}\n", advanced.indent(indent_str), line).unwrap();
-    }
-    write!(out, "{}", indent.indent(indent_str)).unwrap();
+    write_inline_body(out, &printed.into_code(), &indent, indent_str);
     Ok(())
 }
 
@@ -410,16 +439,15 @@ fn format_css(
     let source_type = biome_css_syntax::CssFileSource::css();
     let parsed = biome_css_parser::parse_css(code, biome_css_parser::CssParserOptions::default());
     let root = parsed.syntax();
+    if parsed.has_errors() {
+        write_inline_errored_body(out, code, &indent, indent_str);
+        return Ok(());
+    }
     let mut options = biome_css_formatter::context::CssFormatOptions::new(source_type);
     init::indent().apply_css(&mut options);
     let formatted = biome_css_formatter::format_node(options, &root)?;
     let printed = formatted.print()?;
-    write!(out, "\n").unwrap();
-    let advanced = indent.advance();
-    for line in printed.into_code().lines() {
-        write!(out, "{}{}\n", advanced.indent(indent_str), line).unwrap();
-    }
-    write!(out, "{}", indent.indent(indent_str)).unwrap();
+    write_inline_body(out, &printed.into_code(), &indent, indent_str);
     Ok(())
 }
 
@@ -487,6 +515,21 @@ fn format_align(
     }
     if !code.ends_with('\n') {
         out.pop();
+    }
+    Ok(())
+}
+
+fn format_antiline(
+    out: &mut Vec<u8>,
+    code: &str,
+    _: Indent,
+    _: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if code.is_empty() {
+        return Ok(());
+    }
+    for (_, line) in code.lines().enumerate() {
+        write!(out, "{}", line.trim()).unwrap();
     }
     Ok(())
 }
