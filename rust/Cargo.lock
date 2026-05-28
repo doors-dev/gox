@@ -1330,9 +1330,9 @@ dependencies = [
 
 [[package]]
 name = "topiary-core"
-version = "0.7.3"
+version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89df094e19f103c5b8e120a1ffa30a6309daa10bef8d186e598a3df633e6a221"
+checksum = "b0fc1e4b4abca5dd11de6cda0f9cf6758050f34f0af4ec93f711aa5d6b85559b"
 dependencies = [
  "futures",
  "itertools",
@@ -1353,9 +1353,9 @@ dependencies = [
 
 [[package]]
 name = "topiary-tree-sitter-facade"
-version = "0.7.3"
+version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "41b7f801962f0e1d022f78a46c6afa2d2158138a3955dbbd25bb92cc5ef61ddb"
+checksum = "ff755d7b60cd06e7ae4ef97e9dde5de787b9a1733b3ca0efa095ab1a90df0b12"
 dependencies = [
  "js-sys",
  "streaming-iterator",
@@ -1411,9 +1411,9 @@ dependencies = [
 
 [[package]]
 name = "tree-sitter"
-version = "0.26.9"
+version = "0.25.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4dab76d0b724ba557954125188cf0633a1ca43199ced82d95c7b9c32cc3de1f3"
+checksum = "78f873475d258561b06f1c595d93308a7ed124d9977cb26b148c2084a4a3cc87"
 dependencies = [
  "cc",
  "regex",

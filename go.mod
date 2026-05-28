@@ -7,7 +7,7 @@ require (
 	github.com/doors-dev/tree-sitter-gox v0.1.0
 	github.com/go-git/go-billy/v5 v5.9.0
 	github.com/go-git/go-git/v5 v5.19.1
-	github.com/tree-sitter/go-tree-sitter v0.24.1-0.20251112183152-c9492002f76e
+	github.com/tree-sitter/go-tree-sitter v0.25.0
 	golang.org/x/sync v0.20.0
 	golang.org/x/term v0.43.0
 )
