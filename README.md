@@ -18,9 +18,17 @@ GoX lets you write HTML templates as typed Go expressions that compile to plain 
 
 > For practical extensions on top of GoX, see [`github.com/doors-dev/goxx`](https://github.com/doors-dev/goxx).
 
+> This README focuses on installation, workflow, editor integration, and the rendering API behind GoX.
+
 > Working with an LLM agent? Point it at [`llms.md`](./llms.md) — the condensed agent-facing reference (syntax, workflow, pitfalls). See [Using with LLM agents](#using-with-llm-agents) below for setup.
 
-> This README focuses on installation, workflow, editor integration, and the rendering API behind GoX.
+## Built for [Doors](https://doors.dev)
+
+GoX is the template engine powering [doors](https://doors.dev) — a server-driven framework for building reactive web applications entirely in Go.
+
+Doors lets you write full interactive UIs in Go without JavaScript, with reactive state, type-safe routing, and real-time sync under the hood. The browser acts as a remote renderer while your Go server is the UI runtime.
+
+If you are looking for a complete framework on top of GoX, check out [doors](https://doors.dev).
 
 ---
 
