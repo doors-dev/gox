@@ -495,6 +495,7 @@ _
    (gox_comment)
    (gox_script_head)
    (gox_style_head)
+   (gox_tilde_comment)  
   ] @prepend_input_softline  @allow_blank_line_before
 )
 
@@ -514,6 +515,7 @@ _
    (gox_comment)
    (gox_script_head)
    (gox_style_head)
+   (gox_tilde_comment)
   ] 
   .
   (gox_tilde_comment) @prepend_input_softline  @allow_blank_line_before
