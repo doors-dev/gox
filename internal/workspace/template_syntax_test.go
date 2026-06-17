@@ -364,7 +364,7 @@ elem Demo(LandingAction any) {
 
 // --- Code: inline expression and Go snippets -------------------------------
 
-// Doc section: "Inline expression". `~func { ... }` should be lowered to an
+// Doc section: "GoX expression". `~({ ... })` should be lowered to an
 // IIFE returning `any` so the result can be passed to `__c.Any`.
 func TestInlineExpression(t *testing.T) {
 	src := `package demo
@@ -387,7 +387,7 @@ elem Demo(id int) {
 	)
 }
 
-// Doc section: "Go snippets". `~{ ... }` switches into raw Go mode; the
+// Doc section: "Go snippet". `~~ ... ~~` switches into raw Go mode; the
 // snippet body should appear verbatim inside the rendered function.
 func TestGoSnippet(t *testing.T) {
 	src := `package demo

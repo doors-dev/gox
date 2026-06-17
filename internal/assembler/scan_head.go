@@ -66,6 +66,8 @@ func scanContent(coll collector, root *tree_sitter.Node) {
 			scanTilde(coll, &child)
 		case grammer.GOX_TILDE_BLOCK:
 			scanTildeBlock(coll, &child)
+		case grammer.GOX_TILDE_SNIPPET:
+			scanTildeSnippet(coll, &child)
 		}
 		for range proxyLevel {
 			coll.indentEnd()

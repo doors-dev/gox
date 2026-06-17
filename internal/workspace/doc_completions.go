@@ -108,12 +108,40 @@ func findAttrTagName(source []byte, attrName *tree_sitter.Node) (string, bool) {
 	return name.Utf8Text(source), true
 }
 
-func prevIsTilde(source []byte, node *tree_sitter.Node) bool {
-	prev := int(node.StartByte()) - 1
-	for prev < 0 {
+func isFirstChild(node *tree_sitter.Node) bool {
+	parent := node.Parent()
+	if parent == nil {
 		return false
 	}
-	return source[prev] == '~'
+	child := parent.Child(0)
+	if child == nil {
+		return false
+	}
+	return child.Equals(*node)
+}
+
+func isSnippet(source []byte, node *tree_sitter.Node) bool {
+	if node.Kind() != grammer.GOX_TILDE_MARKER {
+		return false
+	}
+	if (node.EndByte() - node.StartByte()) == 1 {
+		return false
+	}
+	return source[node.EndByte()-1] == '~'
+}
+
+func isGox(node *tree_sitter.Node) bool {
+	node = node.Parent()
+	for {
+		if node == nil {
+			return false
+		}
+		if node.IsError() {
+			node = node.Parent()
+			continue
+		}
+		return strings.HasPrefix(node.GrammarName(), "gox_")
+	}
 }
 
 func (d Doc) Completions(enc common.Encoding, pos common.Pos) (completions []Completion, complete bool) {
@@ -145,8 +173,8 @@ func (d Doc) Completions(enc common.Encoding, pos common.Pos) (completions []Com
 			})
 			completions = append(completions, Completion{
 				Range: rang,
-				Text:  first.String() + "=func {\n\t$0\n}",
-				Label: first.String() + "=func",
+				Text:  first.String() + "=({\n\t$0\n})",
+				Label: first.String() + "=({..})",
 				kind:  completion.Snippet,
 			})
 		}
@@ -157,8 +185,8 @@ func (d Doc) Completions(enc common.Encoding, pos common.Pos) (completions []Com
 				text = attr.String()
 				label = attr.String()
 			} else {
-				text = attr.String() + "="
-				label = attr.String() + "="
+				text = attr.String() + "=\"$0\""
+				label = attr.String() + "=\"..\""
 			}
 			completions = append(completions, Completion{
 				Range: rang,
@@ -168,18 +196,26 @@ func (d Doc) Completions(enc common.Encoding, pos common.Pos) (completions []Com
 			})
 		}
 	}
-	if node.Kind() == grammer.GOX_TILDE_MARKER || node.Kind() == "~" {
-		proxy := prevIsTilde(d.source.Source(), node)
+	if node.Kind() == grammer.GOX_TILDE_MARKER || (node.Kind() == "~" && isGox(node)) {
 		ran := d.source.FromRange(enc, common.NewTSRange(node.Range()))
+		if isSnippet(d.source.Source(), node) {
+			if !isFirstChild(node) {
+				return
+			}
+			completions = append(completions, Completion{
+				Text:  "~~\n\t$0\n~~",
+				Label: "~~ ... ",
+				Range: ran,
+				kind:  completion.Snippet,
+			})
+			return
+		}
 		completions = append(completions, Completion{
 			Text:  "~($0)",
 			Label: "~(..)",
 			Range: ran,
 			kind:  completion.Snippet,
 		})
-		if proxy {
-			return
-		}
 		completions = append(completions, Completion{
 			Text:  "~(if $1 {\n\t$2\n})",
 			Label: "~(if..)",
@@ -193,19 +229,24 @@ func (d Doc) Completions(enc common.Encoding, pos common.Pos) (completions []Com
 			kind:  completion.Snippet,
 		})
 		completions = append(completions, Completion{
-			Text:  "~func {\n\t$0\n}",
-			Label: "~func",
+			Text:  "~({\n\t$0\n})",
+			Label: "~({..})",
 			Range: ran,
 			kind:  completion.Snippet,
 		})
 		completions = append(completions, Completion{
-			Text:  "~{\n\t$0\n}",
-			Label: "~{..}",
+			Text:  "~>($0)",
+			Label: "~>(..)",
+			Range: ran,
+			kind:  completion.Snippet,
+		})
+		completions = append(completions, Completion{
+			Text:  "~~\n\t$0\n~~",
+			Label: "~~ ... ",
 			Range: ran,
 			kind:  completion.Snippet,
 		})
 		return
-
 	}
 	if node.Kind() == grammer.GOX_HEAD_NAME {
 		str := node.Utf8Text(d.source.Source())

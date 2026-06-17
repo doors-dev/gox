@@ -4,7 +4,7 @@ go 1.25.1
 
 require (
 	github.com/bytedance/sonic v1.15.1
-	github.com/doors-dev/tree-sitter-gox v0.1.0
+	github.com/doors-dev/tree-sitter-gox v0.2.1
 	github.com/go-git/go-billy/v5 v5.9.0
 	github.com/go-git/go-git/v5 v5.19.1
 	github.com/tree-sitter/go-tree-sitter v0.25.0

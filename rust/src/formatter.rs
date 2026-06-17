@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+
 use std::io::Write;
 
 use crate::init::indent;
@@ -63,52 +64,113 @@ struct CureNode<'a> {
     remove: bool,
 }
 
+impl<'a> CureNode<'a> {
+    fn cure(&self, input: &[u8], buf: &mut Vec<u8>, mut end: usize, queue: &[Self]) -> usize {
+        let mut i = 0;
+        while i < queue.len() {
+            let n = queue.get(i).unwrap();
+            if n.node.start_byte() >= self.node.end_byte() {
+                break;
+            }
+            i += 1;
+        }
+        let chunk = &input[end..self.node.start_byte()];
+        let next = queue.get(i);
+        if self.remove {
+            buf.extend_from_slice(chunk);
+            end = self.node.end_byte();
+            if let Some(cure) = next {
+                return cure.cure(input, buf, end, &queue[i + 1..]);
+            }
+            return end;
+        }
+        if self.node.grammar_name() == "gox_implicit_close_head" {
+            let name: Option<String> = (|| {
+                let head = self.node.parent()?;
+                let open = head.child_by_field_name("open")?;
+                let name_node = open.child_by_field_name("name")?;
+                name_node.utf8_text(input).ok().map(|s| s.to_owned())
+            })();
+            if name.is_none() {
+                if let Some(cure) = next {
+                    return cure.cure(input, buf, end, &queue[i + 1..]);
+                }
+                return end;
+            }
+            buf.extend_from_slice(chunk);
+            buf.extend_from_slice("</".as_bytes());
+            buf.extend_from_slice(name.unwrap().as_bytes());
+            buf.extend_from_slice(">".as_bytes());
+            end = self.node.end_byte();
+            if let Some(cure) = next {
+                return cure.cure(input, buf, end, &queue[i + 1..]);
+            }
+            return end;
+        }
+        if self.node.grammar_name() == "gox_func" {
+            buf.extend_from_slice(chunk);
+            buf.extend_from_slice("(".as_bytes());
+            if let Some(body) = self.node.child_by_field_name("body") {
+                if i > 0 {
+                    let start = queue.get(0).unwrap();
+                    let end = start.cure(input, buf, body.start_byte(), &queue[1..i]);
+                    buf.extend_from_slice(&input[end..body.end_byte()]);
+                } else {
+                    buf.extend_from_slice(&input[body.start_byte()..body.end_byte()]);
+                }
+            } else {
+                buf.extend_from_slice("{}".as_bytes());
+            }
+            buf.extend_from_slice(")".as_bytes());
+            end = self.node.end_byte();
+            if let Some(cure) = next {
+                return cure.cure(input, buf, end, &queue[i + 1..]);
+            }
+            return end;
+        }
+        if self.node.grammar_name() == "gox_tilde_block" {
+            buf.extend_from_slice(chunk);
+            buf.extend_from_slice("~~\n".as_bytes());
+            if let Some(body) = self.node.child_by_field_name("body") {
+                if i > 0 {
+                    let start = queue.get(0).unwrap();
+                    let end = start.cure(input, buf, body.start_byte(), &queue[1..i]);
+                    buf.extend_from_slice(&input[end..body.end_byte()]);
+                } else {
+                    buf.extend_from_slice(&input[body.start_byte()..body.end_byte()]);
+                }
+            }
+            buf.extend_from_slice("\n~~".as_bytes());
+            end = self.node.end_byte();
+            if let Some(cure) = next {
+                return cure.cure(input, buf, end, &queue[i + 1..]);
+            }
+            return end;
+        }
+        panic!("Unknown node")
+    }
+}
+
 fn cure(input: &[u8], root: &topiary_tree_sitter_facade::Node) -> Option<Vec<u8>> {
     let cure_nodes = init::queries().cure(root, input);
-    let implicid_close = cure_nodes.imlicid_close;
-    let remove = cure_nodes.remove;
-    let total = implicid_close.len() + remove.len();
+    let total = cure_nodes.transform.len() + cure_nodes.remove.len();
     if total == 0 {
         return None;
     }
-    let mut to_cure = Vec::with_capacity(implicid_close.len() + remove.len());
-    for node in implicid_close.into_iter() {
+    let mut to_cure = Vec::with_capacity(total);
+    for node in cure_nodes.transform.into_iter() {
         to_cure.push(CureNode {
             node,
             remove: false,
         });
     }
-    for node in remove.into_iter() {
+    for node in cure_nodes.remove.into_iter() {
         to_cure.push(CureNode { node, remove: true });
     }
     to_cure.sort_by_key(|cure| cure.node.start_byte());
     let mut buf = Vec::new();
-    let mut insert_end = 0;
-    for cure in to_cure.into_iter() {
-        let remove = cure.remove;
-        let node = cure.node;
-        let chunk = &input[insert_end..node.start_byte()];
-        if remove {
-            buf.extend_from_slice(chunk);
-            insert_end = node.end_byte();
-            continue;
-        }
-        let name: Option<String> = (|| {
-            let head = node.parent()?;
-            let open = head.child_by_field_name("open")?;
-            let name_node = open.child_by_field_name("name")?;
-            name_node.utf8_text(input).ok().map(|s| s.to_owned())
-        })();
-        if name.is_none() {
-            continue;
-        }
-        buf.extend_from_slice(chunk);
-        buf.extend_from_slice("</".as_bytes());
-        buf.extend_from_slice(name.unwrap().as_bytes());
-        buf.extend_from_slice(">".as_bytes());
-        insert_end = node.end_byte();
-    }
-    buf.extend_from_slice(&input[insert_end..]);
+    let end = to_cure[0].cure(input, &mut buf, 0, &to_cure[1..]);
+    buf.extend_from_slice(&input[end..]);
     Some(buf)
 }
 
@@ -132,10 +194,6 @@ impl External {
         if (self.formatter)(output, &self.code, indent, indent_str).is_err() {
             write!(output, "{}", &self.code).unwrap();
         }
-        /*
-        for line in self.code.lines() {
-            write!(output, "{}{}\n", &indent, line).unwrap();
-        } */
     }
     fn create(text: &[u8], node: Node<'_>, formatter: Formatter, head: bool) -> Option<Self> {
         if !head {
@@ -417,10 +475,11 @@ fn format_js(
         biome_js_parser::JsParserOptions::default(),
     );
     let root = parsed.syntax();
+    /*
     if parsed.has_errors() {
         write_inline_errored_body(out, code, &indent, indent_str);
         return Ok(());
-    }
+    } */
     let mut options = biome_js_formatter::context::JsFormatOptions::new(source_type);
     options.set_semicolons(biome_js_formatter::context::Semicolons::AsNeeded);
     init::indent().apply_js(&mut options);

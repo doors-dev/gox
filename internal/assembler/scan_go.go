@@ -10,9 +10,6 @@ func scanGoSource(coll collector, root *tree_sitter.Node) {
 	scanner := goScanner{
 		root: root,
 		coll: coll,
-		/*
-			importGox:     importGox,
-		*/
 	}
 	scanner.scan()
 }
@@ -25,25 +22,41 @@ func scanGoSnippet(coll collector, root *tree_sitter.Node) {
 	scanner.scan()
 }
 
-func scanGoSnippetWithSiblings(coll collector, start *tree_sitter.Node, until tree_sitter.Point) {
+func scanGoSnippetWithSiblings(coll collector, start *tree_sitter.Node, until tree_sitter.Point, include bool) {
 	scanner := goScanner{
-		root:          start,
-		coll:          coll,
-		siblingsUntil: common.NewTSPos(until),
-		scanSiblings:  true,
+		root: start,
+		coll: coll,
+		scanSiblings: &scanSiblings{
+			until:   common.NewTSPos(until),
+			include: include,
+		},
 	}
 	scanner.scan()
 }
 
+type scanSiblings struct {
+	until   common.Pos
+	include bool
+}
+
+func (s *scanSiblings) cont(end tree_sitter.Point) bool {
+	pos := common.NewTSPos(end)
+	compare := s.until.Compare(pos)
+	if compare == 1 {
+		return true
+	}
+	if compare == 0 {
+		return s.include
+	}
+	return false
+}
+
 type goScanner struct {
-	root          *tree_sitter.Node
-	scanSiblings  bool
-	beg           tree_sitter.Point
-	cursor        *tree_sitter.TreeCursor
-	importGox     bool
-	importContext bool
-	coll          collector
-	siblingsUntil common.Pos
+	root         *tree_sitter.Node
+	beg          tree_sitter.Point
+	cursor       *tree_sitter.TreeCursor
+	coll         collector
+	scanSiblings *scanSiblings
 }
 
 func (g *goScanner) portal(node *tree_sitter.Node) {
@@ -55,21 +68,12 @@ func (g *goScanner) process() bool {
 	node := g.cursor.Node()
 	kind := node.Kind()
 	switch kind {
-	case grammer.PACKAGE:
-		if !g.importGox {
-			return false
-		}
-		g.coll.portal(g.beg, node.EndPosition())
-		g.beg = node.EndPosition()
-		if g.importGox {
-			g.importGox = false
-			g.coll.cr()
-			g.coll.append(r(`import "github.com/doors-dev/gox"`))
-		}
-		return true
 	case grammer.GOX_ELEMENT:
 		g.portal(node)
 		scanElement(g.coll, node)
+	case grammer.GOX_EXPRESSION:
+		g.portal(node)
+		scanExpression(g.coll, node)
 	case grammer.GOX_ELEM_FUNC_DEC:
 		g.portal(node)
 		scanElemDec(g.coll, node)
@@ -108,15 +112,14 @@ func (g *goScanner) scan() {
 		g.cursor = g.root.Walk()
 		g.scanNode()
 		g.cursor.Close()
-		if !g.scanSiblings {
+		if g.scanSiblings == nil {
 			break
 		}
-		next := g.root.NextNamedSibling()
+		next := g.root.NextSibling()
 		if next == nil {
 			break
 		}
-		newEndPos := next.EndPosition()
-		if g.siblingsUntil.Compare(common.NewTSPos(newEndPos)) == -1 {
+		if !g.scanSiblings.cont(next.EndPosition()) {
 			break
 		}
 		g.root = next

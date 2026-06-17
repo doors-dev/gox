@@ -492,6 +492,7 @@ _
    (gox_tilde)
    (gox_tilde_proxy)
    (gox_tilde_block)
+   (gox_tilde_snippet)
    (gox_comment)
    (gox_script_head)
    (gox_style_head)
@@ -512,6 +513,7 @@ _
    (gox_tilde)
    (gox_tilde_proxy)
    (gox_tilde_block)
+   (gox_tilde_snippet)
    (gox_comment)
    (gox_script_head)
    (gox_style_head)
@@ -533,6 +535,7 @@ _
    (gox_raw_head)
    (gox_tilde)
    (gox_tilde_block)
+   (gox_tilde_snippet)
    (gox_comment)
   ] 
   .
@@ -546,6 +549,7 @@ _
    (gox_doctype)
    (gox_raw_head)
    (gox_tilde_block)
+   (gox_tilde_snippet)
    (gox_tilde_proxy)
    (gox_comment)
   ] @prepend_input_softline @prepend_antispace @allow_blank_line_before
@@ -586,6 +590,7 @@ _
    (gox_raw_head)
    (gox_tilde)
    (gox_tilde_block)
+   (gox_tilde_snippet)
    (gox_comment)
    (gox_script_head)
    (gox_style_head)
@@ -593,6 +598,7 @@ _
   .
   [
    (gox_tilde_block)
+   (gox_tilde_snippet)
    (gox_script_head)
    (gox_style_head)
   ] @prepend_hardline @allow_blank_line_before
@@ -601,6 +607,7 @@ _
 (_
   [
    (gox_tilde_block)
+   (gox_tilde_snippet)
    (gox_script_head)
    (gox_style_head)
   ] @append_hardline 
@@ -617,6 +624,7 @@ _
    (gox_tilde)
    (gox_tilde_proxy)
    (gox_tilde_block)
+   (gox_tilde_snippet)
    (gox_comment)
    (gox_script_head)
    (gox_style_head)
@@ -637,6 +645,7 @@ _
    (gox_tilde)
    (gox_tilde_proxy)
    (gox_tilde_block)
+   (gox_tilde_snippet)
    (gox_comment)
    (gox_script_head)
    (gox_style_head)
@@ -696,6 +705,21 @@ _
   .
 )
 
+(gox_expression
+  .
+  "{" @append_indent_start @append_hardline 
+  (_)+
+  "}" @prepend_indent_end @prepend_hardline
+  .
+)
+
+(gox_tilde_snippet
+  .
+  (gox_tilde_marker) @append_hardline 
+  (gox_tilde_marker) @prepend_hardline
+  .
+)
+
 (gox_block 
   .
   "{" @append_input_softline @append_antispace
@@ -705,14 +729,11 @@ _
 )
 
 
-
 (gox_tilde_block
   "{" @append_indent_start @append_hardline 
   (_)+
   "}" @prepend_indent_end
 )
-
-
 
 
 (_

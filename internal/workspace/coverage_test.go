@@ -40,8 +40,8 @@ elem View() {
 `)
 	attrPos := posAfterMarker(t, attrDoc.SourceFile().Path(), "cla")
 	attrCompletions, _ := attrDoc.Completions(common.UTF8, attrPos)
-	if !hasCompletionLabel(attrCompletions, "class=") {
-		t.Fatalf("attribute completions = %#v, want class=", attrCompletions)
+	if !hasCompletionLabel(attrCompletions, "class=\"..\"") {
+		t.Fatalf("attribute completions = %#v, want class=\"..\"", attrCompletions)
 	}
 
 	root := attrDoc.tree.RootNode()
@@ -123,14 +123,8 @@ elem View() {
 `)
 	proxyPos := posAfterMarker(t, proxyDoc.SourceFile().Path(), "~~")
 	proxyCompletions, _ := proxyDoc.Completions(common.UTF8, proxyPos)
-	if len(proxyCompletions) != 1 {
-		t.Fatalf("proxy tilde completions len = %d, want 1 (%#v)", len(proxyCompletions), proxyCompletions)
-	}
-	if !hasCompletionLabel(proxyCompletions, "~(..)") {
-		t.Fatalf("proxy tilde completions = %#v, want ~(..)", proxyCompletions)
-	}
-	if hasCompletionLabel(proxyCompletions, "~(if..)") {
-		t.Fatalf("proxy tilde completions = %#v, do not want ~(if..)", proxyCompletions)
+	if !hasCompletionLabel(proxyCompletions, "~~ ... ") {
+		t.Fatalf("proxy tilde completions = %#v, want ~~ ... ", proxyCompletions)
 	}
 }
 

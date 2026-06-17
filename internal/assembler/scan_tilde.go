@@ -19,6 +19,14 @@ func scanTildeBlock(coll collector, root *tree_sitter.Node) {
 	coll.cr()
 	scanGoSnippet(coll, root)
 }
+func scanTildeSnippet(coll collector, root *tree_sitter.Node) {
+	root = root.ChildByFieldName("body")
+	if root == nil {
+		return
+	}
+	coll.cr()
+	scanGoSnippet(coll, root)
+}
 
 func scanTilde(coll collector, root *tree_sitter.Node) {
 	value := root.ChildByFieldName("value")
@@ -47,7 +55,7 @@ func scanTildeFor(coll collector, root *tree_sitter.Node) {
 	setup := root.ChildByFieldName("setup")
 	body := root.ChildByFieldName("body")
 	if body != nil {
-		scanGoSnippetWithSiblings(coll, setup, body.StartPosition())
+		scanGoSnippetWithSiblings(coll, setup, body.StartPosition(), false)
 	} else {
 		scanGoSnippet(coll, setup)
 	}
@@ -63,7 +71,7 @@ func scanTildeIf(coll collector, root *tree_sitter.Node) {
 	setup := root.ChildByFieldName("setup")
 	cons := root.ChildByFieldName("consequence")
 	if cons != nil {
-		scanGoSnippetWithSiblings(coll, setup, cons.StartPosition())
+		scanGoSnippetWithSiblings(coll, setup, cons.StartPosition(), false)
 	} else {
 		scanGoSnippet(coll, setup)
 	}

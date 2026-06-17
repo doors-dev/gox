@@ -39,6 +39,7 @@ const (
 	GOX_DOCTYPE                   = "gox_doctype"
 	GOX_TILDE_PROXY               = "gox_tilde_proxy"
 	GOX_TILDE_COMMENT             = "gox_tilde_comment"
+	GOX_TILDE_SNIPPET             = "gox_tilde_snippet"
 	GOX_COMMENT                   = "gox_comment"
 	GOX_PLAIN_TEXT                = "gox_plain_text"
 	GOX_RAW_TEXT                  = "gox_raw_text"
@@ -54,6 +55,7 @@ const (
 	// MISC
 	GOX_SINGLE_ARG            = "gox_single_arg"
 	GOX_MULTI_ARG             = "gox_multi_arg"
+	GOX_EXPRESSION            = "gox_expression"
 	GOX_FUNC                  = "gox_func"
 	GOX_BLOCK                 = "gox_block"
 	GOX_IMPLICID_CLOSE        = "gox_implicit_close_head"
@@ -65,6 +67,6 @@ const (
 	GOX_TILDE        = "gox_tilde"
 	GOX_TILDE_IF     = "gox_tilde_if"
 	GOX_TILDE_FOR    = "gox_tilde_for"
-	GOX_TILDE_BLOCK   = "gox_tilde_block"
+	GOX_TILDE_BLOCK  = "gox_tilde_block"
 	GOX_TILDE_MARKER = "gox_tilde_marker"
 )

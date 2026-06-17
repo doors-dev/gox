@@ -91,12 +91,12 @@ pub fn new_parser() -> topiary_tree_sitter_facade::Parser {
 }
 
 pub struct CureNodes<'a> {
-    pub imlicid_close: Vec<Node<'a>>,
+    pub transform: Vec<Node<'a>>,
     pub remove: Vec<Node<'a>>,
 }
 
 const CURE_QUERY: &str = r#"
-(gox_implicit_close_head) @implicit_close
+[(gox_implicit_close_head) (gox_func) (gox_tilde_block)] @transform
 
 [(gox_redundant) (gox_space_filler) (gox_erroneous_close_head)] @remove
 "#;
@@ -157,7 +157,7 @@ impl Queries {
     ) -> CureNodes<'a> {
         let capture_names = self.cure.capture_names();
         let mut nodes = CureNodes {
-            imlicid_close: Vec::new(),
+            transform: Vec::new(),
             remove: Vec::new(),
         };
         let mut cursor = topiary_tree_sitter_facade::QueryCursor::new();
@@ -166,7 +166,7 @@ impl Queries {
             for capture in item.captures.iter() {
                 let name = capture_names[capture.index as usize];
                 match name {
-                    "implicit_close" => nodes.imlicid_close.push(capture.node.clone()),
+                    "transform" => nodes.transform.push(capture.node.clone()),
                     "remove" => nodes.remove.push(capture.node.clone()),
                     _ => {}
                 }
