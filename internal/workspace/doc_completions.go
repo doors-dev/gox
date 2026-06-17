@@ -203,7 +203,7 @@ func (d Doc) Completions(enc common.Encoding, pos common.Pos) (completions []Com
 				return
 			}
 			completions = append(completions, Completion{
-				Text:  "~~\n\t$0\n~~",
+				Text:  "~~\n$0\n~~",
 				Label: "~~ ... ",
 				Range: ran,
 				kind:  completion.Snippet,
@@ -241,7 +241,7 @@ func (d Doc) Completions(enc common.Encoding, pos common.Pos) (completions []Com
 			kind:  completion.Snippet,
 		})
 		completions = append(completions, Completion{
-			Text:  "~~\n\t$0\n~~",
+			Text:  "~~\n$0\n~~",
 			Label: "~~ ... ",
 			Range: ran,
 			kind:  completion.Snippet,
