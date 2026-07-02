@@ -26,6 +26,7 @@ func initServerNotifs(sess *session, on func(on onNotif, m ...method)) {
 		}
 		jsonDoc.setAsSource(j, doc)
 		jsonPos.convertDiagnosticsToSource(sess.man(), sess.enc(), doc, j)
+		jsonGenerator.addSyntaxErrors(sess.enc(), doc, j)
 		n.notify(j)
 	}, publishDiagnostics)
 }

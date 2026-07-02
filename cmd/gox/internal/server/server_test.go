@@ -71,7 +71,7 @@ func newSpyRWC() *spyRWC {
 	return &spyRWC{closed: make(chan struct{})}
 }
 
-func (r *spyRWC) Read([]byte) (int, error)  { return 0, io.EOF }
+func (r *spyRWC) Read([]byte) (int, error)    { return 0, io.EOF }
 func (r *spyRWC) Write(p []byte) (int, error) { return len(p), nil }
 func (r *spyRWC) Close() error {
 	r.once.Do(func() { close(r.closed) })
@@ -211,7 +211,7 @@ func TestResponseStateIssueRespondAndCancelAll(t *testing.T) {
 	if firstID != 1 || secondID != 2 {
 		t.Fatalf("issued ids = (%d, %d), want (1, 2)", firstID, secondID)
 	}
-	if !state.respond(firstID, lsp.Response{Result: []byte(`"ok"` )}) {
+	if !state.respond(firstID, lsp.Response{Result: []byte(`"ok"`)}) {
 		t.Fatal("respond(firstID) = false, want true")
 	}
 	if state.respond(firstID, lsp.Response{}) {

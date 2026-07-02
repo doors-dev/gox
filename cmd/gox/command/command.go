@@ -19,7 +19,13 @@ const help = `Commands:
   srv		Starts the GoX Language Server (default)
   gen		Generates .x.go files from .gox files and removes orphaned .x.go files
   fmt		Formats .go and .gox files
-  ver		Prints the version`
+  ver		Prints the version
+
+gen / fmt accept any number of file, directory, or recursion operands ("./...", "pkg/..."); default ".".
+  -check	report files that need work and exit non-zero; write nothing
+  -no-ignore	do not respect .gitignore
+  -force	gen: overwrite generated files without checking
+  -no-go	fmt: format .gox files only, leave plain .go untouched`
 
 func Execute(s Starter) (error, error) {
 	args := os.Args[1:]

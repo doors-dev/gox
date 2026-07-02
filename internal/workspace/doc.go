@@ -44,17 +44,17 @@ type doc struct {
 	sourceVersion int32
 	targetVersion int32
 	err           error
-	diagnositcs   *ast.Node
+	diagnostics   *ast.Node
 }
 
 func (d Doc) StoreDiag(a *ast.Node) {
 	m, _ := a.MarshalJSON()
 	clone, _ := sonic.Get(m)
-	d.diagnositcs = &clone
+	d.diagnostics = &clone
 }
 
 func (d Doc) GetDiag() *ast.Node {
-	return d.diagnositcs
+	return d.diagnostics
 }
 
 func (d Doc) PrintTarget() {
@@ -92,7 +92,11 @@ func (d Doc) Load() error {
 func (d Doc) Parse() error {
 	d.tree = d.parser.Parse(d.source.Source(), nil)
 	if d.tree.RootNode().HasError() {
-		return errors.New("GoX could not parse this file. Fix the syntax errors and try again.")
+		msg := "GoX could not parse this file. Fix the syntax errors and try again."
+		if report := d.SyntaxErrorReport(); report != "" {
+			msg += "\n" + report
+		}
+		return errors.New(msg)
 	}
 	return nil
 }

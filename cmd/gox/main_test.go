@@ -132,9 +132,13 @@ func TestMainExitsWithCommandError(t *testing.T) {
 	if result.exitCode != 1 {
 		t.Fatalf("exit code = %d, want 1", result.exitCode)
 	}
-	want := "Unknown command: wat\n\nCommands:\n  srv\t\tStarts the GoX Language Server (default)\n  gen\t\tGenerates .x.go files from .gox files and removes orphaned .x.go files\n  fmt\t\tFormats .go and .gox files\n  ver\t\tPrints the version\n"
-	if result.stderr != want {
-		t.Fatalf("stderr = %q, want %q", result.stderr, want)
+	if !strings.HasPrefix(result.stderr, "Unknown command: wat\n\nCommands:\n") {
+		t.Fatalf("stderr = %q, want unknown-command help", result.stderr)
+	}
+	for _, want := range []string{"gen\t\t", "fmt\t\t", "-check\t", "-no-go\t"} {
+		if !strings.Contains(result.stderr, want) {
+			t.Fatalf("stderr = %q, missing %q", result.stderr, want)
+		}
 	}
 }
 

@@ -36,6 +36,7 @@ func initClientNotifs(sess *session, on func(on onNotif, m ...method)) {
 		case workspace.KindSource:
 			doc.SourceOpen(int32(version))
 			upd, _ := doc.SourceUpdate(text)
+			insertGoxImport(sess, doc)
 			if upd && doc.TargetIsOpened() {
 				sess.callClient(
 					applyEdit,
@@ -132,20 +133,7 @@ func initClientNotifs(sess *session, on func(on onNotif, m ...method)) {
 				)
 			}
 			if updated {
-				pos, do := doc.GoxImportPos(sess.enc())
-				if !do {
-					return
-				}
-				edit := jsonGenerator.newInsertEdit(
-					doc.SourceFile().URI(),
-					pos,
-					"\n\nimport \"github.com/doors-dev/gox\"",
-					"GoX imported",
-				)
-				sess.callClient(
-					applyEdit,
-					edit,
-				)
+				insertGoxImport(sess, doc)
 			}
 		case workspace.KindTarget:
 			return
@@ -248,4 +236,20 @@ func initClientNotifs(sess *session, on func(on onNotif, m ...method)) {
 		n.forward()
 	}, didChangeWorkspaceFolders)
 
+}
+
+func insertGoxImport(sess *session, doc workspace.Doc) {
+	pos, do := doc.GoxImportPos(sess.enc())
+	if !do {
+		return
+	}
+	sess.callClient(
+		applyEdit,
+		jsonGenerator.newInsertEdit(
+			doc.SourceFile().URI(),
+			pos,
+			"\n\nimport \"github.com/doors-dev/gox\"",
+			"GoX imported",
+		),
+	)
 }

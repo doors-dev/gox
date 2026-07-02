@@ -20,3 +20,9 @@ func red(s string) string {
 	}
 	return "\x1b[31m" + s + "\x1b[0m"
 }
+func yellow(s string) string {
+	if !useColor {
+		return s
+	}
+	return "\x1b[33m" + s + "\x1b[0m"
+}

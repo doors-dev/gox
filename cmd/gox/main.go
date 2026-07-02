@@ -16,7 +16,14 @@ func main() {
 	}
 	if runErr != nil {
 		fmt.Fprintln(os.Stderr, runErr.Error())
-		os.Exit(1)
+		os.Exit(exitCode(runErr))
 		return
 	}
+}
+
+func exitCode(err error) int {
+	if ec, ok := err.(interface{ ExitCode() int }); ok {
+		return ec.ExitCode()
+	}
+	return 1
 }

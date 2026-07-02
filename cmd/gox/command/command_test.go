@@ -3,6 +3,8 @@ package command
 import (
 	"errors"
 	"os"
+	"slices"
+	"strings"
 	"testing"
 )
 
@@ -60,19 +62,19 @@ func TestExecuteDispatch(t *testing.T) {
 		if cmdErr != nil || runErr != nil {
 			t.Fatalf("Execute() = (%v, %v)", cmdErr, runErr)
 		}
-		if starter.formatArgs.Path() != "./internal" || !starter.formatArgs.NoIgnore() {
+		if !slices.Equal(starter.formatArgs.Paths(), []string{"./internal"}) || !starter.formatArgs.NoIgnore() {
 			t.Fatalf("Format args = %#v", starter.formatArgs)
 		}
 	})
 
 	t.Run("generate", func(t *testing.T) {
-		os.Args = []string{"gox", "gen", "-force", "./views"}
+		os.Args = []string{"gox", "gen", "-force", "./views", "./cmd/..."}
 		starter := &stubStarter{}
 		cmdErr, runErr := Execute(starter)
 		if cmdErr != nil || runErr != nil {
 			t.Fatalf("Execute() = (%v, %v)", cmdErr, runErr)
 		}
-		if starter.generateArgs.Path() != "./views" || !starter.generateArgs.Force() {
+		if !slices.Equal(starter.generateArgs.Paths(), []string{"./views", "./cmd/..."}) || !starter.generateArgs.Force() {
 			t.Fatalf("Generate args = %#v", starter.generateArgs)
 		}
 	})
@@ -100,22 +102,33 @@ func TestExecuteDispatch(t *testing.T) {
 		if runErr != nil {
 			t.Fatalf("runErr = %v, want nil", runErr)
 		}
-		want := "Unknown command: wat\n\nCommands:\n  srv\t\tStarts the GoX Language Server (default)\n  gen\t\tGenerates .x.go files from .gox files and removes orphaned .x.go files\n  fmt\t\tFormats .go and .gox files\n  ver\t\tPrints the version"
+		want := "Unknown command: wat\n\n" + help
 		if cmdErr == nil || cmdErr.Error() != want {
 			t.Fatalf("cmdErr = %v, want %q", cmdErr, want)
 		}
 	})
 
-	t.Run("parse error", func(t *testing.T) {
+	t.Run("accepts multiple paths", func(t *testing.T) {
 		os.Args = []string{"gox", "fmt", "./one", "./two"}
+		starter := &stubStarter{}
+		cmdErr, runErr := Execute(starter)
+		if cmdErr != nil || runErr != nil {
+			t.Fatalf("Execute() = (%v, %v)", cmdErr, runErr)
+		}
+		if !slices.Equal(starter.formatArgs.Paths(), []string{"./one", "./two"}) {
+			t.Fatalf("Format paths = %v", starter.formatArgs.Paths())
+		}
+	})
+
+	t.Run("flag parse error", func(t *testing.T) {
+		os.Args = []string{"gox", "fmt", "-bogus"}
 		starter := &stubStarter{}
 		cmdErr, runErr := Execute(starter)
 		if runErr != nil {
 			t.Fatalf("runErr = %v, want nil", runErr)
 		}
-		want := "Could not parse format arguments: expected at most 1 path argument, got 2"
-		if cmdErr == nil || cmdErr.Error() != want {
-			t.Fatalf("cmdErr = %v, want %q", cmdErr, want)
+		if cmdErr == nil || !strings.HasPrefix(cmdErr.Error(), "Could not parse format arguments:") {
+			t.Fatalf("cmdErr = %v, want a parse error", cmdErr)
 		}
 	})
 

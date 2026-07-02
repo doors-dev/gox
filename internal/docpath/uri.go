@@ -107,7 +107,6 @@ func (uri DocumentURI) DirPath() string {
 	return filepath.Dir(uri.Path())
 }
 
-
 func filename(uri DocumentURI) (string, error) {
 	if uri == "" {
 		return "", nil

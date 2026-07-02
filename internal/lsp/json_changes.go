@@ -2,6 +2,7 @@ package lsp
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/bytedance/sonic/ast"
 	"github.com/doors-dev/gox/internal/common"
@@ -80,16 +81,15 @@ func (r jsonChangesDriver) convertInlayHints(enc common.Encoding, doc workspace.
 }
 
 func (r jsonChangesDriver) convertCodeAction(man workspace.Manager, enc common.Encoding, doc workspace.Doc, j Json) (err error) {
-	if doc != nil && j.Get("diagnostics").Exists() {
-		jsonPos.convertDiagnosticsToSource(man, enc, doc, j)
-		/*
-			kind, err := node.Get("kind").String()
-			if err != nil {
-				return errors.New("code action kind not found")
+	if doc != nil {
+		if kindNode := j.Get("kind"); kindNode.Exists() {
+			if kind, e := kindNode.String(); e == nil && strings.HasPrefix(kind, "refactor.extract") {
+				return errors.New("gox: extract action handled natively")
 			}
-			if strings.HasPrefix(kind, "refactor.extract") {
-				continue
-			} */
+		}
+		if j.Get("diagnostics").Exists() {
+			jsonPos.convertDiagnosticsToSource(man, enc, doc, j)
+		}
 	}
 	edit := j.Get("edit")
 	if edit.Exists() {

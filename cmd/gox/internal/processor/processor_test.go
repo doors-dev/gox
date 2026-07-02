@@ -1,6 +1,7 @@
 package processor
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,14 +17,74 @@ elem View(name string) {
 }
 `
 
+func writeFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func exists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
+func asExit(t *testing.T, err error) *ExitError {
+	t.Helper()
+	var ee *ExitError
+	if !errors.As(err, &ee) {
+		t.Fatalf("error = %v (%T), want *ExitError", err, err)
+	}
+	return ee
+}
+
+func TestNormalizePattern(t *testing.T) {
+	supported := map[string]string{
+		"...":              ".",
+		"./...":            ".",
+		".../":             ".",
+		"foo/...":          "foo",
+		"foo/.../":         "foo",
+		"a/b/...":          "a/b",
+		"./sub/...":        "./sub",
+		"foo":              "foo",
+		".":                ".",
+		"./pkg":            "./pkg",
+		"weird...name.gox": "weird...name.gox",
+	}
+	for in, want := range supported {
+		got, ok := normalizePattern(in)
+		if !ok || got != want {
+			t.Errorf("normalizePattern(%q) = (%q, %v), want (%q, true)", in, got, ok, want)
+		}
+	}
+	unsupported := []string{"a/.../b", "sub...", "net/http..."}
+	for _, in := range unsupported {
+		if _, ok := normalizePattern(in); ok {
+			t.Errorf("normalizePattern(%q) ok = true, want false (unsupported pattern)", in)
+		}
+	}
+}
+
+func TestGenerateRejectsUnsupportedPatternClearly(t *testing.T) {
+	err := Generate([]string{"a/.../b"}, false, false, false)
+	if err == nil {
+		t.Fatal("Generate(a/.../b) error = nil, want unsupported-pattern error")
+	}
+	if !strings.Contains(err.Error(), "unsupported") {
+		t.Fatalf("error = %v, want a clear unsupported-pattern message", err)
+	}
+}
+
 func TestFormatSupportsSingleGoFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "main.go")
-	if err := os.WriteFile(path, []byte("package main\nfunc main(){println(\"x\")}\n"), 0644); err != nil {
-		t.Fatal(err)
-	}
+	writeFile(t, path, "package main\nfunc main(){println(\"x\")}\n")
 
-	if err := Format(path, false, false); err != nil {
+	if err := Format([]string{path}, false, false, false, true); err != nil {
 		t.Fatalf("Format() error = %v", err)
 	}
 
@@ -40,11 +101,9 @@ func TestFormatSupportsSingleGoFile(t *testing.T) {
 func TestFormatRejectsUnsupportedSingleFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "note.txt")
-	if err := os.WriteFile(path, []byte("hello"), 0644); err != nil {
-		t.Fatal(err)
-	}
+	writeFile(t, path, "hello")
 
-	err := Format(path, false, false)
+	err := Format([]string{path}, false, false, false, true)
 	if err == nil {
 		t.Fatal("Format() error = nil, want error")
 	}
@@ -53,116 +112,278 @@ func TestFormatRejectsUnsupportedSingleFile(t *testing.T) {
 	}
 }
 
-func TestGenerateSupportsSingleSourceFileWithoutIgnoreSetup(t *testing.T) {
+func TestFormatNoGoLeavesGoFilesUntouched(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "view.gox")
-	if err := os.WriteFile(filepath.Join(dir, ".gitignore"), []byte("*\n"), 0644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, []byte("package demo\n\nfunc View() {}\n"), 0644); err != nil {
-		t.Fatal(err)
+	goFile := filepath.Join(dir, "main.go")
+	unformatted := "package main\nfunc main(){println(\"x\")}\n"
+	writeFile(t, goFile, unformatted)
+	writeFile(t, filepath.Join(dir, "view.gox"), processorSample)
+
+	if err := Format([]string{dir}, false, false, false, false); err != nil {
+		t.Fatalf("Format(-no-go) error = %v", err)
 	}
 
-	if _, err := newProcessor(path, false, false, generation); err != nil {
-		t.Fatalf("newProcessor() error = %v", err)
+	content, err := os.ReadFile(goFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(content) != unformatted {
+		t.Fatalf("main.go = %q, want it untouched under -no-go", string(content))
+	}
+}
+
+func TestFormatDefaultFormatsGoAndGox(t *testing.T) {
+	dir := t.TempDir()
+	goFile := filepath.Join(dir, "main.go")
+	writeFile(t, goFile, "package main\nfunc main(){println(\"x\")}\n")
+
+	if err := Format([]string{dir}, false, false, false, true); err != nil {
+		t.Fatalf("Format() error = %v", err)
+	}
+	content, err := os.ReadFile(goFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "package main\n\nfunc main() { println(\"x\") }\n"
+	if string(content) != want {
+		t.Fatalf("main.go = %q, want formatted %q", string(content), want)
+	}
+}
+
+func TestFormatCheckReportsDriftAndWritesNothing(t *testing.T) {
+	dir := t.TempDir()
+	goFile := filepath.Join(dir, "main.go")
+	original := "package main\nfunc main(){println(\"x\")}\n"
+	writeFile(t, goFile, original)
+
+	err := Format([]string{dir}, false, false, true, true)
+	if ee := asExit(t, err); ee.ExitCode() != 1 {
+		t.Fatalf("--check exit code = %d, want 1", ee.ExitCode())
+	}
+	content, err := os.ReadFile(goFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(content) != original {
+		t.Fatalf("main.go modified under --check: %q", string(content))
+	}
+}
+
+func TestFormatCheckCleanExitsZero(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "main.go"), "package main\n\nfunc main() { println(\"x\") }\n")
+
+	if err := Format([]string{dir}, false, false, true, true); err != nil {
+		t.Fatalf("--check on clean tree error = %v, want nil", err)
+	}
+}
+
+func TestFormatDirectorySkipsIgnored(t *testing.T) {
+	dir := t.TempDir()
+	mainFile := filepath.Join(dir, "main.go")
+	ignoredFile := filepath.Join(dir, "ignored.go")
+	writeFile(t, mainFile, "package main\nfunc main(){println(\"x\")}\n")
+	writeFile(t, ignoredFile, "package main\nfunc ignored(){println(\"x\")}\n")
+	writeFile(t, filepath.Join(dir, ".gitignore"), "ignored.go\n")
+
+	if err := Format([]string{dir}, false, false, false, true); err != nil {
+		t.Fatalf("Format(dir) error = %v", err)
+	}
+
+	mainContent, _ := os.ReadFile(mainFile)
+	if got := string(mainContent); got != "package main\n\nfunc main() { println(\"x\") }\n" {
+		t.Fatalf("main.go = %q", got)
+	}
+	ignoredContent, _ := os.ReadFile(ignoredFile)
+	if got := string(ignoredContent); got != "package main\nfunc ignored(){println(\"x\")}\n" {
+		t.Fatalf("ignored.go = %q, want untouched", got)
 	}
 }
 
 func TestGenerateDirectoryCreatesTargetsAndRemovesOrphans(t *testing.T) {
 	dir := t.TempDir()
-	view := filepath.Join(dir, "view.gox")
-	if err := os.WriteFile(view, []byte(processorSample), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "orphan.x.go"), []byte("// orphan"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, ".gitignore"), []byte("ignored.gox\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "ignored.gox"), []byte(processorSample), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	writeFile(t, filepath.Join(dir, "view.gox"), processorSample)
+	writeFile(t, filepath.Join(dir, "orphan.x.go"), "// orphan")
+	writeFile(t, filepath.Join(dir, ".gitignore"), "ignored.gox\n")
+	writeFile(t, filepath.Join(dir, "ignored.gox"), processorSample)
 
-	if err := Generate(dir, false, true); err != nil {
+	if err := Generate([]string{dir}, false, true, false); err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
 
-	if _, err := os.Stat(filepath.Join(dir, "view.x.go")); err != nil {
-		t.Fatalf("generated target missing: %v", err)
+	if !exists(filepath.Join(dir, "view.x.go")) {
+		t.Fatal("generated target missing")
 	}
-	if _, err := os.Stat(filepath.Join(dir, "orphan.x.go")); !os.IsNotExist(err) {
-		t.Fatalf("orphan target still exists, err = %v", err)
+	if exists(filepath.Join(dir, "orphan.x.go")) {
+		t.Fatal("orphan target still exists")
 	}
-	if _, err := os.Stat(filepath.Join(dir, "ignored.x.go")); !os.IsNotExist(err) {
-		t.Fatalf("ignored target unexpectedly exists, err = %v", err)
+	if exists(filepath.Join(dir, "ignored.x.go")) {
+		t.Fatal("ignored target unexpectedly exists")
 	}
 }
 
 func TestGenerateSingleTargetRemovesOrphan(t *testing.T) {
 	dir := t.TempDir()
 	target := filepath.Join(dir, "ghost.x.go")
-	if err := os.WriteFile(target, []byte("// orphan"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	writeFile(t, target, "// orphan")
 
-	if err := Generate(target, false, false); err != nil {
+	if err := Generate([]string{target}, false, false, false); err != nil {
 		t.Fatalf("Generate(target) error = %v", err)
 	}
-	if _, err := os.Stat(target); !os.IsNotExist(err) {
-		t.Fatalf("target still exists, err = %v", err)
+	if exists(target) {
+		t.Fatal("target still exists")
 	}
 }
 
-func TestFormatDirectoryFormatsGoFilesAndSkipsIgnored(t *testing.T) {
+func TestGenerateSingleSourceFileIgnoresGitignore(t *testing.T) {
 	dir := t.TempDir()
-	mainFile := filepath.Join(dir, "main.go")
-	ignoredFile := filepath.Join(dir, "ignored.go")
-	if err := os.WriteFile(mainFile, []byte("package main\nfunc main(){println(\"x\")}\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(ignoredFile, []byte("package main\nfunc ignored(){println(\"x\")}\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, ".gitignore"), []byte("ignored.go\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	writeFile(t, filepath.Join(dir, ".gitignore"), "*\n")
+	view := filepath.Join(dir, "view.gox")
+	writeFile(t, view, "package demo\n\nfunc View() {}\n")
 
-	if err := Format(dir, false, false); err != nil {
-		t.Fatalf("Format(dir) error = %v", err)
+	if err := Generate([]string{view}, false, false, false); err != nil {
+		t.Fatalf("Generate(single file) error = %v", err)
 	}
+	if !exists(filepath.Join(dir, "view.x.go")) {
+		t.Fatal("target missing for single-file generate")
+	}
+}
 
-	mainContent, err := os.ReadFile(mainFile)
+func TestGenerateAcceptsDotDotDotPattern(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "a", "one.gox"), processorSample)
+	writeFile(t, filepath.Join(root, "b", "two.gox"), processorSample)
+
+	if err := Generate([]string{filepath.Join(root, "...")}, false, true, false); err != nil {
+		t.Fatalf("Generate(dir/...) error = %v", err)
+	}
+	if !exists(filepath.Join(root, "a", "one.x.go")) || !exists(filepath.Join(root, "b", "two.x.go")) {
+		t.Fatal("recursive ... pattern did not generate both targets")
+	}
+}
+
+func TestGenerateAcceptsMultipleOperands(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "a", "one.gox"), processorSample)
+	writeFile(t, filepath.Join(root, "b", "two.gox"), processorSample)
+
+	err := Generate([]string{filepath.Join(root, "a"), filepath.Join(root, "b")}, false, true, false)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Generate(multi) error = %v", err)
 	}
-	wantMain := "package main\n\nfunc main() { println(\"x\") }\n"
-	if got := string(mainContent); got != wantMain {
-		t.Fatalf("main.go = %q, want %q", got, wantMain)
+	if !exists(filepath.Join(root, "a", "one.x.go")) || !exists(filepath.Join(root, "b", "two.x.go")) {
+		t.Fatal("multi-operand generate did not cover both dirs")
+	}
+}
+
+func TestGenerateDedupesOverlappingOperands(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "one.gox"), processorSample)
+
+	p := newProcessor(true, false, true, generation)
+	if err := p.run([]string{root, root, filepath.Join(root, "...")}, false); err != nil {
+		t.Fatalf("run() error = %v", err)
+	}
+	if got := p.updated.Load(); got != 1 {
+		t.Fatalf("updated = %d, want 1 (overlapping operands must dedupe)", got)
+	}
+}
+
+func TestCheckModeReportsFailureBanner(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "view.gox"), processorSample)
+
+	p := newProcessor(false, true, true, generation)
+	err := p.run([]string{dir}, false)
+	if ee := asExit(t, err); ee.ExitCode() != 1 {
+		t.Fatalf("exit = %d, want 1", ee.ExitCode())
+	}
+	if !p.failed() {
+		t.Fatal("failed() = false, want true when --check finds drift")
+	}
+}
+
+func TestGenerateCheckReportsStaleAndWritesNothing(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "view.gox"), processorSample)
+
+	err := Generate([]string{dir}, false, false, true)
+	if ee := asExit(t, err); ee.ExitCode() != 1 {
+		t.Fatalf("--check exit = %d, want 1", ee.ExitCode())
+	}
+	if exists(filepath.Join(dir, "view.x.go")) {
+		t.Fatal("--check wrote a target file")
+	}
+}
+
+func TestGenerateCheckReportsOrphanWithoutRemoving(t *testing.T) {
+	dir := t.TempDir()
+	orphan := filepath.Join(dir, "ghost.x.go")
+	writeFile(t, orphan, "// orphan")
+
+	err := Generate([]string{dir}, false, false, true)
+	if ee := asExit(t, err); ee.ExitCode() != 1 {
+		t.Fatalf("--check exit = %d, want 1", ee.ExitCode())
+	}
+	if !exists(orphan) {
+		t.Fatal("--check removed the orphan target")
+	}
+}
+
+func TestGenerateCheckCleanExitsZero(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "view.gox"), processorSample)
+	if err := Generate([]string{dir}, false, true, false); err != nil {
+		t.Fatalf("setup Generate() error = %v", err)
 	}
 
-	ignoredContent, err := os.ReadFile(ignoredFile)
-	if err != nil {
-		t.Fatal(err)
+	if err := Generate([]string{dir}, false, false, true); err != nil {
+		t.Fatalf("--check on up-to-date tree error = %v, want nil", err)
 	}
-	wantIgnored := "package main\nfunc ignored(){println(\"x\")}\n"
-	if got := string(ignoredContent); got != wantIgnored {
-		t.Fatalf("ignored.go = %q, want %q", got, wantIgnored)
+}
+
+func TestGenerateCheckParseErrorExitsTwo(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "broken.gox"), "package demo\n\nvar x int = = = 3\n")
+
+	err := Generate([]string{dir}, false, false, true)
+	if ee := asExit(t, err); ee.ExitCode() != 2 {
+		t.Fatalf("--check parse error exit = %d, want 2", ee.ExitCode())
 	}
 }
 
 func TestGenerateReportsParseErrors(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "broken.gox")
-	if err := os.WriteFile(path, []byte("package demo\n\nelem Broken() {\n\t<div>\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	writeFile(t, filepath.Join(dir, "broken.gox"), "package demo\n\nvar x int = = = 3\n")
 
-	err := Generate(path, false, false)
+	err := Generate([]string{dir}, false, false, false)
 	if err == nil {
 		t.Fatal("Generate(broken) error = nil, want parse error")
 	}
 	if !strings.Contains(err.Error(), "parsing error") {
 		t.Fatalf("Generate(broken) error = %v", err)
+	}
+}
+
+func TestGenerateToleratesUnreadableDirDuringIgnoreScan(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root bypasses directory permissions")
+	}
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "a.gox"), "package demo\n\nvar x = 1\n")
+	noperm := filepath.Join(dir, "sub", "noperm")
+	if err := os.MkdirAll(noperm, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(noperm, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(noperm, 0o755) })
+
+	if err := Generate([]string{dir}, false, true, false); err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	if !exists(filepath.Join(dir, "a.x.go")) {
+		t.Fatal("target missing after tolerated ignore-scan error")
 	}
 }

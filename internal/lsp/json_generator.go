@@ -2,6 +2,8 @@ package lsp
 
 import (
 	"math"
+	"sort"
+	"strings"
 
 	"github.com/bytedance/sonic/ast"
 	"github.com/doors-dev/gox/internal/common"
@@ -79,6 +81,152 @@ func (r jsonGeneratorDriver) newUpdateEdit(uri string, content string, message s
 		common.NewPos(0, 0),
 		common.NewPos(int(math.MaxInt32), 0),
 	), content, message)
+}
+
+func (r jsonGeneratorDriver) newCodeActions(actions []workspace.CodeAction) Json {
+	arr := make([]ast.Node, 0, len(actions))
+	for _, a := range actions {
+		arr = append(arr, r.newCodeActionNode(a))
+	}
+	node := ast.NewArray(arr)
+	return &node
+}
+
+func (r jsonGeneratorDriver) appendCodeActions(res Json, actions []workspace.CodeAction) {
+	if len(actions) == 0 {
+		return
+	}
+	var arr []ast.Node
+	if res != nil && res.Exists() && res.TypeSafe() == ast.V_ARRAY {
+		if existing, err := res.ArrayUseNode(); err == nil {
+			arr = append(arr, existing...)
+		}
+	}
+	for _, a := range actions {
+		arr = append(arr, r.newCodeActionNode(a))
+	}
+	node := ast.NewArray(arr)
+	*res = node
+}
+
+func (r jsonGeneratorDriver) newCodeActionNode(a workspace.CodeAction) ast.Node {
+	var docChanges []ast.Node
+	if a.CreateFile != nil {
+		docChanges = append(docChanges, ast.NewObject([]ast.Pair{
+			ast.NewPair("kind", ast.NewString("create")),
+			ast.NewPair("uri", ast.NewString(a.CreateFile.URI)),
+		}))
+		zero := common.NewPos(0, 0)
+		content := r.textEditNode(common.NewRange(zero, zero), a.CreateFile.Text)
+		docChanges = append(docChanges, r.textDocumentEditNode(a.CreateFile.URI, []ast.Node{content}))
+	}
+	if len(a.Edits) > 0 {
+		ordered := make([]workspace.ActionEdit, len(a.Edits))
+		copy(ordered, a.Edits)
+		sort.SliceStable(ordered, func(i, j int) bool {
+			return ordered[i].Range.Beg().Compare(ordered[j].Range.Beg()) > 0
+		})
+		edits := make([]ast.Node, 0, len(ordered))
+		for _, e := range ordered {
+			edits = append(edits, r.textEditNode(e.Range, e.NewText))
+		}
+		docChanges = append(docChanges, r.textDocumentEditNode(a.URI, edits))
+	}
+	edit := ast.NewObject([]ast.Pair{
+		ast.NewPair("documentChanges", ast.NewArray(docChanges)),
+	})
+	return ast.NewObject([]ast.Pair{
+		ast.NewPair("title", ast.NewString(a.Title)),
+		ast.NewPair("kind", ast.NewString(a.Kind)),
+		ast.NewPair("edit", edit),
+	})
+}
+
+func (r jsonGeneratorDriver) textEditNode(ran common.Range, newText string) ast.Node {
+	return ast.NewObject([]ast.Pair{
+		ast.NewPair("range", jsonPos.fromRange(ran)),
+		ast.NewPair("newText", ast.NewString(newText)),
+	})
+}
+
+func (r jsonGeneratorDriver) textDocumentEditNode(uri string, edits []ast.Node) ast.Node {
+	td := ast.NewObject([]ast.Pair{
+		ast.NewPair("uri", ast.NewString(uri)),
+		ast.NewPair("version", ast.NewNull()),
+	})
+	return ast.NewObject([]ast.Pair{
+		ast.NewPair("textDocument", td),
+		ast.NewPair("edits", ast.NewArray(edits)),
+	})
+}
+
+func (r jsonGeneratorDriver) filterActionsByOnly(actions []workspace.CodeAction, j Json) []workspace.CodeAction {
+	context := j.Get("context")
+	if !context.Exists() {
+		return actions
+	}
+	only := context.Get("only")
+	if !only.Exists() || only.TypeSafe() != ast.V_ARRAY {
+		return actions
+	}
+	onlyArr, err := only.ArrayUseNode()
+	if err != nil {
+		return actions
+	}
+	allowed := make([]string, 0, len(onlyArr))
+	for i := range onlyArr {
+		if s, err := onlyArr[i].String(); err == nil {
+			allowed = append(allowed, s)
+		}
+	}
+	if len(allowed) == 0 {
+		return actions
+	}
+	out := actions[:0:0]
+	for _, a := range actions {
+		for _, o := range allowed {
+			if a.Kind == o || strings.HasPrefix(a.Kind, o+".") {
+				out = append(out, a)
+				break
+			}
+		}
+	}
+	return out
+}
+
+func (r jsonGeneratorDriver) addSyntaxErrors(enc common.Encoding, doc workspace.Doc, j Json) {
+	key := "diagnostics"
+	arr := j.Get(key)
+	if !arr.Exists() {
+		key = "items"
+		arr = j.Get(key)
+	}
+	if !arr.Exists() {
+		return
+	}
+	errs := doc.SyntaxErrors(enc)
+	if len(errs) == 0 {
+		return
+	}
+	existing, err := arr.ArrayUseNode()
+	if err != nil {
+		return
+	}
+	nodes := make([]ast.Node, 0, len(existing)+len(errs))
+	nodes = append(nodes, existing...)
+	for _, e := range errs {
+		nodes = append(nodes, r.newSyntaxErrorDiagnostic(e))
+	}
+	j.Set(key, ast.NewArray(nodes))
+}
+
+func (r jsonGeneratorDriver) newSyntaxErrorDiagnostic(e workspace.SyntaxError) ast.Node {
+	return ast.NewObject([]ast.Pair{
+		ast.NewPair("range", jsonPos.fromRange(e.Range)),
+		ast.NewPair("severity", ast.NewAny(1)),
+		ast.NewPair("source", ast.NewString("gox")),
+		ast.NewPair("message", ast.NewString(e.Message)),
+	})
 }
 
 func (r jsonGeneratorDriver) newHover(ran common.Range, message string) Json {

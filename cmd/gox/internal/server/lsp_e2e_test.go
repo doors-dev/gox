@@ -1122,6 +1122,104 @@ func TestLSPServerE2EWithRealGopls(t *testing.T) {
 			assertRawContains(t, signatureHelp, "helper")
 		})
 
+		run("native extract variable replaces gopls action on .gox", func(t *testing.T) {
+			ca := h.callRaw("textDocument/codeAction", map[string]any{
+				"textDocument": map[string]any{"uri": viewURI},
+				"range":        fixture.rangeAt("template_label_use", len("label(value)")),
+				"context": map[string]any{
+					"only":        []string{"refactor.extract"},
+					"diagnostics": []any{},
+				},
+			})
+			assertNonEmptyArray(t, ca)
+			raw := string(ca)
+			if !strings.Contains(raw, `"refactor.extract.variable"`) {
+				t.Fatalf("native extract variable action missing: %s", compactJSON(ca))
+			}
+			if strings.Contains(raw, ".x.go") {
+				t.Fatalf("extract action leaked generated .x.go URI: %s", compactJSON(ca))
+			}
+			if !strings.Contains(raw, "newVar") {
+				t.Fatalf("extract edit missing newVar binding: %s", compactJSON(ca))
+			}
+			if !strings.Contains(raw, viewURI) {
+				t.Fatalf("extract edit does not target the .gox view: %s", compactJSON(ca))
+			}
+		})
+
+		run("native extract declaration to new file on .gox", func(t *testing.T) {
+			ca := h.callRaw("textDocument/codeAction", map[string]any{
+				"textDocument": map[string]any{"uri": viewURI},
+				"range":        fixture.rangeAt("helper_def", len("helper")),
+				"context": map[string]any{
+					"only":        []string{"refactor.extract"},
+					"diagnostics": []any{},
+				},
+			})
+			raw := string(ca)
+			if !strings.Contains(raw, `"refactor.extract.toNewFile"`) {
+				t.Fatalf("native toNewFile action missing: %s", compactJSON(ca))
+			}
+			if !strings.Contains(raw, `"kind":"create"`) {
+				t.Fatalf("toNewFile must create a file: %s", compactJSON(ca))
+			}
+			if !strings.Contains(raw, "helper.gox") {
+				t.Fatalf("toNewFile new file should be helper.gox: %s", compactJSON(ca))
+			}
+			if !strings.Contains(raw, "func helper(name string) string {") {
+				t.Fatalf("toNewFile should carry the verbatim .gox decl: %s", compactJSON(ca))
+			}
+			if strings.Contains(raw, ".x.go") {
+				t.Fatalf("toNewFile referenced the generated file: %s", compactJSON(ca))
+			}
+		})
+
+		run("resolving a native toNewFile action keeps its edit and does not error", func(t *testing.T) {
+			ca := h.callRaw("textDocument/codeAction", map[string]any{
+				"textDocument": map[string]any{"uri": viewURI},
+				"range":        fixture.rangeAt("helper_def", len("helper")),
+				"context": map[string]any{
+					"only":        []string{"refactor.extract"},
+					"diagnostics": []any{},
+				},
+			})
+			actions := mustJSON[[]map[string]any](t, ca)
+			var target map[string]any
+			for _, a := range actions {
+				if kind, _ := a["kind"].(string); kind == "refactor.extract.toNewFile" {
+					target = a
+					break
+				}
+			}
+			if target == nil {
+				t.Fatalf("no toNewFile action to resolve: %s", compactJSON(ca))
+			}
+			resolved := h.callRaw("codeAction/resolve", target)
+			raw := string(resolved)
+			if !strings.Contains(raw, `"kind":"create"`) {
+				t.Fatalf("resolved action lost its create edit: %s", compactJSON(resolved))
+			}
+			if !strings.Contains(raw, "helper.gox") {
+				t.Fatalf("resolved action lost the new .gox file: %s", compactJSON(resolved))
+			}
+			if strings.Contains(raw, ".x.go") {
+				t.Fatalf("resolved action leaked the generated file: %s", compactJSON(resolved))
+			}
+		})
+
+		run("opening a .gox that needs the GoX import inserts it via applyEdit", func(t *testing.T) {
+			extractedPath := filepath.Join(filepath.Dir(fixture.view.Path), "extracted.gox")
+			writeFile(t, extractedPath, "")
+			extractedURI := uriForPath(extractedPath)
+			checkpoint := h.checkpoint()
+			h.openFileWithText(extractedPath, "gox", "package probe\n\nelem Extracted() {\n\t<div>chrome</div>\n}\n")
+			applyEdit := h.waitForEventAfter(checkpoint, "call", "workspace/applyEdit", func(raw json.RawMessage) bool {
+				return strings.Contains(string(raw), "GoX imported")
+			})
+			assertRawContains(t, applyEdit, extractedURI)
+			assertRawContains(t, applyEdit, "github.com/doors-dev/gox")
+		})
+
 		run("workspace symbol", func(t *testing.T) {
 			workspaceSymbol := h.callRaw("workspace/symbol", map[string]any{
 				"query": "View",

@@ -9,7 +9,7 @@ import (
 func (t Text) offset(pos common.Pos, strict bool) int {
 	if pos.Line() >= len(t.lineOffsets) {
 		if strict {
-			return -1 
+			return -1
 		}
 		return len(t.source)
 	}
