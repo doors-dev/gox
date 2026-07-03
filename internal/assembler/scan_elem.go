@@ -28,16 +28,15 @@ func scanElemDec(coll collector, root *tree_sitter.Node) {
 	}
 	receiver := root.ChildByFieldName("receiver")
 	body := root.ChildByFieldName("body")
-	start := name.StartPosition()
+	first := name
 	if receiver != nil {
-		start = receiver.StartPosition()
+		first = receiver
 	}
 	params := root.ChildByFieldName("parameters")
 	if params == nil {
 		return
 	}
-	end := params.EndPosition()
-	coll.portal(start, end)
+	scanGoSnippetWithSiblings(coll, first, params.EndPosition(), true)
 	coll.append(r(" gox.Elem"))
 	if body == nil {
 		return
@@ -65,7 +64,11 @@ func scanElemLit(coll collector, root *tree_sitter.Node) {
 	params := root.ChildByFieldName("parameters")
 	body := root.ChildByFieldName("body")
 	coll.indentRef(root.StartPosition())
-	coll.append(r("func"), p(params), r(" gox.Elem {"))
+	coll.append(r("func"))
+	if params != nil {
+		scanGoSnippet(coll, params)
+	}
+	coll.append(r(" gox.Elem {"))
 	coll.indentBeg()
 	coll.cr()
 	coll.append(r("return "), r("gox.Elem(func(__c gox.Cursor) (__e error) {"))
@@ -86,5 +89,9 @@ func scanElemLit(coll collector, root *tree_sitter.Node) {
 
 func scanElemType(coll collector, root *tree_sitter.Node) {
 	params := root.ChildByFieldName("parameters")
-	coll.append(r("func"), p(params), r(" gox.Elem"))
+	coll.append(r("func"))
+	if params != nil {
+		scanGoSnippet(coll, params)
+	}
+	coll.append(r(" gox.Elem"))
 }
