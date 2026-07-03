@@ -2,10 +2,8 @@ package server
 
 import (
 	"context"
-	"errors"
 	"io"
 	"log/slog"
-	"net"
 	"time"
 
 	"sync"
@@ -58,36 +56,15 @@ func (s *server) launchAccept() {
 
 func (s *server) accept() {
 	defer s.wg.Done()
-	delay := 5 * time.Millisecond
-	for s.ctx.Err() == nil {
-		rwc, err := s.clientListener.Accept()
-		if err != nil {
-			if s.ctx.Err() != nil {
-				return
-			}
-			var netErr net.Error
-			if !errors.As(err, &netErr) || !netErr.Temporary() {
-				slog.Error("server accept failed, no longer accepting connections: " + err.Error())
-				return
-			}
-			slog.Error("server accept error: " + err.Error())
-			select {
-			case <-s.ctx.Done():
-				return
-			case <-time.After(delay):
-			}
-			if delay *= 2; delay > time.Second {
-				delay = time.Second
-			}
-			continue
-		}
-		delay = 5 * time.Millisecond
-		s.wg.Add(1)
-		go func() {
-			defer s.wg.Done()
-			s.connect(rwc)
-		}()
+	if s.ctx.Err() != nil {
+		return
 	}
+	rwc, err := s.clientListener.Accept()
+	if err != nil {
+		return
+	}
+	s.launchAccept()
+	s.connect(rwc)
 }
 
 func (s *server) connect(clientRwc io.ReadWriteCloser) {
