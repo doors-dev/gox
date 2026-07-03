@@ -3,6 +3,7 @@ package lsp
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -84,17 +85,23 @@ func TestSessionBridgeAndWorkspaceHelpers(t *testing.T) {
 		t.Fatalf("enc() after setEnc = %v, want UTF8", sess.enc())
 	}
 
+	t.Cleanup(sess.man().StopAll)
+	sess.man().Lock()
 	sess.ensureWorkspaces([]string{dirURI})
-	if doc, kind := sess.man().Doc(fileURI); doc == nil || kind != workspace.KindSource {
-		t.Fatalf("Doc() after ensureWorkspaces = (%v, %v), want loaded source doc", doc, kind)
-	}
+	ensuredDoc, ensuredKind := sess.man().Doc(fileURI)
 	sess.removeWorkspace(dirURI)
-	if doc, kind := sess.man().Doc(fileURI); doc != nil || kind != workspace.KindSource {
-		t.Fatalf("Doc() after removeWorkspace = (%v, %v), want nil source doc", doc, kind)
-	}
+	removedDoc, removedKind := sess.man().Doc(fileURI)
 	sess.addWorkspace(dirURI)
-	if doc, kind := sess.man().Doc(fileURI); doc == nil || kind != workspace.KindSource {
-		t.Fatalf("Doc() after addWorkspace = (%v, %v), want loaded source doc", doc, kind)
+	addedDoc, addedKind := sess.man().Doc(fileURI)
+	sess.man().Unlock()
+	if ensuredDoc == nil || ensuredKind != workspace.KindSource {
+		t.Fatalf("Doc() after ensureWorkspaces = (%v, %v), want loaded source doc", ensuredDoc, ensuredKind)
+	}
+	if removedDoc != nil || removedKind != workspace.KindSource {
+		t.Fatalf("Doc() after removeWorkspace = (%v, %v), want nil source doc", removedDoc, removedKind)
+	}
+	if addedDoc == nil || addedKind != workspace.KindSource {
+		t.Fatalf("Doc() after addWorkspace = (%v, %v), want loaded source doc", addedDoc, addedKind)
 	}
 
 	params := mustJSONNode(t, `{"message":"hello"}`)
@@ -186,8 +193,9 @@ func TestDidSaveRejectsSourceOutsideWorkspace(t *testing.T) {
 
 	bridge := &bridgeStub{}
 	router := NewRouter(bridge)
+	t.Cleanup(router.Stop)
 	router.session.setEnc(common.UTF8)
-	router.session.ensureWorkspaces([]string{string(docpath.URIFromPath(root))})
+	ensureRouterWorkspaces(router, string(docpath.URIFromPath(root)))
 
 	params, err := json.Marshal(map[string]any{
 		"textDocument": map[string]any{
@@ -224,8 +232,9 @@ func TestDidSaveAcceptsSourceWhenWorkspaceURIHasTrailingSlash(t *testing.T) {
 
 	bridge := &bridgeStub{}
 	router := NewRouter(bridge)
+	t.Cleanup(router.Stop)
 	router.session.setEnc(common.UTF8)
-	router.session.ensureWorkspaces([]string{string(docpath.URIFromPath(root)) + "/"})
+	ensureRouterWorkspaces(router, string(docpath.URIFromPath(root))+"/")
 
 	params, err := json.Marshal(map[string]any{
 		"textDocument": map[string]any{
@@ -265,8 +274,9 @@ func TestDidSaveSurvivesWorkspaceURIChangingToTrailingSlash(t *testing.T) {
 
 	bridge := &bridgeStub{}
 	router := NewRouter(bridge)
+	t.Cleanup(router.Stop)
 	router.session.setEnc(common.UTF8)
-	router.session.ensureWorkspaces([]string{string(docpath.URIFromPath(root))})
+	ensureRouterWorkspaces(router, string(docpath.URIFromPath(root)))
 
 	params, err := json.Marshal(map[string]any{
 		"textDocument": map[string]any{
@@ -286,7 +296,7 @@ func TestDidSaveSurvivesWorkspaceURIChangingToTrailingSlash(t *testing.T) {
 	}
 
 	bridge.notifications = nil
-	router.session.ensureWorkspaces([]string{string(docpath.URIFromPath(root)) + "/"})
+	ensureRouterWorkspaces(router, string(docpath.URIFromPath(root))+"/")
 	router.Notification(Client, Request{
 		Method: string(didSave),
 		Params: params,
@@ -305,8 +315,9 @@ func TestDidSaveSurvivesWorkspaceFoldersRefreshWithTrailingSlash(t *testing.T) {
 
 	bridge := &asyncBridgeStub{}
 	router := NewRouter(bridge)
+	t.Cleanup(router.Stop)
 	router.session.setEnc(common.UTF8)
-	router.session.ensureWorkspaces([]string{string(docpath.URIFromPath(root))})
+	ensureRouterWorkspaces(router, string(docpath.URIFromPath(root)))
 
 	bridge.callResp = Response{Result: json.RawMessage(`[{"uri":` + strconv.Quote(string(docpath.URIFromPath(root))+"/") + `,"name":"root"}]`)}
 	done := make(chan Response, 1)
@@ -343,6 +354,143 @@ func TestDidSaveSurvivesWorkspaceFoldersRefreshWithTrailingSlash(t *testing.T) {
 	if len(bridge.notifications) != 1 || bridge.notifications[0].role != Gopls {
 		t.Fatalf("didSave after workspaceFolders refresh did not forward to gopls: %#v", bridge.notifications)
 	}
+}
+
+func TestApplyEditConvertsChangesMap(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "view.gox")
+	if err := os.WriteFile(path, []byte(lspHelperSource), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	bridge := &asyncBridgeStub{callResp: Response{Result: json.RawMessage(`{"applied":true}`)}}
+	router := NewRouter(bridge)
+	router.session.setEnc(common.UTF8)
+	router.session.ensureWorkspaces([]string{string(docpath.URIFromPath(root))})
+
+	fileURI := string(docpath.URIFromPath(path))
+	doc, kind := router.session.man().Doc(fileURI)
+	if doc == nil || kind != workspace.KindSource {
+		t.Fatalf("Doc(%s) = (%v, %v), want source doc", fileURI, doc, kind)
+	}
+	firstSrc := sourceRangeFor(t, path, "Card struct")
+	secondSrc := sourceRangeForLast(t, path, "name")
+	firstTarget := mustTargetRange(t, doc, firstSrc)
+	secondTarget := mustTargetRange(t, doc, secondSrc)
+
+	params := []byte(fmt.Sprintf(`{
+		"edit":{
+			"changes":{
+				%q:[
+					{"range":%s,"newText":"one"},
+					{"range":%s,"newText":"two"}
+				]
+			}
+		}
+	}`, fileURI, jsonFromNode(t, jsonPos.fromRange(firstSrc)), jsonFromNode(t, jsonPos.fromRange(secondSrc))))
+
+	done := make(chan Response, 1)
+	router.Call(Gopls, Request{Method: string(applyEdit), Params: params}, func(r Response) {
+		done <- r
+	})
+	var resp Response
+	select {
+	case resp = <-done:
+	case <-time.After(time.Second):
+		t.Fatal("applyEdit callback was not invoked")
+	}
+	if resp.Err != nil {
+		t.Fatalf("applyEdit response error: %v", resp.Err)
+	}
+	if len(bridge.calls) != 1 || bridge.calls[0].role != Client || bridge.calls[0].req.Method != string(applyEdit) {
+		t.Fatalf("proxied calls = %#v", bridge.calls)
+	}
+	proxied := mustJSONNode(t, string(bridge.calls[0].req.Params))
+	edits := proxied.Get("edit").Get("changes").Get(doc.TargetFile().URI())
+	if !edits.Exists() {
+		t.Fatalf("changes are not keyed by the target uri: %s", bridge.calls[0].req.Params)
+	}
+	if arr, err := edits.ArrayUseNode(); err != nil || len(arr) != 2 {
+		t.Fatalf("edits = %#v, err = %v, want 2 edits", arr, err)
+	}
+	gotFirst, err := jsonPos.intoRange(mustArrayIndex(t, edits, 0).Get("range"))
+	if err != nil || gotFirst != firstTarget {
+		t.Fatalf("edits[0].range = %v, err = %v, want %v", gotFirst, err, firstTarget)
+	}
+	gotSecond, err := jsonPos.intoRange(mustArrayIndex(t, edits, 1).Get("range"))
+	if err != nil || gotSecond != secondTarget {
+		t.Fatalf("edits[1].range = %v, err = %v, want %v", gotSecond, err, secondTarget)
+	}
+}
+
+func TestWorkspaceFoldersForwardsAbsentParams(t *testing.T) {
+	root := t.TempDir()
+	bridge := &asyncBridgeStub{}
+	router := NewRouter(bridge)
+	router.session.setEnc(common.UTF8)
+	bridge.callResp = Response{Result: json.RawMessage(`[{"uri":` + strconv.Quote(string(docpath.URIFromPath(root))) + `,"name":"root"}]`)}
+
+	done := make(chan Response, 1)
+	router.Call(Gopls, Request{Method: string(workspaceFolders)}, func(r Response) {
+		done <- r
+	})
+	var resp Response
+	select {
+	case resp = <-done:
+	case <-time.After(time.Second):
+		t.Fatal("workspaceFolders callback was not invoked")
+	}
+	if resp.Err != nil {
+		t.Fatalf("workspaceFolders response error: %v", resp.Err)
+	}
+	if len(bridge.calls) != 1 || bridge.calls[0].role != Client || bridge.calls[0].req.Method != string(workspaceFolders) {
+		t.Fatalf("forwarded calls = %#v", bridge.calls)
+	}
+	if string(bridge.calls[0].req.Params) != "null" {
+		t.Fatalf("forwarded params = %q, want null", bridge.calls[0].req.Params)
+	}
+	if len(bridge.notifications) != 0 {
+		t.Fatalf("unexpected notifications: %#v", bridge.notifications)
+	}
+	if !strings.Contains(string(resp.Result), "root") {
+		t.Fatalf("response result = %s", resp.Result)
+	}
+}
+
+func TestRouterStopStopsManager(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "view.gox")
+	if err := os.WriteFile(path, []byte(lspHelperSource), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	router := NewRouter(&bridgeStub{})
+	ensureRouterWorkspaces(router, string(docpath.URIFromPath(root)))
+	man := router.session.man()
+	man.Lock()
+	doc, kind := man.Doc(string(docpath.URIFromPath(path)))
+	roots := man.RootsLocked()
+	man.Unlock()
+	if doc == nil || kind != workspace.KindSource || len(roots) != 1 {
+		t.Fatalf("before Stop: doc = %v, kind = %v, roots = %v", doc, kind, roots)
+	}
+
+	router.Stop()
+	router.Stop()
+
+	man.Lock()
+	doc, kind = man.Doc(string(docpath.URIFromPath(path)))
+	roots = man.RootsLocked()
+	man.Unlock()
+	if doc != nil || kind != workspace.KindSource || len(roots) != 0 {
+		t.Fatalf("after Stop: doc = %v, kind = %v, roots = %v", doc, kind, roots)
+	}
+}
+
+func ensureRouterWorkspaces(router Router, uris ...string) {
+	router.session.man().Lock()
+	defer router.session.man().Unlock()
+	router.session.ensureWorkspaces(uris)
 }
 
 func assertNotifPayload(t *testing.T, got recordedNotify, wantRole Role, wantMethod method, wantMessage string, wantType int) {

@@ -6,11 +6,14 @@ import (
 	"errors"
 	"io"
 	"net"
+	"os"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/doors-dev/gox/internal/docpath"
 	jsonrpc2 "github.com/doors-dev/gox/internal/jsonrpc"
 	"github.com/doors-dev/gox/internal/lsp"
 )
@@ -330,6 +333,83 @@ func TestBridgeTranslatesCancelRequestID(t *testing.T) {
 	if next.Method != "test/marker" {
 		t.Fatalf("gopls message after unknown cancel = %q, want test/marker (unknown cancel must be dropped)", next.Method)
 	}
+}
+
+const bridgeTeardownSrc = `package demo
+
+import _ "github.com/doors-dev/gox"
+
+elem View() {
+	<div>hello</div>
+}
+`
+
+func TestBridgeRunTeardownStopsWorkspaceTicker(t *testing.T) {
+	dir := t.TempDir()
+	source := filepath.Join(dir, "view.gox")
+	target := filepath.Join(dir, "view.x.go")
+	if err := os.WriteFile(source, []byte(bridgeTeardownSrc), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	clientServer, clientPeer := net.Pipe()
+	goplsServer, goplsPeer := net.Pipe()
+	defer clientPeer.Close()
+	defer goplsPeer.Close()
+
+	b := newBridge(context.Background(), clientServer, goplsServer)
+	go io.Copy(io.Discard, goplsPeer)
+
+	params, err := json.Marshal(map[string]any{
+		"event": map[string]any{
+			"added":   []map[string]string{{"uri": string(docpath.URIFromPath(dir))}},
+			"removed": []map[string]string{},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b.incomingNotification(lsp.Client, "workspace/didChangeWorkspaceFolders", params)
+
+	if err := os.Remove(target); err != nil {
+		t.Fatalf("target was not generated: %v", err)
+	}
+	if !waitForFile(target, 2*time.Second) {
+		t.Fatal("workspace ticker did not restore removed target")
+	}
+
+	runDone := make(chan struct{})
+	go func() {
+		b.run()
+		close(runDone)
+	}()
+	clientPeer.Close()
+	select {
+	case <-runDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("bridge.run did not return after client close")
+	}
+
+	if err := os.Remove(target); err != nil && !errors.Is(err, os.ErrNotExist) {
+		t.Fatal(err)
+	}
+	time.Sleep(600 * time.Millisecond)
+	if _, err := os.Stat(target); err == nil {
+		t.Fatalf("torn-down bridge regenerated target %s", target)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		t.Fatal(err)
+	}
+}
+
+func waitForFile(path string, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if _, err := os.Stat(path); err == nil {
+			return true
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	return false
 }
 
 func TestBridgeCallNotifyAndClosingErrors(t *testing.T) {

@@ -23,56 +23,68 @@ func (d Doc) Symbols(enc common.Encoding) []Symbol {
 	for _, n := range root.Children(cursor) {
 		switch n.Kind() {
 		case grammer.TYPE_DECLARATION:
-			spec := n.Child(1)
-			if spec == nil {
-				continue
-			}
-			nameNode := spec.ChildByFieldName("name")
-			if nameNode == nil {
-				continue
-			}
-			typ := spec.ChildByFieldName("type")
-			if typ == nil {
-				continue
-			}
-			name := nameNode.Utf8Text(d.source.Source())
-			ran := d.source.FromRange(enc, common.NewTSRange(nameNode.Range()))
-			s := Symbol{
-				Name:  name,
-				Range: ran,
-			}
-			switch typ.Kind() {
-			case grammer.STRUCT_TYPE:
-				s.Kind = symbol.Struct
-				assembler.QueryFields.IterateCapture(d.source.Source(), spec, "name", func(node *tree_sitter.Node) bool {
-					name := node.Utf8Text(d.source.Source())
-					ran := d.source.FromRange(enc, common.NewTSRange(node.Range()))
-					s.Symbols = append(s.Symbols, Symbol{
-						Kind:  symbol.Field,
-						Name:  name,
-						Range: ran,
+			specCursor := n.Walk()
+			for _, spec := range n.Children(specCursor) {
+				nameNode := spec.ChildByFieldName("name")
+				if nameNode == nil {
+					continue
+				}
+				typ := spec.ChildByFieldName("type")
+				if typ == nil {
+					continue
+				}
+				name := nameNode.Utf8Text(d.source.Source())
+				ran := d.source.FromRange(enc, common.NewTSRange(nameNode.Range()))
+				s := Symbol{
+					Name:  name,
+					Range: ran,
+				}
+				switch typ.Kind() {
+				case grammer.STRUCT_TYPE:
+					s.Kind = symbol.Struct
+					assembler.QueryFields.IterateCapture(d.source.Source(), &spec, "name", func(node *tree_sitter.Node) bool {
+						name := node.Utf8Text(d.source.Source())
+						ran := d.source.FromRange(enc, common.NewTSRange(node.Range()))
+						s.Symbols = append(s.Symbols, Symbol{
+							Kind:  symbol.Field,
+							Name:  name,
+							Range: ran,
+						})
+						return false
 					})
-					return false
-				})
-			case grammer.INTERFACE_TYPE:
-				s.Kind = symbol.Interface
-				assembler.QueryInterfaceMethods.IterateCapture(d.source.Source(), spec, "name", func(node *tree_sitter.Node) bool {
-					name := node.Utf8Text(d.source.Source())
-					ran := d.source.FromRange(enc, common.NewTSRange(node.Range()))
-					s.Symbols = append(s.Symbols, Symbol{
-						Kind:  symbol.Method,
-						Name:  name,
-						Range: ran,
+				case grammer.INTERFACE_TYPE:
+					s.Kind = symbol.Interface
+					assembler.QueryInterfaceMethods.IterateCapture(d.source.Source(), &spec, "name", func(node *tree_sitter.Node) bool {
+						name := node.Utf8Text(d.source.Source())
+						ran := d.source.FromRange(enc, common.NewTSRange(node.Range()))
+						s.Symbols = append(s.Symbols, Symbol{
+							Kind:  symbol.Method,
+							Name:  name,
+							Range: ran,
+						})
+						return false
 					})
-					return false
-				})
-			default:
-				s.Kind = symbol.Class
+				default:
+					s.Kind = symbol.Class
+				}
+				ss = append(ss, s)
 			}
-			ss = append(ss, s)
-		case grammer.CONST_DECLARATION,
-			grammer.VAR_DECLARATION,
-			grammer.FUNC_DECLARATION,
+			specCursor.Close()
+		case grammer.CONST_DECLARATION, grammer.VAR_DECLARATION:
+			kind := symbol.Constant
+			if n.Kind() == grammer.VAR_DECLARATION {
+				kind = symbol.Variable
+			}
+			for _, nameNode := range declSpecNames(&n) {
+				name := nameNode.Utf8Text(d.source.Source())
+				ran := d.source.FromRange(enc, common.NewTSRange(nameNode.Range()))
+				ss = append(ss, Symbol{
+					Kind:  kind,
+					Name:  name,
+					Range: ran,
+				})
+			}
+		case grammer.FUNC_DECLARATION,
 			grammer.METHOD_DECLARATION,
 			grammer.GOX_ELEM_FUNC_DEC,
 			grammer.GOX_ELEM_METH_DEC:
@@ -87,10 +99,6 @@ func (d Doc) Symbols(enc common.Encoding) []Symbol {
 				Range: ran,
 			}
 			switch n.Kind() {
-			case grammer.CONST_DECLARATION:
-				s.Kind = symbol.Constant
-			case grammer.VAR_DECLARATION:
-				s.Kind = symbol.Variable
 			case grammer.FUNC_DECLARATION:
 				s.Kind = symbol.Function
 			case grammer.METHOD_DECLARATION:
@@ -104,4 +112,24 @@ func (d Doc) Symbols(enc common.Encoding) []Symbol {
 		}
 	}
 	return ss
+}
+
+func declSpecNames(n *tree_sitter.Node) []tree_sitter.Node {
+	cursor := n.Walk()
+	defer cursor.Close()
+	names := make([]tree_sitter.Node, 0)
+	for _, child := range n.Children(cursor) {
+		if child.Kind() == grammer.VAR_SPEC_LIST {
+			names = append(names, declSpecNames(&child)...)
+			continue
+		}
+		nameCursor := child.Walk()
+		for _, nameNode := range child.ChildrenByFieldName("name", nameCursor) {
+			if nameNode.IsNamed() {
+				names = append(names, nameNode)
+			}
+		}
+		nameCursor.Close()
+	}
+	return names
 }

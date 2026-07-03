@@ -165,6 +165,7 @@ func (p *processor) genFile(file workspace.File) {
 		return
 	}
 	doc := workspace.NewDoc(source)
+	defer doc.Close()
 	err := doc.Load()
 	if err != nil {
 		p.addError(err, "Source file ", source.Path(), " loading error")
@@ -223,6 +224,7 @@ func (p *processor) ignored(path string, isDir bool) bool {
 func (p *processor) walkGen(path string) {
 	entries, err := os.ReadDir(path)
 	if err != nil {
+		p.addError(err, "Directory ", path, " reading error")
 		return
 	}
 	files := make(map[string]workspace.File)
@@ -281,7 +283,7 @@ func (p *processor) format(path string, formatter func([]byte) ([]byte, error)) 
 		p.addChange(path, "would reformat")
 		return
 	}
-	err = os.WriteFile(path, formatted, 0644)
+	err = writeFileAtomic(path, formatted)
 	if err != nil {
 		p.addError(err, "File ", path, " writing error")
 		return
@@ -289,12 +291,42 @@ func (p *processor) format(path string, formatter func([]byte) ([]byte, error)) 
 	p.formatted.Add(1)
 }
 
+func writeFileAtomic(path string, data []byte) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".gox-fmt-*")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmp.Name()
+	_, err = tmp.Write(data)
+	if err == nil {
+		err = tmp.Chmod(info.Mode())
+	}
+	if closeErr := tmp.Close(); err == nil {
+		err = closeErr
+	}
+	if err == nil {
+		err = os.Rename(tmpPath, path)
+	}
+	if err != nil {
+		os.Remove(tmpPath)
+	}
+	return err
+}
+
 func (p *processor) walkFmt(path string) {
 	entries, err := os.ReadDir(path)
 	if err != nil {
+		p.addError(err, "Directory ", path, " reading error")
 		return
 	}
 	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), ".") {
+			continue
+		}
 		path := filepath.Join(path, e.Name())
 		if p.ignored(path, e.IsDir()) {
 			continue

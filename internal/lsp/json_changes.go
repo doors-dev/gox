@@ -154,10 +154,10 @@ func (r jsonChangesDriver) convertEdit(man workspace.Manager, enc common.Encodin
 				return false
 			}
 			if kind == workspace.KindSource {
-				err = jsonPos.convertRangeToTarget(enc, doc, node, workspace.Strict)
+				err = jsonPos.convertAllToTarget(enc, doc, node, workspace.Strict)
 				newChanges.Set(doc.TargetFile().URI(), *node)
 			} else {
-				err = jsonPos.convertRangeToSource(enc, doc, node, workspace.Strict)
+				err = jsonPos.convertAllToSource(enc, doc, node, workspace.Strict)
 				newChanges.Set(doc.SourceFile().URI(), *node)
 			}
 			if err != nil {

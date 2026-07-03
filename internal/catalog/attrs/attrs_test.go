@@ -13,13 +13,21 @@ func TestKindString(t *testing.T) {
 
 func TestIsBool(t *testing.T) {
 	cases := map[Kind]bool{
-		ASYNC:    true,
-		DISABLED: true,
-		HIDDEN:   true,
-		CHECKED:  true,
-		ID:       false,
-		CLASS:    false,
-		HREF:     false,
+		ASYNC:           true,
+		DISABLED:        true,
+		HIDDEN:          true,
+		CHECKED:         true,
+		FORMNOVALIDATE:  true,
+		ALPHA:           true,
+		AUTOFOCUS:       true,
+		INERT:           true,
+		ITEMSCOPE:       true,
+		NOMODULE:        true,
+		ALLOWFULLSCREEN: true,
+		DOWNLOAD:        false,
+		ID:              false,
+		CLASS:           false,
+		HREF:            false,
 	}
 	for k, want := range cases {
 		if got := k.IsBool(); got != want {
@@ -68,6 +76,18 @@ func TestFindAttrPrefix(t *testing.T) {
 		if len(s) < 3 || s[:3] != "dis" {
 			t.Errorf("Find returned %q without prefix", s)
 		}
+	}
+}
+
+func TestFindGlobalInputMode(t *testing.T) {
+	if got := Find("input", "inputmode"); len(got) == 0 {
+		t.Fatal("Find(input, inputmode) returned nothing")
+	}
+}
+
+func TestFindIframeAllowFullscreen(t *testing.T) {
+	if got := Find("iframe", "allowfullscreen"); len(got) == 0 {
+		t.Fatal("Find(iframe, allowfullscreen) returned nothing")
 	}
 }
 

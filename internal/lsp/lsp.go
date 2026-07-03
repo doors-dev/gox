@@ -207,7 +207,11 @@ func (r Router) Notification(role Role, n Request) {
 			locker:   r.session.man(),
 			logAttrs: nil,
 		}
-		node, err := sonic.Get(n.Params)
+		params := n.Params
+		if len(params) == 0 {
+			params = []byte("null")
+		}
+		node, err := sonic.Get(params)
 		if err != nil {
 			slog.Error("Notification parsing error", "method", m, "from", role, "error", err.Error(), "roots", r.session.rootsLocked())
 			r.session.logError("Notification parsing error: [method=" + string(m) + ", from=" + string(role) + ", error=" + err.Error() + "]")
@@ -248,7 +252,11 @@ func (r Router) Call(role Role, call Request, cb Callback) {
 			locker:   r.session.man(),
 			logAttrs: nil,
 		}
-		node, err := sonic.Get(call.Params)
+		params := call.Params
+		if len(params) == 0 {
+			params = []byte("null")
+		}
+		node, err := sonic.Get(params)
 		if err != nil {
 			slog.Error("Call parsing error", "method", m, "from", role, "error", err.Error(), "roots", r.session.rootsLocked())
 			r.session.logError("Call parsing error: [method=" + string(m) + ", from=" + string(role) + ", error=" + err.Error() + "]")
@@ -262,6 +270,10 @@ func (r Router) Call(role Role, call Request, cb Callback) {
 	}
 	slog.Debug("Call", "method", m, "from", role)
 	r.session.bridge.Call(role.Revert(), call, cb)
+}
+
+func (r Router) Stop() {
+	r.session.man().StopAll()
 }
 
 func NewRouter(bridge Bridge) Router {

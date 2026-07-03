@@ -31,11 +31,12 @@ func newWs(root string, lock sync.Locker) *workspace {
 }
 
 type workspace struct {
-	ignore gitignore.Matcher
-	dirs   map[string]*dir
-	root   string
-	lock   sync.Locker
-	done   chan struct{}
+	ignore   gitignore.Matcher
+	dirs     map[string]*dir
+	root     string
+	lock     sync.Locker
+	done     chan struct{}
+	stopOnce sync.Once
 }
 
 func (w *workspace) Load(file File) Doc {
@@ -84,7 +85,9 @@ func (w *workspace) Root() string {
 }
 
 func (w *workspace) Stop() {
-	close(w.done)
+	w.stopOnce.Do(func() {
+		close(w.done)
+	})
 }
 
 func (w *workspace) scan(path string) {

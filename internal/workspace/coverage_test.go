@@ -283,6 +283,45 @@ func posAfterMarker(t *testing.T, path string, marker string) common.Pos {
 	return common.NewPos(line, col)
 }
 
+func TestManagerStopAllStopsWorkspaces(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "view.gox")
+	if err := os.WriteFile(path, []byte(sampleSrc), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	manager := NewManager()
+	manager.EnsureWorkspaces([]string{string(docpath.URIFromPath(dir))})
+	doc, kind := manager.Doc(string(docpath.URIFromPath(path)))
+	if kind != KindSource || doc == nil {
+		t.Fatalf("Doc(path) = (%v, %v), want source doc", doc, kind)
+	}
+	stopped := manager.workspaces[0]
+
+	manager.StopAll()
+	select {
+	case <-stopped.done:
+	case <-time.After(time.Second):
+		t.Fatal("stopped workspace scanner did not stop")
+	}
+	if roots := manager.RootsLocked(); len(roots) != 0 {
+		t.Fatalf("roots after StopAll = %v, want empty", roots)
+	}
+
+	stopped.Stop()
+	manager.StopAll()
+
+	if err := os.Remove(doc.TargetFile().Path()); err != nil && !errors.Is(err, os.ErrNotExist) {
+		t.Fatal(err)
+	}
+	time.Sleep(600 * time.Millisecond)
+	if _, err := os.Stat(doc.TargetFile().Path()); err == nil {
+		t.Fatalf("stopped workspace regenerated target %s", doc.TargetFile().Path())
+	} else if !errors.Is(err, os.ErrNotExist) {
+		t.Fatal(err)
+	}
+}
+
 func hasCompletionLabel(completions []Completion, want string) bool {
 	for _, c := range completions {
 		if c.Label == want {

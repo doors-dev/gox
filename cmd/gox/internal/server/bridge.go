@@ -39,6 +39,7 @@ type bridge struct {
 }
 
 func (b *bridge) run() {
+	defer b.router.Stop()
 	defer b.responseState.cancelAll()
 	defer b.wg.Wait()
 	for {

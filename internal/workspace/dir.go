@@ -20,6 +20,8 @@ func (dr *dir) load(file File) Doc {
 		d.Init()
 		if d.Err() == nil {
 			dr.docs[d.Name()] = d
+		} else {
+			d.Close()
 		}
 	}
 	return d

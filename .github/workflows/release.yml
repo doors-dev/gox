@@ -104,6 +104,7 @@ jobs:
           set -euxo pipefail
           mkdir -p out
           cp -f "./${{ matrix.exe }}" "out/${{ matrix.exe }}"
+          cp -f LICENSE out/LICENSE
 
       - name: Upload build output (per platform)
         uses: actions/upload-artifact@v4

@@ -122,7 +122,7 @@ func TestJSONDocErrorCases(t *testing.T) {
 	if err := os.WriteFile(targetOnlyPath, []byte("package demo\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	targetOnlyMan := workspace.NewManager()
+	targetOnlyMan := lockedTestManager(t)
 	targetOnlyMan.EnsureWorkspaces([]string{string(docpath.URIFromPath(targetOnlyDir))})
 	gotDoc, kind, err := jsonDoc.get(targetOnlyMan, mustJSONNode(t, fmt.Sprintf(`{"uri":%q}`, docpath.URIFromPath(targetOnlyPath))), false)
 	if err != nil || gotDoc != nil || kind != workspace.KindUnknown {

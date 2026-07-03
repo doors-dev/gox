@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -365,13 +366,128 @@ func TestGenerateReportsParseErrors(t *testing.T) {
 	}
 }
 
+func TestFormatPreservesModeAndLeavesNoTempFiles(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("file modes are not preserved meaningfully on windows")
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "main.go")
+	writeFile(t, path, "package main\nfunc main(){println(\"x\")}\n")
+	if err := os.Chmod(path, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Format([]string{path}, false, false, false, true); err != nil {
+		t.Fatalf("Format() error = %v", err)
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := string(content); got != "package main\n\nfunc main() { println(\"x\") }\n" {
+		t.Fatalf("main.go = %q, want formatted", got)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("mode = %v, want 0600", info.Mode().Perm())
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), ".gox-fmt-") {
+			t.Fatalf("stray temp file left behind: %s", e.Name())
+		}
+	}
+}
+
+func TestFormatSkipsHiddenDirectories(t *testing.T) {
+	dir := t.TempDir()
+	unformatted := "package main\nfunc main(){println(\"x\")}\n"
+	hiddenFile := filepath.Join(dir, ".hidden", "x.go")
+	writeFile(t, hiddenFile, unformatted)
+	normalFile := filepath.Join(dir, "pkg", "y.go")
+	writeFile(t, normalFile, unformatted)
+
+	if err := Format([]string{dir}, false, false, false, true); err != nil {
+		t.Fatalf("Format() error = %v", err)
+	}
+
+	hiddenContent, err := os.ReadFile(hiddenFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(hiddenContent) != unformatted {
+		t.Fatalf(".hidden/x.go = %q, want untouched", string(hiddenContent))
+	}
+	normalContent, err := os.ReadFile(normalFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := string(normalContent); got != "package main\n\nfunc main() { println(\"x\") }\n" {
+		t.Fatalf("pkg/y.go = %q, want formatted", got)
+	}
+}
+
+func TestFormatCheckReportsUnreadableDirectory(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("directory permissions are not enforced on windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root bypasses directory permissions")
+	}
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "main.go"), "package main\n\nfunc main() { println(\"x\") }\n")
+	noperm := filepath.Join(dir, "noperm")
+	if err := os.MkdirAll(noperm, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(noperm, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(noperm, 0o755) })
+
+	err := Format([]string{dir}, false, false, true, true)
+	if ee := asExit(t, err); ee.ExitCode() != 2 {
+		t.Fatalf("--check exit = %d, want 2 (unreadable dir must fail, not pass)", ee.ExitCode())
+	}
+}
+
+func TestGenerateCheckReportsUnreadableDirectory(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("directory permissions are not enforced on windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root bypasses directory permissions")
+	}
+	dir := t.TempDir()
+	noperm := filepath.Join(dir, "noperm")
+	if err := os.MkdirAll(noperm, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(noperm, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(noperm, 0o755) })
+
+	err := Generate([]string{dir}, false, false, true)
+	if ee := asExit(t, err); ee.ExitCode() != 2 {
+		t.Fatalf("--check exit = %d, want 2 (unreadable dir must fail, not pass)", ee.ExitCode())
+	}
+}
+
 func TestGenerateToleratesUnreadableDirDuringIgnoreScan(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("root bypasses directory permissions")
 	}
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "a.gox"), "package demo\n\nvar x = 1\n")
-	noperm := filepath.Join(dir, "sub", "noperm")
+	noperm := filepath.Join(dir, ".sub", "noperm")
 	if err := os.MkdirAll(noperm, 0o755); err != nil {
 		t.Fatal(err)
 	}

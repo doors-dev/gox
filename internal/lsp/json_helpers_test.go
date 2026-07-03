@@ -466,6 +466,17 @@ func mustJSONNode(t *testing.T, src string) Json {
 	return &node
 }
 
+func lockedTestManager(t *testing.T) workspace.Manager {
+	t.Helper()
+	man := workspace.NewManager()
+	man.Lock()
+	t.Cleanup(func() {
+		man.Unlock()
+		man.StopAll()
+	})
+	return man
+}
+
 func makeManagedDoc(t *testing.T, src string) (workspace.Manager, workspace.Doc) {
 	t.Helper()
 	dir := t.TempDir()
@@ -473,7 +484,7 @@ func makeManagedDoc(t *testing.T, src string) (workspace.Manager, workspace.Doc)
 	if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
 		t.Fatalf("WriteFile(%s): %v", path, err)
 	}
-	man := workspace.NewManager()
+	man := lockedTestManager(t)
 	man.EnsureWorkspaces([]string{string(docpath.URIFromPath(dir))})
 	doc, kind := man.Doc(string(docpath.URIFromPath(path)))
 	if kind != workspace.KindSource || doc == nil {

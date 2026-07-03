@@ -107,6 +107,15 @@ func (m *manager) AddWorkspace(uri string) {
 	slog.Debug("Workspace root added", "root", path, "roots", m.roots())
 }
 
+func (m *manager) StopAll() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, ws := range m.workspaces {
+		ws.Stop()
+	}
+	m.workspaces = nil
+}
+
 func (m *manager) Doc(uri string) (Doc, FileKind) {
 	file, ok := NewFileFromURI(uri)
 	if !ok {

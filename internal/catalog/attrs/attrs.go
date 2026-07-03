@@ -27,19 +27,25 @@ func (a Kind) IsEqual(attr string) bool {
 }
 
 const (
-	ASYNC Kind = iota
+	ALLOWFULLSCREEN Kind = iota
+	ALPHA
+	ASYNC
+	AUTOFOCUS
 	AUTOPLAY
 	CHECKED
 	CONTROLS
 	DEFAULT
 	DEFER
 	DISABLED
-	DOWNLOAD
+	FORMNOVALIDATE
 	HIDDEN
+	INERT
 	ISMAP
+	ITEMSCOPE
 	LOOP
 	MULTIPLE
 	MUTED
+	NOMODULE
 	NOVALIDATE
 	OPEN
 	PLAYSINLINE
@@ -54,7 +60,6 @@ const (
 	ACTION
 	ALIGN
 	ALLOW
-	ALPHA
 	ALT
 	AS
 	AUTOCAPITALIZE
@@ -80,6 +85,7 @@ const (
 	DECODING
 	DIR
 	DIRNAME
+	DOWNLOAD
 	DRAGGABLE
 	ENCTYPE
 	ENTERKEYHINT
@@ -89,7 +95,6 @@ const (
 	FORMACTION
 	FORMENCTYPE
 	FORMMETHOD
-	FORMNOVALIDATE
 	FORMTARGET
 	HEADERS
 	HEIGHT
@@ -154,19 +159,25 @@ const (
 )
 
 var attrs = [...]string{
+	ALLOWFULLSCREEN: "allowfullscreen",
+	ALPHA:           "alpha",
 	ASYNC:           "async",
+	AUTOFOCUS:       "autofocus",
 	AUTOPLAY:        "autoplay",
 	CHECKED:         "checked",
 	CONTROLS:        "controls",
 	DEFAULT:         "default",
 	DEFER:           "defer",
 	DISABLED:        "disabled",
-	DOWNLOAD:        "download",
+	FORMNOVALIDATE:  "formnovalidate",
 	HIDDEN:          "hidden",
+	INERT:           "inert",
 	ISMAP:           "ismap",
+	ITEMSCOPE:       "itemscope",
 	LOOP:            "loop",
 	MULTIPLE:        "multiple",
 	MUTED:           "muted",
+	NOMODULE:        "nomodule",
 	NOVALIDATE:      "novalidate",
 	OPEN:            "open",
 	PLAYSINLINE:     "playsinline",
@@ -180,7 +191,6 @@ var attrs = [...]string{
 	ACTION:          "action",
 	ALIGN:           "align",
 	ALLOW:           "allow",
-	ALPHA:           "alpha",
 	ALT:             "alt",
 	AS:              "as",
 	AUTOCAPITALIZE:  "autocapitalize",
@@ -206,6 +216,7 @@ var attrs = [...]string{
 	DECODING:        "decoding",
 	DIR:             "dir",
 	DIRNAME:         "dirname",
+	DOWNLOAD:        "download",
 	DRAGGABLE:       "draggable",
 	ENCTYPE:         "enctype",
 	ENTERKEYHINT:    "enterkeyhint",
@@ -215,7 +226,6 @@ var attrs = [...]string{
 	FORMACTION:      "formaction",
 	FORMENCTYPE:     "formenctype",
 	FORMMETHOD:      "formmethod",
-	FORMNOVALIDATE:  "formnovalidate",
 	FORMTARGET:      "formtarget",
 	HEADERS:         "headers",
 	HEIGHT:          "height",
@@ -280,19 +290,25 @@ var attrs = [...]string{
 }
 
 var attrTags = map[Kind][]tags.Kind{
+	ALLOWFULLSCREEN: {tags.IFRAME},
+	ALPHA:           {tags.INPUT},
 	ASYNC:           {tags.SCRIPT},
+	AUTOFOCUS:       {tags.ANY},
 	AUTOPLAY:        {tags.AUDIO, tags.VIDEO},
 	CHECKED:         {tags.INPUT},
 	CONTROLS:        {tags.AUDIO, tags.VIDEO},
 	DEFAULT:         {tags.TRACK},
 	DEFER:           {tags.SCRIPT},
 	DISABLED:        {tags.BUTTON, tags.FIELDSET, tags.INPUT, tags.OPTGROUP, tags.OPTION, tags.SELECT, tags.TEXTAREA},
-	DOWNLOAD:        {tags.A, tags.AREA},
+	FORMNOVALIDATE:  {tags.BUTTON, tags.INPUT},
 	HIDDEN:          {tags.ANY},
+	INERT:           {tags.ANY},
 	ISMAP:           {tags.IMG},
+	ITEMSCOPE:       {tags.ANY},
 	LOOP:            {tags.AUDIO, tags.VIDEO},
 	MULTIPLE:        {tags.INPUT, tags.SELECT},
 	MUTED:           {tags.AUDIO, tags.VIDEO},
+	NOMODULE:        {tags.SCRIPT},
 	NOVALIDATE:      {tags.FORM},
 	OPEN:            {tags.DETAILS, tags.DIALOG},
 	PLAYSINLINE:     {tags.VIDEO},
@@ -306,7 +322,6 @@ var attrTags = map[Kind][]tags.Kind{
 	ACTION:          {tags.FORM},
 	ALIGN:           {tags.CAPTION, tags.COL, tags.COLGROUP, tags.HR, tags.IFRAME, tags.IMG, tags.TABLE, tags.TBODY, tags.TD, tags.TFOOT, tags.TH, tags.THEAD, tags.TR},
 	ALLOW:           {tags.IFRAME},
-	ALPHA:           {tags.INPUT},
 	ALT:             {tags.AREA, tags.IMG, tags.INPUT},
 	AS:              {tags.LINK},
 	AUTOCAPITALIZE:  {tags.ANY},
@@ -332,16 +347,16 @@ var attrTags = map[Kind][]tags.Kind{
 	DECODING:        {tags.IMG},
 	DIR:             {tags.ANY},
 	DIRNAME:         {tags.INPUT, tags.TEXTAREA},
+	DOWNLOAD:        {tags.A, tags.AREA},
 	DRAGGABLE:       {tags.ANY},
 	ENCTYPE:         {tags.FORM},
-	ENTERKEYHINT:    {tags.TEXTAREA},
+	ENTERKEYHINT:    {tags.ANY},
 	FETCHPRIORITY:   {tags.IMG, tags.LINK, tags.SCRIPT},
 	FOR:             {tags.LABEL, tags.OUTPUT},
 	FORM:            {tags.BUTTON, tags.FIELDSET, tags.INPUT, tags.OBJECT, tags.OUTPUT, tags.SELECT, tags.TEXTAREA},
 	FORMACTION:      {tags.INPUT, tags.BUTTON},
 	FORMENCTYPE:     {tags.BUTTON, tags.INPUT},
 	FORMMETHOD:      {tags.BUTTON, tags.INPUT},
-	FORMNOVALIDATE:  {tags.BUTTON, tags.INPUT},
 	FORMTARGET:      {tags.BUTTON, tags.INPUT},
 	HEADERS:         {tags.TD, tags.TH},
 	HEIGHT:          {tags.CANVAS, tags.EMBED, tags.IFRAME, tags.IMG, tags.INPUT, tags.OBJECT, tags.VIDEO},
@@ -351,7 +366,7 @@ var attrTags = map[Kind][]tags.Kind{
 	HTTP_EQUIV:      {tags.META},
 	ID:              {tags.ANY},
 	INTEGRITY:       {tags.LINK, tags.SCRIPT},
-	INPUTMODE:       {tags.TEXTAREA},
+	INPUTMODE:       {tags.ANY},
 	ITEMPROP:        {tags.ANY},
 	KIND:            {tags.TRACK},
 	LABEL:           {tags.OPTGROUP, tags.OPTION, tags.TRACK},

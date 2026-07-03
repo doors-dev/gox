@@ -73,6 +73,20 @@ func (d Doc) GoxImportPos(enc common.Encoding) (common.Pos, bool) {
 	return pos, true
 }
 
+func (d Doc) Close() {
+	if d == nil {
+		return
+	}
+	if d.tree != nil {
+		d.tree.Close()
+		d.tree = nil
+	}
+	if d.parser != nil {
+		d.parser.Close()
+		d.parser = nil
+	}
+}
+
 func (d Doc) Err() error {
 	if d == nil {
 		return errors.New("This file is not part of the current workspace.")

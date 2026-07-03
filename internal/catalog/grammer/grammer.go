@@ -12,6 +12,7 @@ const (
 	CONST_DECLARATION  = "const_declaration"
 	TYPE_DECLARATION   = "type_declaration"
 	VAR_DECLARATION    = "var_declaration"
+	VAR_SPEC_LIST      = "var_spec_list"
 	FUNC_DECLARATION   = "function_declaration"
 	METHOD_DECLARATION = "method_declaration"
 	TYPE_IDENT         = "type_identifier"

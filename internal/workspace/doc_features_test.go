@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/doors-dev/gox/internal/catalog/symbol"
 	"github.com/doors-dev/gox/internal/common"
 )
 
@@ -249,6 +250,63 @@ func TestDocSymbols(t *testing.T) {
 	syms := doc.Symbols(common.UTF8)
 	if len(syms) == 0 {
 		t.Fatal("expected at least one symbol")
+	}
+}
+
+func TestDocSymbolsDeclarations(t *testing.T) {
+	src := `package demo
+
+const answer = 42
+
+const (
+	first = iota
+	second
+)
+
+var single = 1
+
+var (
+	alpha, beta = 1, 2
+	gamma       int
+)
+
+type (
+	Pair  struct{ X, Y int }
+	Named interface{ Name() string }
+)
+
+func run() {}
+`
+	doc := makeDoc(t, src)
+	syms := doc.Symbols(common.UTF8)
+	kinds := make(map[string]symbol.Kind, len(syms))
+	for _, s := range syms {
+		kinds[s.Name] = s.Kind
+	}
+	want := map[string]symbol.Kind{
+		"answer": symbol.Constant,
+		"first":  symbol.Constant,
+		"second": symbol.Constant,
+		"single": symbol.Variable,
+		"alpha":  symbol.Variable,
+		"beta":   symbol.Variable,
+		"gamma":  symbol.Variable,
+		"Pair":   symbol.Struct,
+		"Named":  symbol.Interface,
+		"run":    symbol.Function,
+	}
+	for name, kind := range want {
+		got, ok := kinds[name]
+		if !ok {
+			t.Errorf("symbol %q missing", name)
+			continue
+		}
+		if got != kind {
+			t.Errorf("symbol %q kind = %v, want %v", name, got, kind)
+		}
+	}
+	if len(syms) != len(want) {
+		t.Errorf("len(syms) = %d, want %d: %#v", len(syms), len(want), kinds)
 	}
 }
 
