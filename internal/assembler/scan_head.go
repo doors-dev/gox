@@ -32,7 +32,7 @@ func scanContent(coll collector, root *tree_sitter.Node) {
 			if arg.Kind() == grammer.GOX_MULTI_ARG {
 				for i := range arg.ChildCount() {
 					proxy := arg.Child(i)
-					if !proxy.IsNamed() {
+					if !proxy.IsNamed() || proxy.Kind() == grammer.VARIADIC_ARGUMENT {
 						continue
 					}
 					proxyLevel++

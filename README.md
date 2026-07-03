@@ -68,6 +68,8 @@ Useful server flags:
 - `-listen` to expose the server over TCP or a Unix socket instead of stdio
 - `-listen.timeout` to stop an idle socket server after a timeout
 
+The TCP listener is unauthenticated, so bind it to localhost or otherwise protect the port.
+
 GoX sits in front of `gopls`. It parses `.gox`, generates `.x.go`, keeps source and target positions mapped both ways, and forwards normal Go language features through a `gopls` instance.
 
 ### Add the Go package

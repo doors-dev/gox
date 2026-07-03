@@ -105,14 +105,15 @@ func (d Doc) Load() error {
 
 func (d Doc) Parse() error {
 	d.tree = d.parser.Parse(d.source.Source(), nil)
-	if d.tree.RootNode().HasError() {
-		msg := "GoX could not parse this file. Fix the syntax errors and try again."
-		if report := d.SyntaxErrorReport(); report != "" {
-			msg += "\n" + report
-		}
-		return errors.New(msg)
+	root := d.tree.RootNode()
+	if !root.HasError() && len(collectVariadicProxyArgs(root)) == 0 {
+		return nil
 	}
-	return nil
+	msg := "GoX could not parse this file. Fix the syntax errors and try again."
+	if report := d.SyntaxErrorReport(); report != "" {
+		msg += "\n" + report
+	}
+	return errors.New(msg)
 }
 
 func (d Doc) Init() {

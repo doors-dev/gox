@@ -2,12 +2,16 @@ package workspace
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
+	"github.com/doors-dev/gox/internal/catalog/grammer"
 	"github.com/doors-dev/gox/internal/common"
 	tree_sitter_gox "github.com/doors-dev/tree-sitter-gox/bindings/go"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
+
+const variadicProxyMessage = "Variadic arguments are not supported in proxy position."
 
 type SyntaxError struct {
 	Range   common.Range
@@ -24,6 +28,9 @@ type syntaxErrorNode struct {
 }
 
 func (e syntaxErrorNode) message() string {
+	if e.kind == grammer.VARIADIC_ARGUMENT {
+		return variadicProxyMessage
+	}
 	if e.missing {
 		return "syntax error: missing " + strings.TrimPrefix(e.kind, "gox_")
 	}
@@ -92,14 +99,68 @@ func formatSyntaxErrors(nodes []syntaxErrorNode) string {
 }
 
 func collectSyntaxErrors(source []byte, root *tree_sitter.Node) []syntaxErrorNode {
-	if root == nil || !root.HasError() {
+	if root == nil {
+		return nil
+	}
+	var out []syntaxErrorNode
+	if root.HasError() {
+		cursor := root.Walk()
+		walkSyntaxErrors(source, cursor, root, &out)
+		cursor.Close()
+	}
+	variadic := collectVariadicProxyArgs(root)
+	if len(variadic) == 0 {
+		return out
+	}
+	if len(out) == 0 {
+		return variadic
+	}
+	out = append(out, variadic...)
+	slices.SortStableFunc(out, func(a, b syntaxErrorNode) int {
+		return a.ran.Beg().Compare(b.ran.Beg())
+	})
+	return out
+}
+
+func collectVariadicProxyArgs(root *tree_sitter.Node) []syntaxErrorNode {
+	if root == nil {
 		return nil
 	}
 	cursor := root.Walk()
 	defer cursor.Close()
 	var out []syntaxErrorNode
-	walkSyntaxErrors(source, cursor, root, &out)
-	return out
+	for {
+		node := cursor.Node()
+		proxy := node.Kind() == grammer.GOX_TILDE_PROXY
+		if proxy {
+			appendVariadicProxyArgs(node, &out)
+		}
+		if !proxy && cursor.GotoFirstChild() {
+			continue
+		}
+		for !cursor.GotoNextSibling() {
+			if !cursor.GotoParent() {
+				return out
+			}
+		}
+	}
+}
+
+func appendVariadicProxyArgs(proxy *tree_sitter.Node, out *[]syntaxErrorNode) {
+	value := proxy.ChildByFieldName("value")
+	if value == nil {
+		return
+	}
+	for i := range value.ChildCount() {
+		arg := value.Child(i)
+		if arg.Kind() != grammer.VARIADIC_ARGUMENT {
+			continue
+		}
+		*out = append(*out, syntaxErrorNode{
+			ran:  common.NewTSRange(arg.Range()),
+			kind: arg.Kind(),
+		})
+	}
 }
 
 func walkSyntaxErrors(source []byte, cursor *tree_sitter.TreeCursor, node *tree_sitter.Node, out *[]syntaxErrorNode) {

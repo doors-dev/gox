@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"slices"
 	"testing"
 )
 
@@ -237,6 +238,87 @@ func TestAttrsApplyModsErrorStops(t *testing.T) {
 	}))
 	if err := a.ApplyMods(context.Background(), "div"); err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+func TestAttrsApplyModsErrorKeepsOnlyPending(t *testing.T) {
+	a := NewAttrs()
+	var order []int
+	a.AddMod(ModifyFunc(func(ctx context.Context, tag string, attrs Attrs) error {
+		order = append(order, 1)
+		return nil
+	}))
+	a.AddMod(ModifyFunc(func(ctx context.Context, tag string, attrs Attrs) error {
+		order = append(order, 2)
+		return errors.New("boom")
+	}))
+	a.AddMod(ModifyFunc(func(ctx context.Context, tag string, attrs Attrs) error {
+		order = append(order, 3)
+		return nil
+	}))
+	if err := a.ApplyMods(context.Background(), "div"); err == nil {
+		t.Fatal("expected error")
+	}
+	if !slices.Equal(order, []int{1, 2}) {
+		t.Fatalf("order after error = %v", order)
+	}
+	if err := a.ApplyMods(context.Background(), "div"); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(order, []int{1, 2, 3}) {
+		t.Fatalf("order after retry = %v", order)
+	}
+}
+
+func TestAttrsApplyModsRunsModAddedDuringApply(t *testing.T) {
+	a := NewAttrs()
+	var order []int
+	a.AddMod(ModifyFunc(func(ctx context.Context, tag string, attrs Attrs) error {
+		order = append(order, 1)
+		attrs.AddMod(ModifyFunc(func(ctx context.Context, tag string, attrs Attrs) error {
+			order = append(order, 3)
+			return nil
+		}))
+		return nil
+	}))
+	a.AddMod(ModifyFunc(func(ctx context.Context, tag string, attrs Attrs) error {
+		order = append(order, 2)
+		return nil
+	}))
+	if err := a.ApplyMods(context.Background(), "div"); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(order, []int{1, 2, 3}) {
+		t.Fatalf("order = %v", order)
+	}
+	if err := a.ApplyMods(context.Background(), "div"); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(order, []int{1, 2, 3}) {
+		t.Fatalf("order after second apply = %v", order)
+	}
+}
+
+func TestAttrsApplyModsRunsNestedAdditions(t *testing.T) {
+	a := NewAttrs()
+	var order []int
+	a.AddMod(ModifyFunc(func(ctx context.Context, tag string, attrs Attrs) error {
+		order = append(order, 1)
+		attrs.AddMod(ModifyFunc(func(ctx context.Context, tag string, attrs Attrs) error {
+			order = append(order, 2)
+			attrs.AddMod(ModifyFunc(func(ctx context.Context, tag string, attrs Attrs) error {
+				order = append(order, 3)
+				return nil
+			}))
+			return nil
+		}))
+		return nil
+	}))
+	if err := a.ApplyMods(context.Background(), "div"); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(order, []int{1, 2, 3}) {
+		t.Fatalf("order = %v", order)
 	}
 }
 

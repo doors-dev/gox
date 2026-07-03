@@ -215,7 +215,7 @@ func (r jsonChangesDriver) convertEdit(man workspace.Manager, enc common.Encodin
 		kindNode := node.Get("kind")
 		var kind string
 		kind, jerr = kindNode.String()
-		if err != nil {
+		if jerr != nil {
 			err = errors.New("Could not read the workspace edit.")
 			return
 		}

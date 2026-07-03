@@ -124,6 +124,7 @@ const (
 	S
 	SAMP
 	SCRIPT
+	SEARCH
 	SECTION
 	SELECT
 	SLOT
@@ -254,6 +255,7 @@ var tags = [...]string{
 	S:                "s",
 	SAMP:             "samp",
 	SCRIPT:           "script",
+	SEARCH:           "search",
 	SECTION:          "section",
 	SELECT:           "select",
 	SLOT:             "slot",

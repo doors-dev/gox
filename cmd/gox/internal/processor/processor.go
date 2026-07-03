@@ -57,7 +57,7 @@ type processor struct {
 }
 
 func (p *processor) addError(err error, parts ...string) {
-	line := red("✗") + " [" + strings.Join(parts, "") + "] " + err.Error()
+	line := redErr("✗") + " [" + strings.Join(parts, "") + "] " + err.Error()
 	p.mu.Lock()
 	p.errors = append(p.errors, line)
 	p.mu.Unlock()
@@ -65,7 +65,7 @@ func (p *processor) addError(err error, parts ...string) {
 
 func (p *processor) addChange(path string, reason string) {
 	p.mu.Lock()
-	p.changed = append(p.changed, yellow("~")+" "+reason+" "+path)
+	p.changed = append(p.changed, yellowOut("~")+" "+reason+" "+path)
 	p.mu.Unlock()
 }
 
@@ -90,9 +90,9 @@ func (p *processor) failed() bool {
 func (p *processor) formatPrint(dur time.Duration) {
 	p.printResult()
 	if p.failed() {
-		fmt.Print(red("FAIL") + " ")
+		fmt.Print(redOut("FAIL") + " ")
 	} else {
-		fmt.Print(green("SUCCESS") + " ")
+		fmt.Print(greenOut("SUCCESS") + " ")
 	}
 	if p.check {
 		fmt.Printf(
@@ -110,9 +110,9 @@ func (p *processor) formatPrint(dur time.Duration) {
 func (p *processor) genPrint(dur time.Duration) {
 	p.printResult()
 	if p.failed() {
-		fmt.Print(red("FAIL") + " ")
+		fmt.Print(redOut("FAIL") + " ")
 	} else {
-		fmt.Print(green("SUCCESS") + " ")
+		fmt.Print(greenOut("SUCCESS") + " ")
 	}
 	if p.check {
 		fmt.Printf(
@@ -131,8 +131,11 @@ func (p *processor) printResult() {
 	for _, c := range p.changed {
 		fmt.Println(c)
 	}
+	if !p.check {
+		return
+	}
 	for _, e := range p.errors {
-		fmt.Println(e)
+		fmt.Fprintln(os.Stderr, e)
 	}
 }
 
@@ -192,12 +195,12 @@ func (p *processor) genFile(file workspace.File) {
 	}
 	if !p.force {
 		needsUpdate, err := doc.CheckTarget()
-		if !needsUpdate {
-			p.skipped.Add(1)
-			return
-		}
 		if err != nil {
 			p.addError(err, "Target file ", target.Path(), " checking error")
+			return
+		}
+		if !needsUpdate {
+			p.skipped.Add(1)
 			return
 		}
 	}
@@ -213,7 +216,11 @@ func (p *processor) ignored(path string, isDir bool) bool {
 	if p.ignore == nil {
 		return false
 	}
-	rel, err := filepath.Rel(p.root, path)
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return false
+	}
+	rel, err := filepath.Rel(p.root, abs)
 	if err != nil {
 		return false
 	}
@@ -394,16 +401,36 @@ func normalizePattern(operand string) (string, bool) {
 	return operand, true
 }
 
-func (p *processor) buildIgnore(dir string, noIgnore bool) gitignore.Matcher {
-	if noIgnore {
-		return nil
+func findRepoRoot(dir string) (string, bool) {
+	for {
+		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
+			return dir, true
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", false
+		}
+		dir = parent
 	}
-	fs := osfs.New(dir)
+}
+
+func (p *processor) buildIgnore(dir string, noIgnore bool) (string, gitignore.Matcher) {
+	root, err := filepath.Abs(dir)
+	if err != nil {
+		root = dir
+	}
+	if noIgnore {
+		return root, nil
+	}
+	if repoRoot, found := findRepoRoot(root); found {
+		root = repoRoot
+	}
+	fs := osfs.New(root)
 	pats, err := gitignore.ReadPatterns(fs, nil)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, yellow("!")+" could not fully read .gitignore rules ("+err.Error()+"); continuing without full ignore filtering")
+		fmt.Fprintln(os.Stderr, yellowErr("!")+" could not fully read .gitignore rules ("+err.Error()+"); continuing without full ignore filtering")
 	}
-	return gitignore.NewMatcher(pats)
+	return root, gitignore.NewMatcher(pats)
 }
 
 func (p *processor) processOperand(operand string, noIgnore bool) {
@@ -418,8 +445,7 @@ func (p *processor) processOperand(operand string, noIgnore bool) {
 		return
 	}
 	if info.IsDir() {
-		p.root = base
-		p.ignore = p.buildIgnore(base, noIgnore)
+		p.root, p.ignore = p.buildIgnore(base, noIgnore)
 		if p.task == generation {
 			p.walkGen(base)
 		} else {

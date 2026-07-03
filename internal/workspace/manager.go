@@ -47,6 +47,7 @@ func (m *manager) EnsureWorkspaces(uris []string) {
 		}
 		paths = append(paths, path)
 	}
+	paths = pruneNestedPaths(paths)
 	for _, ws := range m.workspaces {
 		i := slices.Index(paths, ws.Root())
 		if i == -1 {
@@ -98,13 +99,37 @@ func (m *manager) AddWorkspace(uri string) {
 		return
 	}
 	for _, ws := range m.workspaces {
-		if ws.Root() == path {
+		if containsPath(ws.Root(), path) {
 			return
 		}
 	}
+	m.workspaces = slices.DeleteFunc(m.workspaces, func(ws *workspace) bool {
+		if !containsPath(path, ws.Root()) {
+			return false
+		}
+		ws.Stop()
+		return true
+	})
 	ws := newWs(path, m.mu)
 	m.workspaces = append(m.workspaces, ws)
 	slog.Debug("Workspace root added", "root", path, "roots", m.roots())
+}
+
+func pruneNestedPaths(paths []string) []string {
+	pruned := make([]string, 0, len(paths))
+	for _, path := range paths {
+		nested := false
+		for _, other := range paths {
+			if other != path && containsPath(other, path) {
+				nested = true
+				break
+			}
+		}
+		if !nested {
+			pruned = append(pruned, path)
+		}
+	}
+	return pruned
 }
 
 func (m *manager) StopAll() {

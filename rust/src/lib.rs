@@ -11,6 +11,7 @@ pub struct Buf {
 }
 
 #[unsafe(no_mangle)]
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn format(ptr_in: *const u8, len_in: usize) -> Buf {
     if ptr_in.is_null() && len_in != 0 {
         return Buf {
@@ -20,7 +21,11 @@ pub extern "C" fn format(ptr_in: *const u8, len_in: usize) -> Buf {
             res: 1,
         };
     }
-    let bytes = unsafe { std::slice::from_raw_parts(ptr_in, len_in) };
+    let bytes: &[u8] = if len_in == 0 {
+        &[]
+    } else {
+        unsafe { std::slice::from_raw_parts(ptr_in, len_in) }
+    };
     let mut output = Vec::new();
     let res = formatter::format(bytes, &mut output);
     if let Err(err) = res {
@@ -70,6 +75,7 @@ pub extern "C" fn format(ptr_in: *const u8, len_in: usize) -> Buf {
 }
 
 #[unsafe(no_mangle)]
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn free_buf(ptr: *mut u8, len: usize, cap: usize) {
     if ptr.is_null() || cap == 0 {
         return;

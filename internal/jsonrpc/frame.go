@@ -109,6 +109,8 @@ type headerFramer struct{}
 type headerReader struct{ in *bufio.Reader }
 type headerWriter struct{ out io.Writer }
 
+const maxContentLength = 128 << 20
+
 func (headerFramer) Reader(rw io.Reader) Reader {
 	return &headerReader{in: bufio.NewReader(rw)}
 }
@@ -157,6 +159,9 @@ func (r *headerReader) Read(ctx context.Context) (Message, error) {
 			}
 			if contentLength <= 0 {
 				return nil, fmt.Errorf("invalid Content-Length: %v", contentLength)
+			}
+			if contentLength > maxContentLength {
+				return nil, fmt.Errorf("Content-Length %v exceeds maximum %v", contentLength, int64(maxContentLength))
 			}
 		default:
 			// ignoring unknown headers

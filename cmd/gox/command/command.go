@@ -2,6 +2,8 @@ package command
 
 import (
 	"errors"
+	"flag"
+	"fmt"
 	"os"
 
 	"github.com/doors-dev/gox/internal/assembler"
@@ -38,30 +40,39 @@ func Execute(s Starter) (error, error) {
 	case "":
 		return nil, s.Default()
 	case "help", "--help", "-h", "-help", "--h":
-		println(header)
-		println()
-		println(help)
+		fmt.Println(header)
+		fmt.Println()
+		fmt.Println(help)
 		return nil, nil
 	case "fmt", "format":
 		args, err := parseGenericArgs(args, "format")
+		if errors.Is(err, flag.ErrHelp) {
+			return nil, nil
+		}
 		if err != nil {
 			return errors.New("Could not parse format arguments: " + err.Error()), nil
 		}
 		return nil, s.Format(args)
 	case "gen", "generate":
 		args, err := parseGenericArgs(args, "generate")
+		if errors.Is(err, flag.ErrHelp) {
+			return nil, nil
+		}
 		if err != nil {
 			return errors.New("Could not parse generate arguments: " + err.Error()), nil
 		}
 		return nil, s.Generate(args)
 	case "srv", "serve":
 		args, err := parseServeArgs(args)
+		if errors.Is(err, flag.ErrHelp) {
+			return nil, nil
+		}
 		if err != nil {
 			return errors.New("Could not parse serve arguments: " + err.Error()), nil
 		}
 		return nil, s.Serve(args)
 	case "ver", "version":
-		println(assembler.Version())
+		fmt.Println(assembler.Version())
 		return nil, nil
 	default:
 		return errors.New("Unknown command: " + command + "\n\n" + help), nil

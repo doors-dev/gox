@@ -2,6 +2,8 @@ package lsp
 
 import (
 	"errors"
+	"slices"
+	"strings"
 
 	"github.com/bytedance/sonic/ast"
 	"github.com/doors-dev/gox/internal/common"
@@ -163,7 +165,7 @@ func (r jsonPosDriver) convertLocations(man workspace.Manager, enc common.Encodi
 			return
 		}
 		if kind == workspace.KindSource {
-			err = errors.New("The server cannot reference source files here.")
+			return errors.New("The server cannot reference source files here.")
 		}
 		jsonDoc.setAsSource(j, doc)
 	} else {
@@ -276,6 +278,30 @@ func (r jsonPosDriver) convertOutgoingCalls(man workspace.Manager, enc common.En
 	return
 }
 
+var sourceDeniedDiagnosticCodes = []string{
+	"QF1003",
+}
+
+var sourceDeniedDiagnosticMessagePrefixes = []string{
+	"could use tagged switch",
+}
+
+func (r jsonPosDriver) diagnosticDeniedOnSource(j Json) bool {
+	if code, err := j.Get("code").String(); err == nil {
+		if slices.Contains(sourceDeniedDiagnosticCodes, code) {
+			return true
+		}
+	}
+	if message, err := j.Get("message").String(); err == nil {
+		for _, prefix := range sourceDeniedDiagnosticMessagePrefixes {
+			if strings.HasPrefix(message, prefix) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (r jsonPosDriver) convertDiagnosticsToTarget(man workspace.Manager, enc common.Encoding, doc workspace.Doc, j Json) error {
 	return r.convertDiagnostics(man, enc, doc, j, convertToTarget)
 }
@@ -298,6 +324,9 @@ func (r jsonPosDriver) convertDiagnostics(man workspace.Manager, enc common.Enco
 		}
 		newDiag := make([]ast.Node, 0, len(diag))
 		for _, node := range diag {
+			if direction == convertToSource && r.diagnosticDeniedOnSource(&node) {
+				continue
+			}
 			ran, err := jsonPos.getRange(&node)
 			if err != nil {
 				err = errors.New("A diagnostic range is missing.")

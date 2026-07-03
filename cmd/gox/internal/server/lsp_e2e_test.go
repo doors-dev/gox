@@ -416,10 +416,11 @@ func (h *lspHarness) handleServerCall(req *jsonrpc2.Request) {
 func (h *lspHarness) reply(id jsonrpc2.ID, result any, err error) {
 	msg, marshalErr := jsonrpc2.NewResponse(id, result, err)
 	if marshalErr != nil {
-		h.t.Fatalf("marshal response: %v", marshalErr)
+		h.t.Errorf("marshal response: %v", marshalErr)
+		return
 	}
 	if writeErr := h.writeMessage(msg); writeErr != nil && !errors.Is(writeErr, io.EOF) {
-		h.t.Fatalf("write response: %v", writeErr)
+		h.t.Errorf("write response: %v", writeErr)
 	}
 }
 

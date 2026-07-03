@@ -2,10 +2,13 @@ package command
 
 import (
 	"errors"
+	"io"
 	"os"
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/doors-dev/gox/internal/assembler"
 )
 
 type stubStarter struct {
@@ -129,6 +132,49 @@ func TestExecuteDispatch(t *testing.T) {
 		}
 		if cmdErr == nil || !strings.HasPrefix(cmdErr.Error(), "Could not parse format arguments:") {
 			t.Fatalf("cmdErr = %v, want a parse error", cmdErr)
+		}
+	})
+
+	t.Run("version prints to stdout", func(t *testing.T) {
+		os.Args = []string{"gox", "ver"}
+		starter := &stubStarter{}
+		oldStdout := os.Stdout
+		r, w, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		os.Stdout = w
+		cmdErr, runErr := Execute(starter)
+		w.Close()
+		os.Stdout = oldStdout
+		out, err := io.ReadAll(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cmdErr != nil || runErr != nil {
+			t.Fatalf("Execute() = (%v, %v)", cmdErr, runErr)
+		}
+		if got, want := string(out), assembler.Version()+"\n"; got != want {
+			t.Fatalf("stdout = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("help flag exits clean", func(t *testing.T) {
+		devNull, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer devNull.Close()
+		oldStderr := os.Stderr
+		os.Stderr = devNull
+		defer func() { os.Stderr = oldStderr }()
+		for _, cmd := range []string{"fmt", "gen", "srv"} {
+			os.Args = []string{"gox", cmd, "-h"}
+			starter := &stubStarter{}
+			cmdErr, runErr := Execute(starter)
+			if cmdErr != nil || runErr != nil {
+				t.Fatalf("%s -h: Execute() = (%v, %v), want (nil, nil)", cmd, cmdErr, runErr)
+			}
 		}
 	})
 

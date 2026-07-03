@@ -201,6 +201,60 @@ func TestFormatDirectorySkipsIgnored(t *testing.T) {
 	}
 }
 
+func TestFormatRespectsRepoRootGitignoreFromSubdir(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(root, ".gitignore"), "ignored.go\n")
+	sub := filepath.Join(root, "sub")
+	mainFile := filepath.Join(sub, "main.go")
+	ignoredFile := filepath.Join(sub, "ignored.go")
+	unformatted := "package main\nfunc main(){println(\"x\")}\n"
+	writeFile(t, mainFile, unformatted)
+	writeFile(t, ignoredFile, unformatted)
+
+	if err := Format([]string{sub}, false, false, false, true); err != nil {
+		t.Fatalf("Format(sub) error = %v", err)
+	}
+
+	mainContent, err := os.ReadFile(mainFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := string(mainContent); got != "package main\n\nfunc main() { println(\"x\") }\n" {
+		t.Fatalf("sub/main.go = %q, want formatted", got)
+	}
+	ignoredContent, err := os.ReadFile(ignoredFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(ignoredContent) != unformatted {
+		t.Fatalf("sub/ignored.go = %q, want untouched (repo-root .gitignore must apply)", string(ignoredContent))
+	}
+}
+
+func TestGenerateRespectsRepoRootGitignoreFromSubdir(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(root, ".gitignore"), "ignored.gox\n")
+	sub := filepath.Join(root, "sub")
+	writeFile(t, filepath.Join(sub, "view.gox"), processorSample)
+	writeFile(t, filepath.Join(sub, "ignored.gox"), processorSample)
+
+	if err := Generate([]string{sub}, false, true, false); err != nil {
+		t.Fatalf("Generate(sub) error = %v", err)
+	}
+	if !exists(filepath.Join(sub, "view.x.go")) {
+		t.Fatal("view.x.go missing")
+	}
+	if exists(filepath.Join(sub, "ignored.x.go")) {
+		t.Fatal("ignored.x.go generated despite repo-root .gitignore")
+	}
+}
+
 func TestGenerateDirectoryCreatesTargetsAndRemovesOrphans(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "view.gox"), processorSample)

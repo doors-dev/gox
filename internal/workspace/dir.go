@@ -38,6 +38,7 @@ func (d *dir) ProcessFileRemovals() {
 			delete(d.sus, name)
 			delete(d.docs, name)
 			doc.targetRemove()
+			doc.Close()
 			continue
 		}
 		delete(d.sus, name)

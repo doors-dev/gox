@@ -279,6 +279,7 @@ func TestHeaderFramer(t *testing.T) {
 		{name: "bad header", data: "oops\r\n\r\n", want: `invalid header line "oops"`},
 		{name: "bad length", data: "Content-Length: nope\r\n\r\n", want: "failed parsing Content-Length"},
 		{name: "zero length", data: "Content-Length: 0\r\n\r\n", want: "invalid Content-Length"},
+		{name: "oversized length", data: "Content-Length: 2147483647\r\n\r\n", want: "exceeds maximum"},
 	}
 	for _, tc := range errorCases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -9,6 +9,7 @@ const (
 	PACKAGE                   = "package_clause"
 
 	// GO
+	VARIADIC_ARGUMENT  = "variadic_argument"
 	CONST_DECLARATION  = "const_declaration"
 	TYPE_DECLARATION   = "type_declaration"
 	VAR_DECLARATION    = "var_declaration"

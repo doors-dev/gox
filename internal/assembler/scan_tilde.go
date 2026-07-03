@@ -5,12 +5,6 @@ import (
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-func scanTildeComment(coll collector, root *tree_sitter.Node) {
-	comment := root.ChildByFieldName("comment")
-	coll.cr()
-	coll.append(p(comment))
-}
-
 func scanTildeBlock(coll collector, root *tree_sitter.Node) {
 	root = root.ChildByFieldName("body")
 	if root == nil {

@@ -88,13 +88,14 @@ func (a Attrs) ApplyMods(ctx context.Context, tag string) error {
 	if a == nil {
 		return nil
 	}
-	for i, m := range a.mods {
-		a.mods[i] = nil
+	for len(a.mods) > 0 {
+		m := a.mods[0]
+		a.mods[0] = nil
+		a.mods = a.mods[1:]
 		if err := m.Modify(ctx, tag, a); err != nil {
 			return err
 		}
 	}
-	a.mods = a.mods[:0]
 	return nil
 }
 

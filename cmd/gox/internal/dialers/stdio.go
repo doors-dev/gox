@@ -42,6 +42,7 @@ func (s cmdDialer) Dial(context.Context) (io.ReadWriteCloser, error) {
 			cmd.Process.Signal(os.Kill)
 			goplsOut.Close()
 			goplsIn.Close()
+			cmd.Wait()
 			return nil
 		},
 	), nil

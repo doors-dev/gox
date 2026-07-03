@@ -1,6 +1,8 @@
 package lsp
 
 import (
+	"log/slog"
+
 	"github.com/doors-dev/gox/internal/common"
 	jsonrpc2 "github.com/doors-dev/gox/internal/jsonrpc"
 	"github.com/doors-dev/gox/internal/workspace"
@@ -15,6 +17,9 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 			return
 		}
 		uris, err := jsonInit.getWorkspaceDirs(j)
+		if err != nil {
+			slog.Error("Workspace folders unavailable in initialize params", "error", err.Error())
+		}
 		for _, uri := range uris {
 			sess.addWorkspace(uri)
 		}

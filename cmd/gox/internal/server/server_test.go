@@ -116,6 +116,83 @@ func TestServerWaitReturnsAfterDialError(t *testing.T) {
 	}
 }
 
+type permanentFailListener struct {
+	calls atomic.Int32
+}
+
+func (l *permanentFailListener) Accept() (io.ReadWriteCloser, error) {
+	l.calls.Add(1)
+	return nil, errors.New("boom")
+}
+
+func (l *permanentFailListener) Close() error {
+	return nil
+}
+
+func TestServerStopsAcceptLoopOnPermanentError(t *testing.T) {
+	listener := &permanentFailListener{}
+	srv := NewServer(listener, testDialer{}, 20*time.Millisecond)
+
+	done := make(chan struct{})
+	go func() {
+		srv.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("server did not stop after permanent accept error")
+	}
+	if got := listener.calls.Load(); got != 1 {
+		t.Fatalf("Accept() calls = %d, want 1 (must not respawn on permanent error)", got)
+	}
+}
+
+type tempAcceptError struct{}
+
+func (tempAcceptError) Error() string   { return "temporary accept failure" }
+func (tempAcceptError) Timeout() bool   { return false }
+func (tempAcceptError) Temporary() bool { return true }
+
+type flakyListener struct {
+	*testListener
+	failed atomic.Bool
+}
+
+func (l *flakyListener) Accept() (io.ReadWriteCloser, error) {
+	if !l.failed.Swap(true) {
+		return nil, tempAcceptError{}
+	}
+	return l.testListener.Accept()
+}
+
+func TestServerRetriesTemporaryAcceptError(t *testing.T) {
+	listener := &flakyListener{testListener: newTestListener()}
+	client := newSpyRWC()
+	listener.conns <- client
+
+	srv := NewServer(listener, testDialer{err: errors.New("boom")}, 0)
+
+	done := make(chan struct{})
+	go func() {
+		srv.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("server did not serve the connection queued after a temporary accept error")
+	}
+
+	select {
+	case <-client.closed:
+	case <-time.After(2 * time.Second):
+		t.Fatal("client connection was not closed")
+	}
+}
+
 func TestServerIdleKillTimerStopsServer(t *testing.T) {
 	listener := newTestListener()
 	srv := NewServer(listener, testDialer{}, 20*time.Millisecond)

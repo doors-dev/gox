@@ -35,7 +35,11 @@ func initClientNotifs(sess *session, on func(on onNotif, m ...method)) {
 		switch kind {
 		case workspace.KindSource:
 			doc.SourceOpen(int32(version))
-			upd, _ := doc.SourceUpdate(text)
+			upd, err := doc.SourceUpdate(text)
+			if err != nil {
+				n.err(common.FromErr(jsonrpc2.ErrInternal, err))
+				return
+			}
 			insertGoxImport(sess, doc)
 			if upd && doc.TargetIsOpened() {
 				sess.callClient(

@@ -152,12 +152,13 @@ func TestApproximateClosestColumn(t *testing.T) {
 	tr := NewTranslator()
 	tr.Append(r(0, 0, 0, 2), r(10, 0, 10, 2))
 	tr.Append(r(0, 8, 0, 10), r(10, 8, 10, 10))
-	// pos at col 5 — equidistant by line, closer column to right
 	got, ok := tr.ApproximateConvertToTarget(common.NewPos(0, 5))
 	if !ok {
 		t.Fatal("approximate miss")
 	}
-	_ = got
+	if got.Line() != 10 || got.Column() != 5 {
+		t.Fatalf("approximate = %v, want 10:5", got)
+	}
 }
 
 func TestApproximateAfterAll(t *testing.T) {
