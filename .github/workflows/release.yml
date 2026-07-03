@@ -1,13 +1,17 @@
 name: Build & Release
 
 on:
+  push:
+    tags:
+      - "v*"
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
+    if: github.ref_type == 'tag'
     strategy:
       fail-fast: false
       matrix:
@@ -115,6 +119,8 @@ jobs:
   release:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Ensure the workflow was dispatched from a tag
@@ -140,6 +146,11 @@ jobs:
           tar -C "builds/gox_Darwin_amd64" -czf "dist/gox_darwin_amd64.tar.gz" .
           (cd "builds/gox_Windows_amd64" && zip -r "../../dist/gox_windows_amd64.zip" .)
           (cd "builds/gox_Windows_arm64" && zip -r "../../dist/gox_windows_arm64.zip" .)
+
+      - name: Generate checksums
+        run: |
+          set -euo pipefail
+          (cd dist && sha256sum * > SHA256SUMS)
 
       - name: Create/Update GitHub Release and upload assets (once)
         uses: softprops/action-gh-release@v2
