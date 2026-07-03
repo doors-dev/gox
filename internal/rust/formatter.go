@@ -16,7 +16,7 @@ typedef struct {
 } Buf;
 
 Buf format(const uint8_t* ptr_in, size_t len_in);
-void free_buf(uint8_t* ptr, size_t len);
+void free_buf(uint8_t* ptr, size_t len, size_t cap);
 */
 import "C"
 
@@ -37,7 +37,7 @@ func Format(in []byte) ([]byte, error) {
 	case -1:
 		return nil, nil
 	case 0:
-		defer C.free_buf(res.ptr, res.len)
+		defer C.free_buf(res.ptr, res.len, res.cap)
 		if res.len > C.size_t(math.MaxInt32) {
 			return nil, fmt.Errorf("output too large: %d", uint64(res.len))
 		}

@@ -40,6 +40,7 @@ type bridge struct {
 
 func (b *bridge) run() {
 	defer b.responseState.cancelAll()
+	defer b.wg.Wait()
 	for {
 		select {
 		case m, ok := <-b.client.Read():
@@ -116,7 +117,11 @@ func (b *bridge) Call(role lsp.Role, call lsp.Request, callback lsp.Callback) {
 		Params: call.Params,
 	})
 	if err != nil {
-		b.responseState.respond(id, lsp.Response{Err: err})
+		b.wg.Add(1)
+		go func() {
+			defer b.wg.Done()
+			b.responseState.respond(id, lsp.Response{Err: err})
+		}()
 		return
 	}
 }
@@ -129,6 +134,8 @@ func (b *bridge) Notify(role lsp.Role, notification lsp.Request) error {
 }
 
 func (b *bridge) write(role lsp.Role, message jsonrpc2.Message) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	switch role {
 	case lsp.Client:
 		if b.ctx.Err() != nil {
