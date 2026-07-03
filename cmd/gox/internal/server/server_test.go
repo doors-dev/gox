@@ -205,8 +205,8 @@ func TestResponseStateIssueRespondAndCancelAll(t *testing.T) {
 
 	firstCh := make(chan lsp.Response, 1)
 	secondCh := make(chan lsp.Response, 1)
-	firstID := state.issueRequest(func(r lsp.Response) { firstCh <- r })
-	secondID := state.issueRequest(func(r lsp.Response) { secondCh <- r })
+	firstID := state.issueRequest(func(r lsp.Response) { firstCh <- r }, lsp.Origin{Role: lsp.Client, ID: jsonrpc2.StringID("a")})
+	secondID := state.issueRequest(func(r lsp.Response) { secondCh <- r }, lsp.Origin{})
 
 	if firstID != 1 || secondID != 2 {
 		t.Fatalf("issued ids = (%d, %d), want (1, 2)", firstID, secondID)
@@ -239,6 +239,96 @@ func TestResponseStateIssueRespondAndCancelAll(t *testing.T) {
 
 	if len(state.requests) != 0 {
 		t.Fatalf("requests len = %d, want 0", len(state.requests))
+	}
+	if len(state.origins) != 0 {
+		t.Fatalf("origins len = %d, want 0", len(state.origins))
+	}
+}
+
+func TestBridgeTranslatesCancelRequestID(t *testing.T) {
+	clientServer, clientPeer := net.Pipe()
+	goplsServer, goplsPeer := net.Pipe()
+	defer clientPeer.Close()
+	defer goplsPeer.Close()
+
+	b := newBridge(context.Background(), clientServer, goplsServer)
+	defer b.cancel()
+	go b.run()
+
+	framer := jsonrpc2.HeaderFramer()
+	clientWriter := framer.Writer(clientPeer)
+	goplsReader := framer.Reader(goplsPeer)
+
+	goplsCh := make(chan *jsonrpc2.Request, 4)
+	go func() {
+		for {
+			msg, err := goplsReader.Read(context.Background())
+			if err != nil {
+				close(goplsCh)
+				return
+			}
+			if req, ok := msg.(*jsonrpc2.Request); ok {
+				goplsCh <- req
+			}
+		}
+	}()
+
+	writeClient := func(msg jsonrpc2.Message, err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatalf("marshal message: %v", err)
+		}
+		if err := clientWriter.Write(context.Background(), msg); err != nil {
+			t.Fatalf("client write error = %v", err)
+		}
+	}
+	readGopls := func() *jsonrpc2.Request {
+		t.Helper()
+		select {
+		case req, ok := <-goplsCh:
+			if !ok {
+				t.Fatal("gopls connection closed unexpectedly")
+			}
+			return req
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for gopls-bound message")
+			return nil
+		}
+	}
+
+	writeClient(jsonrpc2.NewCall(jsonrpc2.StringID("abc"), "test/echo", map[string]string{"query": "View"}))
+	forwarded := readGopls()
+	if forwarded.Method != "test/echo" {
+		t.Fatalf("forwarded method = %q, want test/echo", forwarded.Method)
+	}
+	bridgeID, ok := forwarded.ID.Raw().(int64)
+	if !ok {
+		t.Fatalf("forwarded id = %#v, want int64", forwarded.ID.Raw())
+	}
+	if raw := forwarded.ID.Raw(); raw == "abc" {
+		t.Fatal("forwarded request kept the client id")
+	}
+
+	writeClient(jsonrpc2.NewNotification("$/cancelRequest", map[string]any{"id": "abc"}))
+	cancelReq := readGopls()
+	if cancelReq.Method != "$/cancelRequest" || cancelReq.ID.IsValid() {
+		t.Fatalf("gopls message = %#v, want $/cancelRequest notification", cancelReq)
+	}
+	var cancelParams struct {
+		ID int64 `json:"id"`
+	}
+	if err := json.Unmarshal(cancelReq.Params, &cancelParams); err != nil {
+		t.Fatalf("decode cancel params: %v", err)
+	}
+	if cancelParams.ID != bridgeID {
+		t.Fatalf("cancel id = %d, want translated bridge id %d", cancelParams.ID, bridgeID)
+	}
+
+	writeClient(jsonrpc2.NewNotification("$/cancelRequest", map[string]any{"id": "unknown"}))
+	writeClient(jsonrpc2.NewNotification("test/marker", map[string]string{}))
+	next := readGopls()
+	if next.Method != "test/marker" {
+		t.Fatalf("gopls message after unknown cancel = %q, want test/marker (unknown cancel must be dropped)", next.Method)
 	}
 }
 

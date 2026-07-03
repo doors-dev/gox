@@ -36,9 +36,15 @@ type Response struct {
 	Result json.RawMessage
 }
 
+type Origin struct {
+	Role Role
+	ID   jsonrpc.ID
+}
+
 type Request struct {
 	Method string
 	Params json.RawMessage
+	Origin Origin
 }
 
 type Bridge interface {
@@ -79,6 +85,7 @@ type request struct {
 	sess     *session
 	m        method
 	role     Role
+	origin   Origin
 	locker   sync.Locker
 	logAttrs []any
 }
@@ -132,6 +139,7 @@ func (c *request) forward() {
 		c.sess.bridge.Call(c.role.Revert(), Request{
 			Method: string(c.m),
 			Params: c.data,
+			Origin: c.origin,
 		}, c.cb)
 	} else {
 		c.sess.bridge.Notify(c.role.Revert(), Request{
@@ -149,6 +157,7 @@ func (c *request) proxy(params Json, handler func(res Json)) {
 	c.sess.bridge.Call(c.role.Revert(), Request{
 		Method: string(c.m),
 		Params: data,
+		Origin: c.origin,
 	}, func(r Response) {
 		c.locker.Lock()
 		defer c.locker.Unlock()
@@ -235,6 +244,7 @@ func (r Router) Call(role Role, call Request, cb Callback) {
 			m:        m,
 			data:     call.Params,
 			cb:       cb,
+			origin:   call.Origin,
 			locker:   r.session.man(),
 			logAttrs: nil,
 		}

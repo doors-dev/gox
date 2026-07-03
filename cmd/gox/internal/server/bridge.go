@@ -90,6 +90,7 @@ func (b *bridge) incomingCall(role lsp.Role, id jsonrpc2.ID, method string, para
 	b.router.Call(role, lsp.Request{
 		Method: method,
 		Params: params,
+		Origin: lsp.Origin{Role: role, ID: id},
 	}, func(resp lsp.Response) {
 		if errors.Is(resp.Err, context.Canceled) {
 			return
@@ -102,15 +103,48 @@ func (b *bridge) incomingCall(role lsp.Role, id jsonrpc2.ID, method string, para
 	})
 }
 
+const cancelRequestMethod = "$/cancelRequest"
+
 func (b *bridge) incomingNotification(role lsp.Role, method string, params json.RawMessage) {
+	if method == cancelRequestMethod {
+		b.forwardCancel(role, params)
+		return
+	}
 	b.router.Notification(role, lsp.Request{
 		Method: method,
 		Params: params,
 	})
 }
 
+func (b *bridge) forwardCancel(role lsp.Role, params json.RawMessage) {
+	var wire struct {
+		ID any `json:"id"`
+	}
+	if err := json.Unmarshal(params, &wire); err != nil {
+		return
+	}
+	id, err := jsonrpc2.MakeID(wire.ID)
+	if err != nil || !id.IsValid() {
+		return
+	}
+	bridgeID, ok := b.responseState.cancelTarget(lsp.Origin{Role: role, ID: id})
+	if !ok {
+		return
+	}
+	data, err := json.Marshal(struct {
+		ID int64 `json:"id"`
+	}{ID: bridgeID})
+	if err != nil {
+		return
+	}
+	b.Notify(role.Revert(), lsp.Request{
+		Method: cancelRequestMethod,
+		Params: data,
+	})
+}
+
 func (b *bridge) Call(role lsp.Role, call lsp.Request, callback lsp.Callback) {
-	id := b.responseState.issueRequest(callback)
+	id := b.responseState.issueRequest(callback, call.Origin)
 	err := b.write(role, &jsonrpc2.Request{
 		ID:     jsonrpc2.Int64ID(id),
 		Method: call.Method,
