@@ -16,11 +16,9 @@ pub fn format(input: &[u8], output: &mut Vec<u8>) -> Result<(), topiary_core::Fo
     let tree = tree.unwrap();
     let root = tree.root_node();
     let cured = cure(input, &root);
-    let input = if let Some(cured) = cured.as_ref() {
-        std::str::from_utf8(cured).unwrap()
-    } else {
-        std::str::from_utf8(input).unwrap()
-    };
+    let input = std::str::from_utf8(cured.as_deref().unwrap_or(input)).map_err(|e| {
+        topiary_core::FormatterError::Internal("input is not valid UTF-8".to_string(), Some(Box::new(e)))
+    })?;
     let mut formatted_gox = Vec::new();
     topiary_core::formatter_str(
         input,
