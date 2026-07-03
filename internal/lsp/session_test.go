@@ -367,3 +367,155 @@ func assertNotifPayload(t *testing.T, got recordedNotify, wantRole Role, wantMet
 		t.Fatalf("payload type = %d, want %d", payload.Type, wantType)
 	}
 }
+
+func TestSubtypesRejectsSourceOutsideWorkspace(t *testing.T) {
+	outside := t.TempDir()
+	path := filepath.Join(outside, "view.gox")
+	if err := os.WriteFile(path, []byte(lspHelperSource), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	bridge := &bridgeStub{}
+	router := NewRouter(bridge)
+	router.session.setEnc(common.UTF8)
+
+	params, err := json.Marshal(map[string]any{
+		"item": map[string]any{
+			"uri": string(docpath.URIFromPath(path)),
+			"range": map[string]any{
+				"start": map[string]any{"line": 0, "character": 0},
+				"end":   map[string]any{"line": 0, "character": 1},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, m := range []method{subtypes, supertypes} {
+		bridge.calls = nil
+		handled := false
+		var resp Response
+		router.Call(Client, Request{
+			Method: string(m),
+			Params: params,
+		}, func(r Response) {
+			handled = true
+			resp = r
+		})
+		if !handled {
+			t.Fatalf("%s callback was not invoked", m)
+		}
+		if resp.Err == nil {
+			t.Fatalf("%s error = nil, want out-of-workspace error", m)
+		}
+		if len(bridge.calls) != 0 {
+			t.Fatalf("out-of-workspace %s was forwarded: %#v", m, bridge.calls)
+		}
+	}
+}
+
+func TestDidChangeRejectsPresentInvalidRange(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "view.gox")
+	if err := os.WriteFile(path, []byte(lspHelperSource), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	bridge := &bridgeStub{}
+	router := NewRouter(bridge)
+	router.session.setEnc(common.UTF8)
+	router.session.ensureWorkspaces([]string{string(docpath.URIFromPath(root))})
+
+	uri := string(docpath.URIFromPath(path))
+	doc, kind := router.session.man().Doc(uri)
+	if kind != workspace.KindSource || doc == nil {
+		t.Fatalf("Doc() = (%v, %v), want source doc", doc, kind)
+	}
+	targetBefore := doc.TargetContent()
+
+	params, err := json.Marshal(map[string]any{
+		"textDocument": map[string]any{"uri": uri},
+		"contentChanges": []map[string]any{
+			{
+				"range": map[string]any{
+					"start": map[string]any{"line": -1, "character": 0},
+					"end":   map[string]any{"line": 0, "character": 0},
+				},
+				"text": "junk fragment",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	router.Notification(Client, Request{Method: string(didChange), Params: params})
+
+	for _, notification := range bridge.notifications {
+		if notification.role == Gopls {
+			t.Fatalf("invalid didChange was forwarded to gopls: %#v", notification)
+		}
+	}
+	if doc.Err() != nil {
+		t.Fatalf("doc.Err() = %v, want nil", doc.Err())
+	}
+	if got := doc.TargetContent(); got != targetBefore {
+		t.Fatalf("target content changed after rejected didChange: %q", got)
+	}
+	found := false
+	for _, notification := range bridge.notifications {
+		if notification.req.Method == string(logMessage) && strings.Contains(string(notification.req.Params), "The edit range is invalid.") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("missing invalid-range error notification: %#v", bridge.notifications)
+	}
+}
+
+func TestDidChangeAbsentRangeAppliesFullUpdate(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "view.gox")
+	if err := os.WriteFile(path, []byte(lspHelperSource), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	bridge := &bridgeStub{}
+	router := NewRouter(bridge)
+	router.session.setEnc(common.UTF8)
+	router.session.ensureWorkspaces([]string{string(docpath.URIFromPath(root))})
+
+	uri := string(docpath.URIFromPath(path))
+	doc, kind := router.session.man().Doc(uri)
+	if kind != workspace.KindSource || doc == nil {
+		t.Fatalf("Doc() = (%v, %v), want source doc", doc, kind)
+	}
+
+	newSrc := strings.Replace(lspHelperSource, "card", "panel", 1)
+	params, err := json.Marshal(map[string]any{
+		"textDocument": map[string]any{"uri": uri},
+		"contentChanges": []map[string]any{
+			{"text": newSrc},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	router.Notification(Client, Request{Method: string(didChange), Params: params})
+
+	if doc.Err() != nil {
+		t.Fatalf("doc.Err() = %v, want nil", doc.Err())
+	}
+	if !strings.Contains(doc.TargetContent(), "panel") {
+		t.Fatalf("target content missing full update: %q", doc.TargetContent())
+	}
+	forwarded := false
+	for _, notification := range bridge.notifications {
+		if notification.role == Gopls && notification.req.Method == string(didChange) {
+			forwarded = true
+		}
+	}
+	if !forwarded {
+		t.Fatalf("full-document didChange was not forwarded to gopls: %#v", bridge.notifications)
+	}
+}

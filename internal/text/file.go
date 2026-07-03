@@ -56,7 +56,9 @@ func (t Text) Load(path string) error {
 	buf.Truncate(buf.Len() - 1)
 	for i := len(t.lineOffsets) - 1; i >= 0 && t.lineOffsets[i].Len() == 0; i-- {
 		t.lineOffsets = t.lineOffsets[:i]
-		buf.Truncate(buf.Len() - 1)
+		if buf.Len() > 0 {
+			buf.Truncate(buf.Len() - 1)
+		}
 	}
 	t.source = buf.Bytes()
 	return nil

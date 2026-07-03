@@ -309,6 +309,8 @@ type Output interface {
 
 That makes attributes more than plain HTML metadata. They are also part of the rendering pipeline.
 
+Attribute values are entity-escaped, but URL schemes are intentionally not filtered: a user-controlled `href` or `src` can carry a `javascript:` or `data:` URL, unlike `html/template`. Validate untrusted URLs in application code, or implement scheme filtering in a custom `Printer` — that way the policy lives where you can exempt the places that legitimately need such URLs.
+
 ### Extension points
 
 GoX exposes three main render-time extension points:

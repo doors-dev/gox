@@ -170,7 +170,12 @@ func (t Text) Update(content string) (tree_sitter.InputEdit, bool, error) {
 
 func (t Text) Patch(ran common.Range, content string) (tree_sitter.InputEdit, bool, error) {
 	defer t.ensureLineOffsets()
-	patch, err := t.preparePatch(ran, content)
+	beg := t.clampPos(ran.Beg())
+	end := t.clampPos(ran.End())
+	if beg.Compare(end) > 0 {
+		return tree_sitter.InputEdit{}, false, errors.New("The edit range is invalid.")
+	}
+	patch, err := t.preparePatch(common.NewRange(beg, end), content)
 	if err != nil {
 		return tree_sitter.InputEdit{}, false, err
 	}

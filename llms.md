@@ -357,6 +357,8 @@ Raw block `<:>...</:>` emits literal HTML, whitespace preserved verbatim:
 
 Useful for static SVG/HTML fragments. **Never pipe untrusted input through it.**
 
+Attribute values are entity-escaped only. GoX does **not** filter URL schemes: a user-controlled value in `href`/`src` can carry `javascript:` or `data:` URLs (unlike `html/template`). This is intentional — validate untrusted URLs in application code, or implement scheme filtering in a custom `Printer` where you can respect the places that legitimately need such URLs.
+
 ### Components (`gox.Comp`)
 
 Anything with `Main() gox.Elem` is a component. In `.gox`, implement with `elem` method syntax:

@@ -24,6 +24,17 @@ func (t Text) offset(pos common.Pos, strict bool) int {
 	return offset
 }
 
+func (t Text) clampPos(pos common.Pos) common.Pos {
+	if pos.Line() < 0 {
+		return common.NewPos(0, 0)
+	}
+	if pos.Line() >= len(t.lineOffsets) {
+		return common.NewPos(pos.Line(), 0)
+	}
+	col := max(0, min(pos.Column(), t.lineOffsets[pos.Line()].Len()))
+	return common.NewPos(pos.Line(), col)
+}
+
 func (t Text) IntoRange(enc common.Encoding, rang common.Range) common.Range {
 	beg := t.IntoPos(enc, rang.Beg())
 	end := t.IntoPos(enc, rang.End())
@@ -37,7 +48,7 @@ func (t Text) FromRange(enc common.Encoding, rang common.Range) common.Range {
 }
 
 func (t Text) IntoPos(enc common.Encoding, pos common.Pos) common.Pos {
-	if len(t.lineOffsets) <= pos.Line() {
+	if pos.Line() < 0 || len(t.lineOffsets) <= pos.Line() {
 		return pos
 	}
 	switch enc {
@@ -52,7 +63,7 @@ func (t Text) IntoPos(enc common.Encoding, pos common.Pos) common.Pos {
 }
 
 func (t Text) FromPos(enc common.Encoding, pos common.Pos) common.Pos {
-	if len(t.lineOffsets) <= pos.Line() {
+	if pos.Line() < 0 || len(t.lineOffsets) <= pos.Line() {
 		return pos
 	}
 	switch enc {

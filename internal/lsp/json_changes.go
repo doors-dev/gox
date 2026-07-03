@@ -14,8 +14,9 @@ var jsonChanges jsonChangesDriver
 type jsonChangesDriver struct{}
 
 type ContentChange struct {
-	Range common.Range
-	Text  string
+	Range    common.Range
+	HasRange bool
+	Text     string
 }
 
 func (r jsonChangesDriver) convertCompletions(enc common.Encoding, doc workspace.Doc, j Json) {
@@ -243,17 +244,22 @@ func (r jsonChangesDriver) getChanges(j Json) ([]ContentChange, error) {
 	changes := make([]ContentChange, 0, len(arr))
 	for _, node := range arr {
 		ran := common.NoRange()
-		if node.Get("range").Exists() {
+		hasRange := node.Get("range").Exists()
+		if hasRange {
 			var err error
 			ran, err = jsonPos.getRange(&node)
 			if err != nil {
 				return nil, err
 			}
+			if !ran.IsValid() {
+				return nil, errors.New("The edit range is invalid.")
+			}
 		}
 		text := r.getText(&node)
 		changes = append(changes, ContentChange{
-			Range: ran,
-			Text:  text,
+			Range:    ran,
+			HasRange: hasRange,
+			Text:     text,
 		})
 	}
 	return changes, nil

@@ -271,6 +271,147 @@ func TestPatchReplace(t *testing.T) {
 	}
 }
 
+func TestPatchEndColumnOvershootPreservesTail(t *testing.T) {
+	tx := NewText()
+	tx.AppendString("aaa\nbbb\nccc")
+	r := common.NewRange(common.NewPos(1, 0), common.NewPos(1, 999))
+	_, ok, err := tx.Patch(r, "X")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatal("ok = false")
+	}
+	if got := tx.String(); got != "aaa\nX\nccc\n" {
+		t.Fatalf("after Patch = %q, want %q", got, "aaa\nX\nccc\n")
+	}
+}
+
+func TestPatchBegColumnOvershootInsertsAtEOL(t *testing.T) {
+	tx := NewText()
+	tx.AppendString("aaa\nbbb")
+	r := common.NewRange(common.NewPos(0, 999), common.NewPos(0, 999))
+	_, ok, err := tx.Patch(r, "X")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatal("ok = false")
+	}
+	if got := tx.String(); got != "aaaX\nbbb\n" {
+		t.Fatalf("after Patch = %q, want %q", got, "aaaX\nbbb\n")
+	}
+}
+
+func TestPatchBegLinePastEOFColOvershootActsAsColZero(t *testing.T) {
+	tx := NewText()
+	tx.AppendString("aaa")
+	r := common.NewRange(common.NewPos(2, 5), common.NewPos(2, 9))
+	_, ok, err := tx.Patch(r, "X")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatal("ok = false")
+	}
+	if got := tx.String(); got != "aaa\n\nX\n" {
+		t.Fatalf("after Patch = %q, want %q", got, "aaa\n\nX\n")
+	}
+}
+
+func TestPatchLinePastEOFColZeroAppendsBlankLines(t *testing.T) {
+	tx := NewText()
+	tx.AppendString("aaa")
+	r := common.NewRange(common.NewPos(2, 0), common.NewPos(2, 0))
+	_, ok, err := tx.Patch(r, "X")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatal("ok = false")
+	}
+	if got := tx.String(); got != "aaa\n\nX\n" {
+		t.Fatalf("after Patch = %q, want %q", got, "aaa\n\nX\n")
+	}
+}
+
+func TestPatchReversedRangeErrors(t *testing.T) {
+	tx := NewText()
+	tx.AppendString("aaa\nbbb\nccc")
+	for _, r := range []common.Range{
+		common.NewRange(common.NewPos(2, 1), common.NewPos(0, 1)),
+		common.NewRange(common.NewPos(0, 3), common.NewPos(0, 1)),
+	} {
+		_, ok, err := tx.Patch(r, "X")
+		if err == nil {
+			t.Fatalf("Patch(%v) error = nil, want error", r)
+		}
+		if ok {
+			t.Fatalf("Patch(%v) ok = true, want false", r)
+		}
+	}
+	if got := tx.String(); got != "aaa\nbbb\nccc\n" {
+		t.Fatalf("text corrupted = %q", got)
+	}
+}
+
+func TestPatchNegativePositionsClamped(t *testing.T) {
+	tx := NewText()
+	tx.AppendString("aaa\nbbb")
+	r := common.NewRange(common.NewPos(-3, -7), common.NewPos(-1, -1))
+	_, ok, err := tx.Patch(r, "X")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatal("ok = false")
+	}
+	if got := tx.String(); got != "Xaaa\nbbb\n" {
+		t.Fatalf("after Patch = %q, want %q", got, "Xaaa\nbbb\n")
+	}
+}
+
+func TestPatchColumnAtLineLengthBoundary(t *testing.T) {
+	tx := NewText()
+	tx.AppendString("abc\ndef")
+	r := common.NewRange(common.NewPos(0, 3), common.NewPos(0, 3))
+	_, ok, err := tx.Patch(r, "X")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatal("ok = false")
+	}
+	if got := tx.String(); got != "abcX\ndef\n" {
+		t.Fatalf("after insert Patch = %q, want %q", got, "abcX\ndef\n")
+	}
+	tx2 := NewText()
+	tx2.AppendString("abc\ndef")
+	r2 := common.NewRange(common.NewPos(0, 0), common.NewPos(0, 3))
+	_, ok, err = tx2.Patch(r2, "X")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatal("ok = false")
+	}
+	if got := tx2.String(); got != "X\ndef\n" {
+		t.Fatalf("after replace Patch = %q, want %q", got, "X\ndef\n")
+	}
+}
+
+func TestIntoFromPosNegativeLine(t *testing.T) {
+	tx := NewText()
+	tx.AppendString("a")
+	p := common.NewPos(-1, 3)
+	if got := tx.IntoPos(common.UTF16, p); got != p {
+		t.Fatalf("IntoPos negative line = %v, want %v", got, p)
+	}
+	if got := tx.FromPos(common.UTF16, p); got != p {
+		t.Fatalf("FromPos negative line = %v, want %v", got, p)
+	}
+}
+
 func TestUtf16to8And8to16ASCII(t *testing.T) {
 	b := []byte("hello")
 	if got := Utf16to8(b, 3); got != 3 {
@@ -374,5 +515,35 @@ func TestOffsetArithmetic(t *testing.T) {
 	o.SetEnd(7)
 	if o.End() != 7 {
 		t.Fatalf("after SetEnd = %v", o)
+	}
+}
+
+func TestLoadNewlineVariants(t *testing.T) {
+	cases := []struct {
+		name    string
+		content string
+		want    string
+	}{
+		{"empty", "", ""},
+		{"single newline", "\n", ""},
+		{"only newlines", "\n\n\n", ""},
+		{"no trailing newline", "a", "a\n"},
+		{"trailing newline", "a\n", "a\n"},
+		{"leading newline", "\na", "\na\n"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			p := filepath.Join(t.TempDir(), "f.gox")
+			if err := os.WriteFile(p, []byte(c.content), 0644); err != nil {
+				t.Fatal(err)
+			}
+			tx := NewText()
+			if err := tx.Load(p); err != nil {
+				t.Fatal(err)
+			}
+			if got := tx.String(); got != c.want {
+				t.Fatalf("Load(%q) = %q, want %q", c.content, got, c.want)
+			}
+		})
 	}
 }

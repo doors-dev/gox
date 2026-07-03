@@ -650,3 +650,61 @@ func TestCursorAnySlicesPropagateErrors(t *testing.T) {
 		}
 	})
 }
+
+func TestCursorCompNilRendersNothing(t *testing.T) {
+	out := renderElem(t, func(c Cursor) error {
+		if err := c.Init("div"); err != nil {
+			return err
+		}
+		if err := c.Submit(); err != nil {
+			return err
+		}
+		if err := c.Comp(nil); err != nil {
+			return err
+		}
+		if err := c.CompCtx(context.Background(), nil); err != nil {
+			return err
+		}
+		return c.Close()
+	})
+	if out != "<div></div>" {
+		t.Fatalf("got %q, want %q", out, "<div></div>")
+	}
+}
+
+func TestCursorAnyCompSliceSkipsNil(t *testing.T) {
+	valid := Elem(func(c Cursor) error { return c.Text("v") })
+	out := renderElem(t, func(c Cursor) error {
+		if err := c.Init("div"); err != nil {
+			return err
+		}
+		if err := c.Submit(); err != nil {
+			return err
+		}
+		if err := c.Any([]Comp{valid, nil, valid}); err != nil {
+			return err
+		}
+		return c.Close()
+	})
+	if out != "<div>vv</div>" {
+		t.Fatalf("got %q, want %q", out, "<div>vv</div>")
+	}
+}
+
+func TestCursorTemplNilRendersNothing(t *testing.T) {
+	out := renderElem(t, func(c Cursor) error {
+		if err := c.Init("div"); err != nil {
+			return err
+		}
+		if err := c.Submit(); err != nil {
+			return err
+		}
+		if err := c.Templ(nil); err != nil {
+			return err
+		}
+		return c.Close()
+	})
+	if out != "<div></div>" {
+		t.Fatalf("got %q, want %q", out, "<div></div>")
+	}
+}

@@ -377,3 +377,37 @@ func TestDocPrintTarget(t *testing.T) {
 		t.Fatalf("PrintTarget() = %q, want %q", got, doc.TargetContent())
 	}
 }
+
+func TestSourcePatchColumnOvershootDoesNotPoison(t *testing.T) {
+	doc := makeDoc(t, sampleSrc)
+	ran := common.NewRange(common.NewPos(10, 0), common.NewPos(10, 999))
+	upd, err := doc.SourcePatch(common.UTF8, ran, `var page gox.Elem = Card("bye")`)
+	if err != nil {
+		t.Fatalf("SourcePatch() error = %v", err)
+	}
+	if !upd {
+		t.Fatal("SourcePatch() upd = false, want true")
+	}
+	if doc.Err() != nil {
+		t.Fatalf("doc.Err() = %v, want nil", doc.Err())
+	}
+	src := doc.source.String()
+	if !strings.Contains(src, `Card("bye")`) {
+		t.Fatalf("source missing patched content: %q", src)
+	}
+	if strings.Contains(src, `Card("hello")`) {
+		t.Fatalf("source still has old content: %q", src)
+	}
+}
+
+func TestSourcePatchReversedRangePoisons(t *testing.T) {
+	doc := makeDoc(t, sampleSrc)
+	ran := common.NewRange(common.NewPos(10, 5), common.NewPos(4, 0))
+	_, err := doc.SourcePatch(common.UTF8, ran, "x")
+	if err == nil {
+		t.Fatal("SourcePatch() error = nil, want error")
+	}
+	if doc.Err() == nil {
+		t.Fatal("doc.Err() = nil, want poisoned doc")
+	}
+}

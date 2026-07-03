@@ -196,7 +196,9 @@ func (j *JobComp) release() {
 // Output renders the component's root element (if any) into w.
 func (j *JobComp) Output(w io.Writer) error {
 	defer j.release()
-
+	if j.Comp == nil {
+		return nil
+	}
 	if el := j.Comp.Main(); el != nil {
 		return el.Render(j.Ctx, w)
 	}
@@ -293,6 +295,9 @@ func (j *JobTempl) release() {
 // Output renders the templ component into w.
 func (j *JobTempl) Output(w io.Writer) error {
 	defer j.release()
+	if j.Templ == nil {
+		return nil
+	}
 	return j.Templ.Render(j.Ctx, w)
 }
 

@@ -557,6 +557,10 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 			return
 		}
 		if kind == workspace.KindSource {
+			if doc.Err() != nil {
+				c.err(common.FromErr(jsonrpc2.ErrUnknown, doc.Err()))
+				return
+			}
 			err = jsonPos.convertItemRanges(sess.enc(), doc, j, convertToTarget, workspace.Edge)
 			if err != nil {
 				c.res(jsonGenerator.newNull())

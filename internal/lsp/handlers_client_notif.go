@@ -105,7 +105,7 @@ func initClientNotifs(sess *session, on func(on onNotif, m ...method)) {
 			updated := false
 			for _, change := range changes {
 				var upd bool
-				if change.Range.IsValid() {
+				if change.HasRange {
 					upd, err = doc.SourcePatch(sess.enc(), change.Range, change.Text)
 					updated = updated || upd
 				} else {
