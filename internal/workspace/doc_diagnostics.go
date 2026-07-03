@@ -13,6 +13,8 @@ import (
 
 const variadicProxyMessage = "Variadic arguments are not supported in proxy position."
 
+const spaceHintMessage = "This space will be preserved in the output."
+
 type SyntaxError struct {
 	Range   common.Range
 	Message string
@@ -55,6 +57,62 @@ func (d Doc) SyntaxErrors(enc common.Encoding) []SyntaxError {
 		})
 	}
 	return out
+}
+
+func (d Doc) SpaceHints(enc common.Encoding) []SyntaxError {
+	if d == nil || d.tree == nil {
+		return nil
+	}
+	ranges := collectSpaceHints(d.source.Source(), d.tree.RootNode())
+	if len(ranges) == 0 {
+		return nil
+	}
+	out := make([]SyntaxError, 0, len(ranges))
+	for _, ran := range ranges {
+		out = append(out, SyntaxError{
+			Range:   d.source.FromRange(enc, ran),
+			Message: spaceHintMessage,
+		})
+	}
+	return out
+}
+
+func collectSpaceHints(source []byte, root *tree_sitter.Node) []common.Range {
+	if root == nil {
+		return nil
+	}
+	cursor := root.Walk()
+	defer cursor.Close()
+	var out []common.Range
+	for {
+		node := cursor.Node()
+		if node.Kind() == grammer.GOX_PLAIN_TEXT {
+			appendSpaceHints(source, node, &out)
+		}
+		if cursor.GotoFirstChild() {
+			continue
+		}
+		for !cursor.GotoNextSibling() {
+			if !cursor.GotoParent() {
+				return out
+			}
+		}
+	}
+}
+
+func appendSpaceHints(source []byte, node *tree_sitter.Node, out *[]common.Range) {
+	beg, end := node.ByteRange()
+	if beg >= end {
+		return
+	}
+	if source[beg] == ' ' {
+		pos := common.NewTSPos(node.StartPosition())
+		*out = append(*out, common.NewRange(pos, pos.Advance()))
+	}
+	if end-beg > 1 && source[end-1] == ' ' {
+		pos := common.NewTSPos(node.EndPosition())
+		*out = append(*out, common.NewRange(common.NewPos(pos.Line(), pos.Column()-1), pos))
+	}
 }
 
 // SyntaxErrorReport formats the ERROR/MISSING nodes of the current tree as

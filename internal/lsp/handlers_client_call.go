@@ -389,6 +389,7 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 				return
 			}
 			jsonGenerator.addSyntaxErrors(sess.enc(), doc, res)
+			jsonGenerator.addSpaceHints(sess.enc(), doc, res)
 			c.res(res)
 		})
 	}, diagnostic)

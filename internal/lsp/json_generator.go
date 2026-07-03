@@ -194,7 +194,20 @@ func (r jsonGeneratorDriver) filterActionsByOnly(actions []workspace.CodeAction,
 	return out
 }
 
+const (
+	severityError = 1
+	severityHint  = 4
+)
+
 func (r jsonGeneratorDriver) addSyntaxErrors(enc common.Encoding, doc workspace.Doc, j Json) {
+	r.appendDiagnostics(j, doc.SyntaxErrors(enc), severityError)
+}
+
+func (r jsonGeneratorDriver) addSpaceHints(enc common.Encoding, doc workspace.Doc, j Json) {
+	r.appendDiagnostics(j, doc.SpaceHints(enc), severityHint)
+}
+
+func (r jsonGeneratorDriver) appendDiagnostics(j Json, diags []workspace.SyntaxError, severity int) {
 	key := "diagnostics"
 	arr := j.Get(key)
 	if !arr.Exists() {
@@ -204,26 +217,25 @@ func (r jsonGeneratorDriver) addSyntaxErrors(enc common.Encoding, doc workspace.
 	if !arr.Exists() {
 		return
 	}
-	errs := doc.SyntaxErrors(enc)
-	if len(errs) == 0 {
+	if len(diags) == 0 {
 		return
 	}
 	existing, err := arr.ArrayUseNode()
 	if err != nil {
 		return
 	}
-	nodes := make([]ast.Node, 0, len(existing)+len(errs))
+	nodes := make([]ast.Node, 0, len(existing)+len(diags))
 	nodes = append(nodes, existing...)
-	for _, e := range errs {
-		nodes = append(nodes, r.newSyntaxErrorDiagnostic(e))
+	for _, d := range diags {
+		nodes = append(nodes, r.newDiagnostic(d, severity))
 	}
 	j.Set(key, ast.NewArray(nodes))
 }
 
-func (r jsonGeneratorDriver) newSyntaxErrorDiagnostic(e workspace.SyntaxError) ast.Node {
+func (r jsonGeneratorDriver) newDiagnostic(e workspace.SyntaxError, severity int) ast.Node {
 	return ast.NewObject([]ast.Pair{
 		ast.NewPair("range", jsonPos.fromRange(e.Range)),
-		ast.NewPair("severity", ast.NewAny(1)),
+		ast.NewPair("severity", ast.NewAny(severity)),
 		ast.NewPair("source", ast.NewString("gox")),
 		ast.NewPair("message", ast.NewString(e.Message)),
 	})

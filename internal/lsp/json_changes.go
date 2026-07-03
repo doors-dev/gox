@@ -81,6 +81,35 @@ func (r jsonChangesDriver) convertInlayHints(enc common.Encoding, doc workspace.
 	return
 }
 
+type sourceDeniedCodeAction struct {
+	kind        string
+	titlePrefix string
+}
+
+var sourceDeniedCodeActions = []sourceDeniedCodeAction{
+	{kind: "quickfix", titlePrefix: "Declare missing methods of "},
+	{kind: "quickfix", titlePrefix: "Declare missing method "},
+	{kind: "refactor.rewrite.addTags", titlePrefix: "Add struct tags"},
+	{kind: "refactor.rewrite.removeTags", titlePrefix: "Remove struct tags"},
+}
+
+func (r jsonChangesDriver) codeActionDeniedOnSource(j Json) bool {
+	kind, err := j.Get("kind").String()
+	if err != nil {
+		return false
+	}
+	title, err := j.Get("title").String()
+	if err != nil {
+		return false
+	}
+	for _, denied := range sourceDeniedCodeActions {
+		if kind == denied.kind && strings.HasPrefix(title, denied.titlePrefix) {
+			return true
+		}
+	}
+	return false
+}
+
 func (r jsonChangesDriver) convertCodeAction(man workspace.Manager, enc common.Encoding, doc workspace.Doc, j Json) (err error) {
 	if doc != nil {
 		if kindNode := j.Get("kind"); kindNode.Exists() {
@@ -109,6 +138,9 @@ func (r jsonChangesDriver) convertCodeActions(man workspace.Manager, enc common.
 	}
 	var newActions = make([]ast.Node, 0, len(arr))
 	for _, node := range arr {
+		if doc != nil && r.codeActionDeniedOnSource(&node) {
+			continue
+		}
 		err := r.convertCodeAction(man, enc, doc, &node)
 		if err != nil {
 			continue
