@@ -159,6 +159,10 @@ func initClientNotifs(sess *session, on func(on onNotif, m ...method)) {
 			n.forward()
 			return
 		}
+		if doc.Err() != nil {
+			n.err(common.FromErr(jsonrpc2.ErrUnknown, doc.Err()))
+			return
+		}
 		if kind == workspace.KindTarget {
 			needUpd, err := doc.CheckTarget()
 			if err != nil {
@@ -179,10 +183,6 @@ func initClientNotifs(sess *session, on func(on onNotif, m ...method)) {
 				j.Set("text", ast.NewString(doc.TargetContent()))
 			}
 			n.notify(j)
-			return
-		}
-		if doc.Err() != nil {
-			n.err(common.FromErr(jsonrpc2.ErrUnknown, doc.Err()))
 			return
 		}
 		err = doc.Save()

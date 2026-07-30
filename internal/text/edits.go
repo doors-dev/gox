@@ -215,6 +215,9 @@ func (t Text) preparePatch(ran common.Range, content string) (patch, error) {
 		begCol := t.lineOffsets[begLine].Len()
 		beg = len(t.source)
 		missingLines := ran.Beg().Line() - begLine
+		if missingLines > maxPadLines {
+			return patch{}, errors.New("The edit range is invalid.")
+		}
 		for range missingLines {
 			offset := buf.Len()
 			offsets = append(offsets, newOffset(offset, offset))

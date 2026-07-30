@@ -8,6 +8,8 @@ import (
 
 const maxTokenSize = 1 << 24
 
+const maxPadLines = 1 << 16
+
 func NewText() Text {
 	t := &text{
 		annotated: -1,

@@ -29,6 +29,9 @@ pub fn format(input: &[u8], output: &mut Vec<u8>) -> Result<(), topiary_core::Fo
             tolerate_parsing_errors: false,
         },
     )?;
+    while let Some(b'\n') = formatted_gox.last() {
+        formatted_gox.pop();
+    }
     let tree = parser.parse(formatted_gox.as_slice(), None)?;
     if tree.is_none() {
         return Ok(());
@@ -195,7 +198,7 @@ impl External {
     }
     fn create(text: &[u8], node: Node<'_>, formatter: Formatter, head: bool) -> Option<Self> {
         if !head {
-            let code = node.utf8_text(text).unwrap();
+            let code = node_text(text, node)?;
             if code.is_empty() {
                 return None;
             }
@@ -210,7 +213,7 @@ impl External {
         let content = node.child_by_field_name("content")?;
         let open = node.child_by_field_name("open")?;
         let close = node.child_by_field_name("close")?;
-        let code = content.utf8_text(text).unwrap();
+        let code = node_text(text, content)?;
         if code.is_empty() {
             return None;
         }
@@ -222,6 +225,11 @@ impl External {
             end_pos: close.start_position(),
         })
     }
+}
+
+fn node_text<'t>(text: &'t [u8], node: Node<'_>) -> Option<&'t str> {
+    let bytes = text.get(node.start_byte()..node.end_byte())?;
+    std::str::from_utf8(bytes).ok()
 }
 
 enum ProcessorState {
@@ -261,10 +269,7 @@ struct PostProcessor<'a> {
 }
 
 impl<'a> PostProcessor<'a> {
-    fn new(mut text: Vec<u8>, output: &'a mut Vec<u8>) -> Self {
-        while let Some(b'\n') = text.last() {
-            text.pop();
-        }
+    fn new(text: Vec<u8>, output: &'a mut Vec<u8>) -> Self {
         Self {
             text: Some(text),
             externals: HashMap::new(),

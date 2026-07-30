@@ -158,7 +158,10 @@ func (r jsonInitDriver) getWorkspaceChanges(j Json) (added []string, removed []s
 		a, err := addedNodes.ArrayUseNode()
 		if err == nil {
 			for _, node := range a {
-				uri := *node.Get("uri")
+				uri := node.Get("uri")
+				if uri == nil {
+					return nil, nil, errors.New("An added workspace folder URI is missing.")
+				}
 				str, err := uri.String()
 				if err != nil {
 					return nil, nil, errors.New("An added workspace folder URI is invalid.")
@@ -172,7 +175,10 @@ func (r jsonInitDriver) getWorkspaceChanges(j Json) (added []string, removed []s
 		a, err := removedNodes.ArrayUseNode()
 		if err == nil {
 			for _, node := range a {
-				uri := *node.Get("uri")
+				uri := node.Get("uri")
+				if uri == nil {
+					return nil, nil, errors.New("A removed workspace folder URI is missing.")
+				}
 				str, err := uri.String()
 				if err != nil {
 					return nil, nil, errors.New("A removed workspace folder URI is invalid.")
