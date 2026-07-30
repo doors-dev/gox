@@ -27,6 +27,13 @@ import (
 //   - any other non-nil value is set
 //
 // Attr handles returned by Get, Find, and List point into the owning Attrs.
+//
+// Attrs values are pooled. Passing one to NewJobHeadOpen transfers ownership:
+// that job's Output releases the attribute set, and every Attr handle it
+// renders, back to the pools, so neither the Attrs nor any Attr handle from it
+// may be used afterwards, and one attribute set must not back two heads. Use
+// Clone to keep an independent copy.
+//
 // Attrs is not safe for concurrent use.
 type Attrs = *attrs
 
@@ -57,7 +64,12 @@ type attrs struct {
 // Mutate computes a new attribute value from the previous one.
 //
 // Attr.Set detects Mutate values and stores the result of
-// value.Mutate(attributeName, currentValue).
+// value.Mutate(attributeName, currentValue). The current value is nil whenever
+// the attribute has no value yet (never set, or unset), so implementations
+// must handle a nil value.
+//
+// The result is stored as-is: returning nil unsets the attribute, and a
+// returned value that itself implements Mutate is not applied again.
 type Mutate interface {
 	Mutate(name string, value any) any
 }
@@ -80,10 +92,17 @@ func (a Attrs) Inherit(attrs Attrs) {
 	}
 }
 
-// ApplyMods runs all queued modifiers on this attribute set.
+// ApplyMods runs all queued modifiers on this attribute set. It is a no-op on
+// a nil Attrs.
 //
-// Modifiers run in insertion order. If one returns an error, ApplyMods stops
-// immediately. Modifiers that already ran are discarded.
+// Modifiers run in insertion order and are dequeued before they run, so no
+// queued modifier runs twice. A modifier may queue more modifiers with AddMod;
+// those run in the same pass, after the ones already queued, and the pass ends
+// only when the queue drains.
+//
+// If a modifier returns an error, ApplyMods stops immediately and returns it.
+// The modifiers that have not run yet stay queued and run on the next
+// ApplyMods call, including the one performed during rendering.
 func (a Attrs) ApplyMods(ctx context.Context, tag string) error {
 	if a == nil {
 		return nil
@@ -242,7 +261,15 @@ func (a Attr) Set(value any) {
 	a.value = value
 }
 
-// Unset clears the attribute value.
+// Unset clears the attribute's value: the attribute stops rendering, IsSet
+// reports false, and Value returns nil.
+//
+// Set(nil) has the same effect. Set(false) also stops the attribute from
+// rendering, though Value then reports false. Set("") does not: an empty
+// string is still set and renders as name="".
+//
+// The entry itself stays in the owning Attrs under its name, so Attrs.List
+// still reports it, and a later Set gives it a value again.
 func (a Attr) Unset() {
 	a.value = nil
 }
@@ -293,9 +320,16 @@ func (a Attr) OutputName(w io.Writer) error {
 	return utils.WriteAttrName(w, a.name)
 }
 
-// OutputValue writes only the attribute value to w.
+// OutputValue writes only the attribute value to w, HTML-escaped and without
+// the surrounding quotes.
 //
-// This is a low-level helper for custom rendering pipelines.
+// This is a low-level helper for custom rendering pipelines. A value that
+// implements Output writes itself through an escaping writer; any other value
+// is formatted with fmt.Fprint and escaped.
+//
+// OutputValue returns an error, and writes nothing, when the value is nil or a
+// bool: an unset attribute has no value, and a bool attribute renders as a
+// bare name. Check IsSet and the bool case before calling it.
 func (a Attr) OutputValue(w io.Writer) error {
 	return utils.WriteAttrValue(w, a.value)
 }

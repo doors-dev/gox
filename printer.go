@@ -17,15 +17,28 @@ type Printer interface {
 	Send(j Job) error
 }
 
-// Output is the low-level write contract implemented by Jobs.
+// Output is the low-level write contract:
 //
-// Output is aliased from an internal utility type.
+//	Output(w io.Writer) error
+//
+// Jobs implement it to write themselves to the underlying writer. It is also
+// the per-value attribute hook: an attribute value that implements Output is
+// serialized by calling its Output with an escaping writer instead of being
+// formatted with fmt.Fprint, so the value chooses its own bytes but still
+// cannot emit raw markup.
 type Output = utils.Output
 
 // Job is a single render operation emitted by Cursor.
 //
 // Concrete jobs such as JobHeadOpen, JobText, and JobComp let custom printers
-// observe or transform the stream while still sharing one cancellation context.
+// observe or transform the stream. Each job carries its own context: the
+// cursor's context by default, or the one passed to Cursor.CompCtx,
+// Cursor.TemplCtx, or a NewJob* constructor, so the jobs of one stream do not
+// necessarily share a cancellation signal.
+//
+// The jobs GoX emits are pooled and single-use: Output returns the job to its
+// pool and clears its fields, so a job may be output at most once and must not
+// be inspected or resent afterwards.
 type Job interface {
 	// Context returns the context associated with this job.
 	Context() context.Context
@@ -47,6 +60,10 @@ func (p *printer) Send(j Job) error {
 }
 
 // NewPrinter returns the default Printer that writes jobs to w in order.
+//
+// Send checks the job's context first: when it is already canceled or expired,
+// the job is skipped, nothing is written, and Send returns that context's
+// error, which surfaces as the error from Elem.Render or the enclosing Elem.
 func NewPrinter(w io.Writer) Printer {
 	return &printer{w: w}
 }

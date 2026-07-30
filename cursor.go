@@ -8,8 +8,12 @@ import (
 
 // HeadError reports an invalid Cursor state transition.
 //
-// Examples include emitting child content before Submit or mutating attributes
-// after a head has already been submitted.
+// Cursor returns HeadError from Init, InitVoid, InitContainer and from methods
+// that require a content state when the current head has not been submitted
+// yet, and from Set and Modify when it already has been. Submit and Close
+// report their own misuse (submitting twice, closing a head that is still
+// pending, closing with no head open) with plain errors, so a type check for
+// HeadError does not catch every state error.
 type HeadError string
 
 func (e HeadError) Error() string { return string(e) }
@@ -255,20 +259,36 @@ func (c Cursor) InitContainer() error {
 
 // Submit emits the current head's opening job.
 //
-// After Submit, the current head is open for child content and no longer
-// accepts attribute mutation.
+// After Submit the head no longer accepts attributes: Set and Modify fail from
+// this point on. A regular or container head stays on the stack, open for
+// child content until Close. A void head is complete once submitted and is
+// removed from the stack immediately, so the cursor returns to the enclosing
+// head's content state: following content belongs to that enclosing head, and
+// the next Close closes it, not the void element.
+//
+// Submit fails when there is no pending head or the head was already
+// submitted.
 func (c Cursor) Submit() error {
 	return c.stack.Submit(c.printer)
 }
 
-// Close closes the current regular or container head.
+// Close emits the current head's closing job and removes it from the stack.
 //
-// The current head must already be submitted. Void elements must not be closed.
+// The head must already be submitted; Close fails and emits nothing when the
+// current head is still pending or when no head is open. Close does not check
+// which tag it is closing, so a stray Close is reported only when the stack is
+// empty: after a void element, which Submit already removed from the stack, an
+// extra Close silently closes the enclosing head and misnests the output.
 func (c Cursor) Close() error {
 	return c.stack.Close(c.printer)
 }
 
 // Comp emits comp at the current cursor position.
+//
+// The component is emitted as one JobComp rather than expanded onto this
+// cursor: the default Printer renders that job through a fresh default Printer
+// and Cursor, so the component's head stack is independent of this one and its
+// jobs never reach this cursor's Printer. A nil comp renders nothing.
 func (c Cursor) Comp(comp Comp) error {
 	if err := c.stack.Opened(); err != nil {
 		return err
@@ -300,7 +320,12 @@ func (c Cursor) Raw(text string) error {
 	return c.printer.Send(NewJobRaw(c.ctx, text))
 }
 
-// Bytes emits raw bytes at the current cursor position.
+// Bytes emits data at the current cursor position, unescaped and byte for
+// byte.
+//
+// The emitted job keeps a reference to data instead of copying it, so callers
+// must not modify data until the job has been output. With a Printer that
+// buffers or defers jobs, that can be well after Bytes returns.
 func (c Cursor) Bytes(data []byte) error {
 	if err := c.stack.Opened(); err != nil {
 		return err
@@ -343,11 +368,20 @@ func (c Cursor) Send(job Job) error {
 }
 
 // Printer returns the underlying Printer for direct job emission.
+//
+// Jobs sent this way skip cursor state validation and are not recorded on the
+// head stack, so callers must preserve any ordering and nesting guarantees
+// themselves.
 func (c Cursor) Printer() Printer {
 	return c.printer
 }
 
 // Editor applies editor to this cursor.
+//
+// Unlike Comp, the editor runs directly against this cursor and its head
+// stack, and Editor performs no cursor state validation of its own: an editor
+// may set attributes on a head that is still pending, or open and close heads
+// that outlive the call. A nil editor panics.
 func (c Cursor) Editor(editor Editor) error {
 	return editor.Edit(c)
 }
@@ -366,16 +400,20 @@ func (c Cursor) Many(many ...any) error {
 
 // Any renders a value using GoX's default dynamic dispatch.
 //
-// Supported cases include:
+// Cases are tried in this order, so a value that satisfies several of them is
+// handled by the first match (an EditorComp, for example, is applied as an
+// Editor rather than rendered as a Comp):
 //   - string / []string
 //   - Elem / []Elem
+//   - Editor
 //   - Comp / []Comp
 //   - Job / []Job
-//   - Editor
 //   - Templ
 //   - []any (treated as a variadic list)
 //
-// Nil interface values are ignored. Everything else falls back to Fprint.
+// Nil interface values are ignored. Job and []Job are handed straight to the
+// Printer, skipping the cursor state validation the other cases perform.
+// Everything else falls back to Fprint.
 func (c Cursor) Any(any any) error {
 	if any == nil {
 		return nil
@@ -428,9 +466,16 @@ func (c Cursor) Any(any any) error {
 	}
 }
 
-// Set sets an attribute on the current head.
+// Set sets attribute name on the current head.
 //
-// Set may be used only after Init or InitVoid and before Submit.
+// Set may be used only after Init or InitVoid and before Submit; otherwise it
+// returns a HeadError and stores nothing.
+//
+// Values follow Attr.Set rules: a later Set replaces the value from an earlier
+// one, nil and false leave the attribute unset so it does not render, true
+// renders it as a bare name, and an empty string still renders as name="". A
+// value implementing Mutate is the exception to replacement: Set stores the
+// result of value.Mutate(name, currentValue) instead.
 func (c Cursor) Set(name string, value any) error {
 	attrs, err := c.stack.Attrs()
 	if err != nil {

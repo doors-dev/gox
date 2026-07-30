@@ -18,7 +18,10 @@ type Releaser interface {
 // Release returns r to its pool.
 //
 // Most callers never need Release because the standard Job implementations
-// release themselves from Output.
+// release themselves from Output, including when Output returns an error.
+// Release is for the opposite case: a custom printer that drops a job instead
+// of outputting it. Never do both: a value released twice can be handed out to
+// two owners at once.
 func Release(r Releaser) {
 	r.release()
 }
@@ -32,7 +35,11 @@ var headOpenPool = utils.NewStructPool[JobHeadOpen]()
 
 // NewJobHeadOpen returns a pooled JobHeadOpen.
 //
-// The returned job is single-use and is usually sent straight to a Printer.
+// The returned job is single-use and is usually sent straight to a Printer. It
+// takes ownership of attrs: outputting or releasing the job also releases the
+// attribute set, and Output additionally releases the Attr handles it renders,
+// so the caller must not use them afterwards. attrs may be nil, in which case
+// the job writes the tag with no attributes.
 func NewJobHeadOpen(ctx context.Context, id uint64, kind HeadKind, tag string, attrs Attrs) *JobHeadOpen {
 	job := headOpenPool.Get()
 	job.ID = id
@@ -177,8 +184,14 @@ func NewJobComp(ctx context.Context, comp Comp) *JobComp {
 
 // JobComp renders a Comp.
 //
-// Output calls Comp.Main and, when it returns a non-nil Elem, renders that Elem
-// into the output stream.
+// Cursor emits one for every Comp or Elem value passed to Cursor.Comp,
+// Cursor.CompCtx, or Cursor.Any, and Elem.Print sends one as the root job.
+// Output calls Comp.Main and, when it returns a non-nil Elem, renders that
+// Elem through a fresh default Printer and Cursor writing to w, so the jobs
+// produced inside the component never reach the Printer that received this
+// JobComp. A custom printer that needs those jobs must expand the component
+// itself, by running Comp.Main's Elem against a Cursor bound to that printer
+// instead of calling Output. A nil Comp or a nil Main result renders nothing.
 type JobComp struct {
 	Comp Comp
 	Ctx  context.Context
@@ -380,6 +393,11 @@ func NewJobBytes(ctx context.Context, b []byte) *JobBytes {
 }
 
 // JobBytes writes bytes without escaping.
+//
+// It is the []byte counterpart of JobRaw, so the caller is responsible for the
+// safety of the content. NewJobBytes keeps the caller's slice instead of
+// copying it: the slice must stay unmodified until the job is output, which a
+// Printer that buffers jobs may defer well past Send.
 type JobBytes struct {
 	Ctx   context.Context
 	Bytes []byte

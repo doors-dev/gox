@@ -35,7 +35,15 @@ type Elem func(cur Cursor) error
 // Main makes Elem satisfy Comp by returning itself.
 func (e Elem) Main() Elem { return e }
 
-// Print sends e through printer as a root component job using ctx as the job context.
+// Print sends e to printer as a single root JobComp carrying ctx.
+//
+// Print does not render e: the printer receives exactly one job and nothing
+// runs until the printer acts on it. Calling Job.Output on that job renders
+// the subtree through a fresh default Printer and Cursor writing to Output's
+// writer, so the nested jobs never reach the custom printer; a custom printer
+// that needs those jobs must expand the component itself, by running
+// Comp.Main's Elem against a Cursor bound to that printer instead of calling
+// Output. If e is nil, Print sends nothing and returns nil.
 func (e Elem) Print(ctx context.Context, printer Printer) error {
 	if e == nil {
 		return nil
@@ -58,6 +66,12 @@ func (e Elem) Render(ctx context.Context, w io.Writer) error {
 }
 
 // Proxy wraps an Elem before it is rendered.
+//
+// Generated code for `~>(p) <div>...</div>` calls p.Proxy(cur, el), where el
+// holds the wrapped subtree. Rendering el is the implementation's
+// responsibility: a Proxy that returns without calling el(cur) (or
+// cur.Comp(el)) drops the subtree, and running el against a different Cursor
+// is what reroutes it. The error Proxy returns becomes the render error.
 //
 // Proxies are useful when a subtree needs cross-cutting behavior such as
 // instrumentation, attribute injection, conditional rendering, or rerouting

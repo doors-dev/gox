@@ -52,6 +52,10 @@ var _ Proxy = ProxyFunc(nil)
 //
 // It is useful in custom printers or helpers that need the same escaping
 // behavior as Text, Fprint, and attribute output.
+//
+// Writes replace &, <, >, " and ' with entities and NUL with U+FFFD, and pass
+// everything else through. That covers element text and quoted attribute
+// values; it is not sufficient for JavaScript, CSS, or URL contexts.
 func NewEscapedWriter(w io.Writer) io.Writer {
 	return utils.NewEscapedWriter(w)
 }
