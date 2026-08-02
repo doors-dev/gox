@@ -139,6 +139,13 @@ jobs:
           set -euxo pipefail
           mkdir -p dist
 
+          # upload-artifact does not preserve modes, so the exec bit is restored here
+          chmod +x \
+            "builds/gox_Linux_amd64/gox" \
+            "builds/gox_Linux_arm64/gox" \
+            "builds/gox_Darwin_arm64/gox" \
+            "builds/gox_Darwin_amd64/gox"
+
           # Artifact folders contain gox or gox.exe directly
           tar -C "builds/gox_Linux_amd64"  -czf "dist/gox_linux_amd64.tar.gz" .
           tar -C "builds/gox_Linux_arm64"  -czf "dist/gox_linux_arm64.tar.gz" .

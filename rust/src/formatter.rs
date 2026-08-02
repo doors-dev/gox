@@ -455,7 +455,7 @@ fn write_inline_errored_body(out: &mut Vec<u8>, code: &str, indent: &Indent, ind
     let mut first = true;
     for line in code.lines() {
         let trimmed = if !first && line.len() >= min_indent {
-            &line[min_indent..]
+            line.get(min_indent..).unwrap_or(line)
         } else {
             first = false;
             line

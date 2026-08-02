@@ -132,6 +132,10 @@ func (r jsonPosDriver) convertLocations(man workspace.Manager, enc common.Encodi
 	if origin != nil {
 		originRange := j.Get("originSelectionRange")
 		if originRange.Exists() {
+			err = origin.Err()
+			if err != nil {
+				return
+			}
 			var ran common.Range
 			ran, err = jsonPos.intoRange(originRange)
 			if err != nil {
@@ -372,6 +376,14 @@ func (r jsonPosDriver) convertDiagnostics(man workspace.Manager, enc common.Enco
 		}
 		if kind == workspace.KindSource {
 			err = errors.New("Diagnostics are not expected for a source file.")
+			return false
+		}
+		if doc == nil {
+			newRelated.Set(uri, *node)
+			return true
+		}
+		err = doc.Err()
+		if err != nil {
 			return false
 		}
 		err = r.convertDiagnostics(man, enc, doc, node, direction)
