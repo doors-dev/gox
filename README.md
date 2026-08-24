@@ -228,7 +228,7 @@ The important state rule is:
 - before `Submit()`, you are still building a head and may mutate attributes
 - after `Submit()`, you may emit child content, but you may no longer mutate that head
 
-`cur.Context()` returns the default context for jobs emitted through that cursor. `cur.Printer()` exposes the underlying printer for direct job emission. `cur.Send()` remains as a deprecated shortcut for `cur.Printer().Send()` and bypasses cursor state validation in the same way.
+`cur.Context()` returns the default context for jobs emitted through that cursor. `cur.Printer()` exposes the underlying printer for direct job emission, bypassing cursor state validation.
 
 Generated `.x.go` files are mostly straightforward cursor code, similar to:
 
@@ -260,7 +260,7 @@ Most placeholder rendering ends up calling `Cursor.Any` or `Cursor.Many`.
 - `Elem` and `[]Elem`
 - `Comp` and `[]Comp`
 - `Job` and `[]Job`
-- `Editor`
+- `func(cur gox.Cursor) error` (rendered as an `Elem`)
 - `Templ`
 - `[]interface{}`
 
@@ -275,9 +275,6 @@ You mainly encounter attributes in three places:
 - when generated code or hand-written cursor code calls `Set`
 - when code calls `Modify` to attach one or more render-time modifiers
 - when custom printers or proxies inspect `JobHeadOpen.Attrs`
-
-`AttrSet` and `AttrMod` remain as deprecated compatibility aliases for `Set`
-and `Modify`.
 
 Important details from the API:
 
@@ -315,22 +312,12 @@ Attribute values are entity-escaped, but URL schemes are intentionally not filte
 
 ### Extension points
 
-GoX exposes three main render-time extension points:
+GoX exposes two main render-time extension points:
 
-- `Editor` for code that needs direct cursor access
 - `Proxy` for wrapping or rebasing an element subtree before it renders
 - `Printer` for consuming and transforming the emitted job stream
 
-#### `Editor`
-
-`Editor` is the escape hatch for render-time behavior that needs direct cursor access.
-
-Use it when rendering needs to:
-
-- emit low-level jobs manually
-- work directly with `cur.Context()`
-- integrate with a larger rendering runtime
-- do something more specific than "return another subtree"
+Direct cursor access needs no separate interface: a hand-written `Elem` (or any `Comp`) receives the rendering cursor directly and may use the full cursor API — emit low-level jobs, work with `cur.Context()`, or integrate with a larger rendering runtime.
 
 #### `Proxy`
 
@@ -343,7 +330,7 @@ You can do any type of transofrmation with proxy, for example:
 - render the subtree through a custom printer before forwarding it
 - basically any transormation
 
-A common implementation pattern is a proxy printer: call `elem.Print(cur.Context(), customPrinter)`, inspect the first `*gox.JobHeadOpen` or `*gox.JobComp`, adjust it, then forward the rest into the current cursor.
+A common implementation pattern is a proxy printer: call `elem.Print(cur.Context(), customPrinter)`, inspect the first `*gox.JobHeadOpen`, adjust it, then forward the rest into the current cursor.
 
 #### `Printer`
 
@@ -356,7 +343,6 @@ Useful concrete job types include:
 - `*gox.JobText`
 - `*gox.JobRaw`
 - `*gox.JobBytes`
-- `*gox.JobComp`
 - `*gox.JobTempl`
 - `*gox.JobFprint`
 - `*gox.JobError`
@@ -374,9 +360,6 @@ Custom printers are where GoX opens up the most. They can buffer, transform, rou
 
 The helpers in `helpers.go` keep the API lightweight when you want one-off implementations:
 
-- `gox.EditorComp` for values that should be both `Editor` and `Comp`
-- `gox.EditorCompFunc`
-- `gox.EditorFunc`
 - `gox.ProxyFunc`
 - `gox.ModifyFunc`
 - `gox.PrinterFunc`

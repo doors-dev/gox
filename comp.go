@@ -35,21 +35,16 @@ type Elem func(cur Cursor) error
 // Main makes Elem satisfy Comp by returning itself.
 func (e Elem) Main() Elem { return e }
 
-// Print sends e to printer as a single root JobComp carrying ctx.
+// Print runs e against a fresh Cursor bound to printer, carrying ctx.
 //
-// Print does not render e: the printer receives exactly one job and nothing
-// runs until the printer acts on it. Calling Job.Output on that job renders
-// the subtree through a fresh default Printer and Cursor writing to Output's
-// writer, so the nested jobs never reach the custom printer; a custom printer
-// that needs those jobs must expand the component itself, by running
-// Comp.Main's Elem against a Cursor bound to that printer instead of calling
-// Output. If e is nil, Print sends nothing and returns nil.
+// The printer receives the subtree's full job stream, one job at a time, as e
+// renders. If e is nil, Print sends nothing and returns nil.
 func (e Elem) Print(ctx context.Context, printer Printer) error {
 	if e == nil {
 		return nil
 	}
-	job := NewJobComp(ctx, e)
-	return printer.Send(job)
+	cur := NewCursor(ctx, printer)
+	return e(cur)
 }
 
 // Render writes e to w with GoX's default Printer.
@@ -85,14 +80,6 @@ type Proxy interface {
 // Elem implements Templ via Render.
 type Templ interface {
 	Render(ctx context.Context, w io.Writer) error
-}
-
-// Editor renders by operating on a Cursor directly.
-//
-// Use Editor when returning another Elem is not enough and the implementation
-// needs low-level access to cursor methods or custom jobs.
-type Editor interface {
-	Edit(cur Cursor) error
 }
 
 var _ Comp = Elem(nil)

@@ -180,37 +180,6 @@ func TestJobFprintOutput(t *testing.T) {
 	}
 }
 
-func TestJobCompOutput(t *testing.T) {
-	type ctxKey string
-	ctx := context.WithValue(context.Background(), ctxKey("job"), "comp")
-	j := NewJobComp(ctx, compStub{s: "x"})
-	if j.Context() != ctx {
-		t.Fatal("Context() did not round-trip the provided context")
-	}
-	buf := &bytes.Buffer{}
-	if err := j.Output(buf); err != nil {
-		t.Fatal(err)
-	}
-	if buf.String() != "x" {
-		t.Fatalf("got %q", buf.String())
-	}
-}
-
-type nilComp struct{}
-
-func (nilComp) Main() Elem { return nil }
-
-func TestJobCompNilElem(t *testing.T) {
-	j := NewJobComp(context.Background(), nilComp{})
-	buf := &bytes.Buffer{}
-	if err := j.Output(buf); err != nil {
-		t.Fatal(err)
-	}
-	if buf.Len() != 0 {
-		t.Fatal("expected empty output")
-	}
-}
-
 func TestJobTemplOutput(t *testing.T) {
 	type ctxKey string
 	ctx := context.WithValue(context.Background(), ctxKey("job"), "templ")

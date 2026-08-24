@@ -7,38 +7,6 @@ import (
 	"github.com/doors-dev/gox/internal/utils"
 )
 
-// EditorComp is both a low-level Editor and a regular Comp.
-//
-// It is useful for values that should plug into component-based APIs while
-// still exposing direct cursor control.
-type EditorComp interface {
-	Editor
-	Comp
-}
-
-// EditorCompFunc adapts a function into an EditorComp.
-//
-// It is useful for small helpers that need direct cursor access but should also
-// satisfy component-based APIs.
-type EditorCompFunc func(cur Cursor) error
-
-func (e EditorCompFunc) Edit(cur Cursor) error {
-	return e(cur)
-}
-
-func (e EditorCompFunc) Main() Elem {
-	return Elem(e)
-}
-
-// EditorFunc adapts a function into an Editor.
-type EditorFunc func(cur Cursor) error
-
-func (e EditorFunc) Edit(cur Cursor) error {
-	return e(cur)
-}
-
-var _ Editor = EditorFunc(nil)
-
 // ProxyFunc adapts a function into a Proxy.
 type ProxyFunc func(cur Cursor, el Elem) error
 

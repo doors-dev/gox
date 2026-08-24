@@ -180,12 +180,11 @@ func TestCursorAnyCompSlice(t *testing.T) {
 	}
 }
 
-func TestCursorAnyEditor(t *testing.T) {
-	ed := EditorFunc(func(c Cursor) error { return c.Text("e") })
+func TestCursorAnyFunc(t *testing.T) {
 	out := renderElem(t, func(c Cursor) error {
-		return c.Any(ed)
+		return c.Any(func(c Cursor) error { return c.Text("f") })
 	})
-	if out != "e" {
+	if out != "f" {
 		t.Fatalf("got %q", out)
 	}
 }
@@ -350,45 +349,11 @@ func TestCursorModifyAfterSubmitErrors(t *testing.T) {
 	}
 }
 
-func TestCursorDeprecatedAttrAliases(t *testing.T) {
-	mod := ModifyFunc(func(ctx context.Context, tag string, attrs Attrs) error {
-		attrs.Get("data-tag").Set(tag)
-		return nil
-	})
-	out := renderElem(t, func(c Cursor) error {
-		if err := c.Init("section"); err != nil {
-			return err
-		}
-		if err := c.AttrSet("class", "legacy"); err != nil {
-			return err
-		}
-		if err := c.AttrMod(mod); err != nil {
-			return err
-		}
-		if err := c.Submit(); err != nil {
-			return err
-		}
-		return c.Close()
-	})
-	if out != `<section class="legacy" data-tag="section"></section>` {
-		t.Fatalf("got %q, want %q", out, `<section class="legacy" data-tag="section"></section>`)
-	}
-}
-
 func TestCursorPrinterSendBypassesValidation(t *testing.T) {
 	out := renderElem(t, func(c Cursor) error {
 		return c.Printer().Send(NewJobText(c.Context(), "hi"))
 	})
 	if out != "hi" {
-		t.Fatalf("got %q", out)
-	}
-}
-
-func TestCursorDeprecatedSendAlias(t *testing.T) {
-	out := renderElem(t, func(c Cursor) error {
-		return c.Send(NewJobText(c.Context(), "legacy"))
-	})
-	if out != "legacy" {
 		t.Fatalf("got %q", out)
 	}
 }
@@ -408,12 +373,37 @@ func TestCursorComp(t *testing.T) {
 	}
 }
 
-func TestCursorCompCtx(t *testing.T) {
+type nilComp struct{}
+
+func (nilComp) Main() Elem { return nil }
+
+func TestCursorCompNilMainRendersNothing(t *testing.T) {
 	out := renderElem(t, func(c Cursor) error {
-		return c.CompCtx(context.Background(), compStub{s: "ctx"})
+		return c.Comp(nilComp{})
 	})
-	if out != "ctx" {
-		t.Fatalf("got %q", out)
+	if out != "" {
+		t.Fatalf("got %q, want empty output", out)
+	}
+}
+
+func TestCursorCompExpandsOnSameCursor(t *testing.T) {
+	texts := 0
+	buf := &bytes.Buffer{}
+	p := PrinterFunc(func(j Job) error {
+		if _, ok := j.(*JobText); ok {
+			texts++
+		}
+		return j.Output(buf)
+	})
+	c := NewCursor(context.Background(), p)
+	if err := c.Comp(compStub{s: "x"}); err != nil {
+		t.Fatalf("Comp() error = %v", err)
+	}
+	if texts != 1 {
+		t.Fatal("component jobs did not reach this cursor's printer")
+	}
+	if buf.String() != "x" {
+		t.Fatalf("got %q", buf.String())
 	}
 }
 
@@ -437,15 +427,6 @@ func TestCursorTempl(t *testing.T) {
 		return c.Templ(templStub{s: "tx"})
 	})
 	if out != "tx" {
-		t.Fatalf("got %q", out)
-	}
-}
-
-func TestCursorTemplCtx(t *testing.T) {
-	out := renderElem(t, func(c Cursor) error {
-		return c.TemplCtx(context.Background(), templStub{s: "tcx"})
-	})
-	if out != "tcx" {
 		t.Fatalf("got %q", out)
 	}
 }
@@ -476,16 +457,6 @@ func TestCursorAnyJobSlice(t *testing.T) {
 		})
 	})
 	if out != "ab" {
-		t.Fatalf("got %q", out)
-	}
-}
-
-func TestCursorEditor(t *testing.T) {
-	ed := EditorFunc(func(c Cursor) error { return c.Text("ed") })
-	out := renderElem(t, func(c Cursor) error {
-		return c.Editor(ed)
-	})
-	if out != "ed" {
 		t.Fatalf("got %q", out)
 	}
 }
@@ -567,11 +538,10 @@ func TestCursorContentMethodsRequireSubmittedHead(t *testing.T) {
 		run  func(Cursor) error
 	}{
 		{name: "comp", run: func(c Cursor) error { return c.Comp(compStub{s: "x"}) }},
-		{name: "comp ctx", run: func(c Cursor) error { return c.CompCtx(context.Background(), compStub{s: "x"}) }},
+		{name: "comp nil", run: func(c Cursor) error { return c.Comp(nil) }},
 		{name: "raw", run: func(c Cursor) error { return c.Raw("x") }},
 		{name: "bytes", run: func(c Cursor) error { return c.Bytes([]byte("x")) }},
 		{name: "templ", run: func(c Cursor) error { return c.Templ(templStub{s: "x"}) }},
-		{name: "templ ctx", run: func(c Cursor) error { return c.TemplCtx(context.Background(), templStub{s: "x"}) }},
 		{name: "fprint", run: func(c Cursor) error { return c.Fprint("x") }},
 		{name: "many", run: func(c Cursor) error { return c.Many("x") }},
 	}
@@ -660,9 +630,6 @@ func TestCursorCompNilRendersNothing(t *testing.T) {
 			return err
 		}
 		if err := c.Comp(nil); err != nil {
-			return err
-		}
-		if err := c.CompCtx(context.Background(), nil); err != nil {
 			return err
 		}
 		return c.Close()

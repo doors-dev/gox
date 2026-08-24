@@ -172,52 +172,6 @@ func (j *JobHeadClose) Output(w io.Writer) error {
 	return utils.WriteTagClose(w, j.Tag)
 }
 
-var compPool = utils.NewStructPool[JobComp]()
-
-// NewJobComp returns a pooled JobComp.
-func NewJobComp(ctx context.Context, comp Comp) *JobComp {
-	j := compPool.Get()
-	j.Ctx = ctx
-	j.Comp = comp
-	return j
-}
-
-// JobComp renders a Comp.
-//
-// Cursor emits one for every Comp or Elem value passed to Cursor.Comp,
-// Cursor.CompCtx, or Cursor.Any, and Elem.Print sends one as the root job.
-// Output calls Comp.Main and, when it returns a non-nil Elem, renders that
-// Elem through a fresh default Printer and Cursor writing to w, so the jobs
-// produced inside the component never reach the Printer that received this
-// JobComp. A custom printer that needs those jobs must expand the component
-// itself, by running Comp.Main's Elem against a Cursor bound to that printer
-// instead of calling Output. A nil Comp or a nil Main result renders nothing.
-type JobComp struct {
-	Comp Comp
-	Ctx  context.Context
-}
-
-// Context returns the context associated with this job.
-func (j *JobComp) Context() context.Context { return j.Ctx }
-
-func (j *JobComp) release() {
-	j.Comp = nil
-	j.Ctx = nil
-	compPool.Put(j)
-}
-
-// Output renders the component's root element (if any) into w.
-func (j *JobComp) Output(w io.Writer) error {
-	defer j.release()
-	if j.Comp == nil {
-		return nil
-	}
-	if el := j.Comp.Main(); el != nil {
-		return el.Render(j.Ctx, w)
-	}
-	return nil
-}
-
 var textPool = utils.NewStructPool[JobText]()
 
 // NewJobText returns a pooled JobText.

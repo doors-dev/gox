@@ -25,43 +25,54 @@ func TestElemNilPrintAndRender(t *testing.T) {
 	}
 }
 
-func TestElemPrintSendsRootJobComp(t *testing.T) {
+func TestElemPrintExpandsOntoPrinter(t *testing.T) {
 	type ctxKey string
 	ctx := context.WithValue(context.Background(), ctxKey("print"), "root")
-	ran := false
 	e := Elem(func(c Cursor) error {
-		ran = true
-		return c.Text("ok")
+		if err := c.Init("span"); err != nil {
+			return err
+		}
+		if err := c.Submit(); err != nil {
+			return err
+		}
+		if err := c.Text("ok"); err != nil {
+			return err
+		}
+		return c.Close()
 	})
 
-	var sent Job
+	var kinds []string
+	buf := &bytes.Buffer{}
 	printer := PrinterFunc(func(j Job) error {
-		sent = j
-		return nil
+		if j.Context() != ctx {
+			t.Fatal("job context did not round-trip the provided context")
+		}
+		switch j.(type) {
+		case *JobHeadOpen:
+			kinds = append(kinds, "open")
+		case *JobText:
+			kinds = append(kinds, "text")
+		case *JobHeadClose:
+			kinds = append(kinds, "close")
+		default:
+			kinds = append(kinds, "other")
+		}
+		return j.Output(buf)
 	})
 	if err := e.Print(ctx, printer); err != nil {
 		t.Fatalf("Print() error = %v", err)
 	}
-	if ran {
-		t.Fatal("Print() rendered Elem directly, want root JobComp sent to printer")
+	want := []string{"open", "text", "close"}
+	if len(kinds) != len(want) {
+		t.Fatalf("Print() sent %v, want %v", kinds, want)
 	}
-	job, ok := sent.(*JobComp)
-	if !ok {
-		t.Fatalf("Print() sent %T, want *JobComp", sent)
+	for i := range want {
+		if kinds[i] != want[i] {
+			t.Fatalf("Print() sent %v, want %v", kinds, want)
+		}
 	}
-	if job.Context() != ctx {
-		t.Fatal("JobComp context did not round-trip the provided context")
-	}
-
-	buf := &bytes.Buffer{}
-	if err := job.Output(buf); err != nil {
-		t.Fatalf("JobComp.Output() error = %v", err)
-	}
-	if !ran {
-		t.Fatal("JobComp.Output() did not render Elem")
-	}
-	if buf.String() != "ok" {
-		t.Fatalf("JobComp.Output() wrote %q, want ok", buf.String())
+	if buf.String() != "<span>ok</span>" {
+		t.Fatalf("Print() wrote %q, want %q", buf.String(), "<span>ok</span>")
 	}
 }
 

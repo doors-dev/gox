@@ -283,25 +283,28 @@ func (c Cursor) Close() error {
 	return c.stack.Close(c.printer)
 }
 
-// Comp emits comp at the current cursor position.
+// Comp expands comp at the current cursor position.
 //
-// The component is emitted as one JobComp rather than expanded onto this
-// cursor: the default Printer renders that job through a fresh default Printer
-// and Cursor, so the component's head stack is independent of this one and its
-// jobs never reach this cursor's Printer. A nil comp renders nothing.
+// Comp calls comp.Main immediately and runs the returned Elem against this
+// cursor: the component's jobs go to this cursor's Printer and its heads share
+// this head stack. The component is expected to leave the stack balanced; an
+// unbalanced component affects the enclosing heads. A nil comp or a nil Main
+// result renders nothing.
+//
+// Comp is also the entry point for low-level components: an Elem written by
+// hand receives this cursor directly and may use the full cursor API.
 func (c Cursor) Comp(comp Comp) error {
 	if err := c.stack.Opened(); err != nil {
 		return err
 	}
-	return c.printer.Send(NewJobComp(c.ctx, comp))
-}
-
-// CompCtx is like Comp but uses ctx for the emitted job.
-func (c Cursor) CompCtx(ctx context.Context, comp Comp) error {
-	if err := c.stack.Opened(); err != nil {
-		return err
+	if comp == nil {
+		return nil
 	}
-	return c.printer.Send(NewJobComp(ctx, comp))
+	el := comp.Main()
+	if el == nil {
+		return nil
+	}
+	return el(c)
 }
 
 // Text emits escaped text at the current cursor position.
@@ -341,30 +344,12 @@ func (c Cursor) Templ(templ Templ) error {
 	return c.printer.Send(NewJobTempl(c.ctx, templ))
 }
 
-// TemplCtx is like Templ but uses ctx for the emitted job.
-func (c Cursor) TemplCtx(ctx context.Context, templ Templ) error {
-	if err := c.stack.Opened(); err != nil {
-		return err
-	}
-	return c.printer.Send(NewJobTempl(ctx, templ))
-}
-
 // Fprint renders any with fmt.Fprint and GoX escaping.
 func (c Cursor) Fprint(any any) error {
 	if err := c.stack.Opened(); err != nil {
 		return err
 	}
 	return c.printer.Send(NewJobFprint(c.ctx, any))
-}
-
-// Send forwards job directly to the underlying Printer.
-//
-// Send skips cursor state validation, so callers must preserve any ordering and
-// nesting guarantees they need.
-//
-// Deprecated: use Printer instead.
-func (c Cursor) Send(job Job) error {
-	return c.printer.Send(job)
 }
 
 // Printer returns the underlying Printer for direct job emission.
@@ -376,19 +361,9 @@ func (c Cursor) Printer() Printer {
 	return c.printer
 }
 
-// Editor applies editor to this cursor.
-//
-// Unlike Comp, the editor runs directly against this cursor and its head
-// stack, and Editor performs no cursor state validation of its own: an editor
-// may set attributes on a head that is still pending, or open and close heads
-// that outlive the call. A nil editor panics.
-func (c Cursor) Editor(editor Editor) error {
-	return editor.Edit(c)
-}
-
 // Many renders each value in order using Any.
 //
-// Many is a convenient way to emit mixed values without switching manually.
+// Many is a convenient way to emit mixed values.
 func (c Cursor) Many(many ...any) error {
 	for _, any := range many {
 		if err := c.Any(any); err != nil {
@@ -401,13 +376,12 @@ func (c Cursor) Many(many ...any) error {
 // Any renders a value using GoX's default dynamic dispatch.
 //
 // Cases are tried in this order, so a value that satisfies several of them is
-// handled by the first match (an EditorComp, for example, is applied as an
-// Editor rather than rendered as a Comp):
+// handled by the first match:
 //   - string / []string
 //   - Elem / []Elem
-//   - Editor
 //   - Comp / []Comp
 //   - Job / []Job
+//   - func(cur Cursor) error (rendered as an Elem)
 //   - Templ
 //   - []any (treated as a variadic list)
 //
@@ -437,8 +411,6 @@ func (c Cursor) Any(any any) error {
 			}
 		}
 		return nil
-	case Editor:
-		return c.Editor(v)
 	case Comp:
 		return c.Comp(v)
 	case []Comp:
@@ -457,6 +429,8 @@ func (c Cursor) Any(any any) error {
 			}
 		}
 		return nil
+	case func(cur Cursor) error:
+		return c.Comp(Elem(v))
 	case Templ:
 		return c.Templ(v)
 	case []interface{}:
@@ -485,15 +459,6 @@ func (c Cursor) Set(name string, value any) error {
 	return nil
 }
 
-// AttrSet sets an attribute on the current head.
-//
-// AttrSet may be used only after Init or InitVoid and before Submit.
-//
-// Deprecated: use Set instead.
-func (c Cursor) AttrSet(name string, value any) error {
-	return c.Set(name, value)
-}
-
 // Modify adds one or more modifiers to the current head.
 //
 // Modify may be used only after Init or InitVoid and before Submit. Modifiers
@@ -508,15 +473,4 @@ func (c Cursor) Modify(mods ...Modify) error {
 		attrs.AddMod(m)
 	}
 	return nil
-}
-
-// AttrMod adds one or more modifiers to the current head.
-//
-// AttrMod may be used only after Init or InitVoid and before Submit. Modifiers
-// run right before rendering and may inspect, leave unchanged, or mutate the
-// full attribute set.
-//
-// Deprecated: use Modify instead.
-func (c Cursor) AttrMod(mods ...Modify) error {
-	return c.Modify(mods...)
 }

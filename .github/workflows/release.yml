@@ -10,8 +10,30 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  guard:
     if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    outputs:
+      on_main: ${{ steps.check.outputs.on_main }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check tag commit is on main
+        id: check
+        run: |
+          set -euxo pipefail
+          sha="$(git rev-parse "$GITHUB_SHA^{commit}")"
+          if git merge-base --is-ancestor "$sha" origin/main; then
+            echo "on_main=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "on_main=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: guard
+    if: needs.guard.outputs.on_main == 'true'
     strategy:
       fail-fast: false
       matrix:
