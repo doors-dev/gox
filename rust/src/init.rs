@@ -1,53 +1,8 @@
-use std::{fmt, sync::OnceLock};
+use std::sync::OnceLock;
 use streaming_iterator::StreamingIterator;
 use tree_sitter::Node;
 
-pub enum IndentStyle {
-    Tab,
-    Space(u8),
-}
-
-impl fmt::Display for IndentStyle {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
-            IndentStyle::Tab => {
-                f.write_str("\t")?;
-                Ok(())
-            }
-            IndentStyle::Space(n) => {
-                for _ in 0..n {
-                    f.write_str(" ")?;
-                }
-                Ok(())
-            }
-        }
-    }
-}
-
-impl IndentStyle {
-    pub fn apply_css(&self, opt: &mut biome_css_formatter::context::CssFormatOptions) {
-        match self {
-            IndentStyle::Tab => {
-                opt.set_indent_style(biome_formatter::IndentStyle::Tab);
-            }
-            IndentStyle::Space(n) => {
-                opt.set_indent_style(biome_formatter::IndentStyle::Space);
-                opt.set_indent_width(biome_formatter::IndentWidth::from(*n));
-            }
-        }
-    }
-    pub fn apply_js(&self, opt: &mut biome_js_formatter::context::JsFormatOptions) {
-        match self {
-            IndentStyle::Tab => {
-                opt.set_indent_style(biome_formatter::IndentStyle::Tab);
-            }
-            IndentStyle::Space(n) => {
-                opt.set_indent_style(biome_formatter::IndentStyle::Space);
-                opt.set_indent_width(biome_formatter::IndentWidth::from(*n));
-            }
-        }
-    }
-}
+pub const INDENT: &str = "\t";
 
 static TS_LANG: OnceLock<topiary_tree_sitter_facade::Language> = OnceLock::new();
 
@@ -68,18 +23,9 @@ pub fn lang() -> &'static topiary_core::Language {
             name: "GoX".to_string(),
             query,
             grammar: ts_lang().clone(),
-            indent: Some(indent().to_string()),
+            indent: Some(INDENT.to_string()),
         }
     })
-}
-
-static INDENT: OnceLock<IndentStyle> = OnceLock::new();
-
-pub fn set_space_indent(width: u8) {
-    INDENT.get_or_init(|| IndentStyle::Space(width));
-}
-pub fn indent() -> &'static IndentStyle {
-    INDENT.get_or_init(|| IndentStyle::Tab)
 }
 
 pub fn new_parser() -> topiary_tree_sitter_facade::Parser {
