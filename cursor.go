@@ -3,20 +3,22 @@ package gox
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync/atomic"
 )
 
-// HeadError reports an invalid Cursor state transition.
-//
-// Cursor returns HeadError from Init, InitVoid, InitContainer and from methods
-// that require a content state when the current head has not been submitted
-// yet, and from Set and Modify when it already has been. Submit and Close
-// report their own misuse (submitting twice, closing a head that is still
-// pending, closing with no head open) with plain errors, so a type check for
-// HeadError does not catch every state error.
-type HeadError string
+// ErrState reports Cursor misuse: a method was called in a cursor state that
+// does not allow it. Every state error returned by Cursor wraps ErrState, so
+// errors.Is(err, ErrState) distinguishes cursor misuse from printer and
+// rendering failures.
+var ErrState = errors.New("invalid cursor state")
 
-func (e HeadError) Error() string { return string(e) }
+var (
+	errHeadNotOpen      = fmt.Errorf("%w: the head is not open", ErrState)
+	errHeadSubmitted    = fmt.Errorf("%w: the head has already been submitted", ErrState)
+	errHeadNotSubmitted = fmt.Errorf("%w: submit the head before closing it", ErrState)
+	errNothingToClose   = fmt.Errorf("%w: there is nothing to close", ErrState)
+)
 
 // HeadKind identifies what kind of head Cursor is building.
 //
@@ -79,12 +81,12 @@ func (s *stack) Opened() error {
 	if s.submitted && last.kind != KindVoid {
 		return nil
 	}
-	return HeadError("The head is not open.")
+	return errHeadNotOpen
 }
 
 func (s *stack) Submit(p Printer) error {
 	if s.submitted {
-		return errors.New("The head has already been submitted.")
+		return errHeadSubmitted
 	}
 	last := s.last()
 	if last.kind == KindVoid {
@@ -98,11 +100,11 @@ func (s *stack) Submit(p Printer) error {
 
 func (s *stack) Close(p Printer) error {
 	if !s.submitted {
-		return errors.New("Submit the head before closing it.")
+		return errHeadNotSubmitted
 	}
 	last := s.last()
 	if !last.isValid() {
-		return errors.New("There is nothing to close.")
+		return errNothingToClose
 	}
 	s.submitted = true
 	s.heads = s.heads[:len(s.heads)-1]
@@ -151,7 +153,7 @@ func (s *stack) InitSubmitContainer(p Printer) error {
 
 func (s *stack) Attrs() (*attrs, error) {
 	if s.submitted {
-		return nil, HeadError("The head has already been submitted.")
+		return nil, errHeadSubmitted
 	}
 	return s.attrs, nil
 }
@@ -260,11 +262,9 @@ func (c Cursor) InitContainer() error {
 // Submit emits the current head's opening job.
 //
 // After Submit the head no longer accepts attributes: Set and Modify fail from
-// this point on. A regular or container head stays on the stack, open for
-// child content until Close. A void head is complete once submitted and is
-// removed from the stack immediately, so the cursor returns to the enclosing
-// head's content state: following content belongs to that enclosing head, and
-// the next Close closes it, not the void element.
+// this point on. A regular head stays on the stack, open for child content
+// until Close. A void head is complete once submitted: it is removed from the
+// stack immediately and must not be closed.
 //
 // Submit fails when there is no pending head or the head was already
 // submitted.
@@ -443,7 +443,7 @@ func (c Cursor) Any(any any) error {
 // Set sets attribute name on the current head.
 //
 // Set may be used only after Init or InitVoid and before Submit; otherwise it
-// returns a HeadError and stores nothing.
+// returns an error wrapping ErrState and stores nothing.
 //
 // Values follow Attr.Set rules: a later Set replaces the value from an earlier
 // one, nil and false leave the attribute unset so it does not render, true

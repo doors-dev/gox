@@ -36,8 +36,8 @@ type Output = utils.Output
 // stream do not necessarily share a cancellation signal.
 //
 // The jobs GoX emits are pooled and single-use: Output returns the job to its
-// pool and clears its fields, so a job may be output at most once and must not
-// be inspected or resent afterwards.
+// pool and clears its fields, so afterwards a job must not be resent or even
+// inspected.
 type Job interface {
 	// Context returns the context associated with this job.
 	Context() context.Context

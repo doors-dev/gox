@@ -285,12 +285,6 @@ func TestCursorContext(t *testing.T) {
 	}
 }
 
-func TestHeadErrorString(t *testing.T) {
-	if HeadError("boom").Error() != "boom" {
-		t.Fatal("HeadError")
-	}
-}
-
 func TestCursorModify(t *testing.T) {
 	mod := ModifyFunc(func(ctx context.Context, tag string, attrs Attrs) error {
 		attrs.Get("data-tag").Set(tag)
@@ -525,8 +519,8 @@ func TestCursorHeadLifecycleErrors(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			err := Elem(tc.run).Render(context.Background(), &bytes.Buffer{})
-			if err == nil {
-				t.Fatal("expected lifecycle error")
+			if !errors.Is(err, ErrState) {
+				t.Fatalf("error = %v, want ErrState", err)
 			}
 		})
 	}
@@ -554,8 +548,8 @@ func TestCursorContentMethodsRequireSubmittedHead(t *testing.T) {
 				}
 				return tc.run(c)
 			}).Render(context.Background(), &bytes.Buffer{})
-			if err == nil {
-				t.Fatal("expected content-state error")
+			if !errors.Is(err, ErrState) {
+				t.Fatalf("error = %v, want ErrState", err)
 			}
 		})
 	}
