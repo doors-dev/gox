@@ -18,13 +18,6 @@ The Go module side is automatic: `go get github.com/doors-dev/gox` (or just `imp
 - VS Code: [`doors-dev/vscode-gox`](https://marketplace.visualstudio.com/items?itemName=doors-dev.gox)
 - Neovim: [`doors-dev/nvim-gox`](https://github.com/doors-dev/nvim-gox)
 
-## Default stack rule
-
-- **If `go.mod` has `github.com/doors-dev/doors` — do NOT install or use `goxx`.** This doc does not cover Doors-specific APIs.
-- **If GoX is used without Doors — install [`github.com/doors-dev/goxx`](https://github.com/doors-dev/goxx) by default.** It provides HTTP render, parallel rendering, and class/proxy helpers most standalone GoX apps need.
-
-Check first: `grep doors-dev/doors go.mod`. If Doors is present, skip `goxx`.
-
 ## Golden rule
 
 **Always edit `.gox` files. Never edit/hand-write `.x.go` files. Never write templates in cursor style directly.** `.x.go` is overwritten on every `gox gen` (and by the language server on save). The cursor API is for runtime extension points (`Proxy`, `Printer`, custom `Modify`, hand-written low-level `Elem`/`Comp`), not authoring.
@@ -284,11 +277,11 @@ Attribute values follow the same rules as placeholders (`~(expr)`), but `=` repl
 
 ### Attribute Modifiers
 
-Most modifiers come from third-party libs (`goxx.Class`, component kits). Attach inside parens **inside the opening tag**:
+Most modifiers come from third-party libs (component kits). Attach inside parens **inside the opening tag**:
 
 ```gox
-<button (goxx.Class("primary"))>Go</button>
-<button (goxx.Class("a"), TestID("save"))>Multi</button>   // comma-separated
+<button (Primary)>Go</button>
+<button (Primary, TestID("save"))>Multi</button>   // comma-separated
 ```
 
 **Writing your own `Modify`** is fine for reusable attribute bundles (design-system presets, analytics, form conventions):
@@ -319,9 +312,9 @@ Standard HTML void tags (`<br>`, `<hr>`, `<img>`, `<input>`, `<meta>`, `<link>`,
 
 - **`Modify` / "modifier"** → modifier syntax: `<tag (x)>`.
 - **`Proxy`** → proxy syntax: `~>(x) nextItem`.
-- **Both** (e.g. `goxx.Class`) → **default to modifier**. Use proxy only when you can't reach the target tag (wrapping a component whose outer tag you don't author):
+- **Both** → **default to modifier**. Use proxy only when you can't reach the target tag (wrapping a component whose outer tag you don't author):
   ```gox
-  ~>(goxx.Class("test").Remove("test2")) ~(test2())
+  ~>(TestID("test")) ~(test2())
   ```
 
 Picking the wrong syntax usually produces a compile error or a no-op, not a silent bug.
@@ -517,15 +510,15 @@ A `Proxy` captures the next renderable item at render time (element, component p
 
 Chain: `~>(p1) ~>(p2) item` ≡ `~>(p1, p2) item`. Outermost first; `p2` wraps the original, then `p1` wraps the result.
 
-**Most proxies come from third-party libs** (`goxx.Parallel`, `goxx.Class` as proxy, `goxx.ProxyMod`). You import and attach them.
+**Most proxies come from third-party libs.** You import and attach them.
 
-**Don't write a custom `Proxy` unless you truly need a low-level rendering transform.** Last resort. To wrap content → component/slot. To set attributes → `Modify`. To attach attributes through a wrapping component → `goxx.ProxyMod` or `goxx.Class`. Custom proxies require careful cursor lifecycle.
+**Don't write a custom `Proxy` unless you truly need a low-level rendering transform.** Last resort. To wrap content → component/slot. To set attributes → `Modify`. To attach attributes through a wrapping component → a proxy from your component kit. Custom proxies require careful cursor lifecycle.
 
 Custom `Proxy` is for transforming captured output before emission — rewriting attrs on descendants, filtering printers, render metrics, retargeted output.
 
 Common usage:
 ```gox
-~>(goxx.Parallel()) <section>~(SlowStats())</section>
+~>(Track) <section>~(SlowStats())</section>
 ~>(Track) ~({ return <span>computed</span> })
 ~>(Track) ~("Text ", dd)
 ~>(Track) Text
@@ -600,110 +593,6 @@ Reach for these only when ordinary templating can't express the need. They live 
 
 Before `Submit()` you may mutate attributes; after, the head is frozen but children may be emitted.
 
-## `goxx` — the standard extension package
-
-**Reminder: only when the project doesn't use Doors.** If `go.mod` has `github.com/doors-dev/doors`, stop.
-
-```sh
-go get github.com/doors-dev/goxx
-```
-
-### HTTP render helper
-
-`goxx.Render` buffers the full response before any byte is written, so render failure can still send a clean error status:
-
-```go
-func handlePage(w http.ResponseWriter, r *http.Request) {
-    out, err := goxx.Render(r.Context(), Page())
-    if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-        return
-    }
-    if err != nil {
-        http.Error(w, "render failed", http.StatusInternalServerError)
-        return
-    }
-    w.Header().Set("Content-Type", "text/html; charset=utf-8")
-    w.WriteHeader(http.StatusOK)
-    out.WriteTo(w)
-}
-```
-
-To serve a custom GoX error page on failure: render it after checking ctx errors. If the error-page render also fails, fall back to `http.Error` — safe, no bytes written yet.
-
-For non-HTTP code passing a printer to `elem.Print(ctx, printer)`, use `goxx.NewPrinter(w)` and `goxx.WriterError(err)` to distinguish writer vs render failures.
-
-### Parallel rendering
-
-Mark independent slow fragments with `~>(goxx.Parallel())`. They render on background workers; output order stays deterministic.
-
-```gox
-elem Page() {
-    <main>
-        <h1>Dashboard</h1>
-        ~>(goxx.Parallel()) <section>~(SlowStats())</section>
-        ~>(goxx.Parallel()) <aside>~(SlowSidebar())</aside>
-    </main>
-}
-```
-
-Use for DB queries, outbound HTTP, FS reads, heavy compute. Default pool: 7 workers + caller; tune via `goxx.NewPrinter(w, goxx.WithWorkers(n))` (`0` = unbounded).
-
-Custom printer: `goxx.WithPrinter(factory)`. Rarely needed.
-
-### `goxx.Class` — three-in-one class helper
-
-Builds an immutable class set. Inputs split with `strings.Fields` (variadic and space-separated equivalent).
-
-```go
-goxx.Class("button", "primary")
-goxx.Class("button primary")
-goxx.Class("button").Add("primary").Filter("hidden")
-```
-
-Three attachment styles:
-```gox
-// 1. Modifier (merges with class="..." on same element)
-<button (goxx.Class("button primary")) class="wide">Save</button>
-// → class="wide button primary"
-
-// 2. Attribute value (not recommended)
-<button class=(goxx.Class("button", "primary"))>Save</button>
-
-// 3. Proxy — propagates through containers/components to first real element
-~>(goxx.Class("button primary")) <button>Save</button>
-```
-
-`Filter` removes matches regardless of order:
-```go
-goxx.Class("button").Filter("hidden").Add("hidden").String() // "button"
-```
-
-Useful for stripping a class baked into a component:
-```gox
-~>(goxx.Class("primary").Filter("disabled")) ~(BaseButton())
-```
-
-### `goxx.ProxyMod` — attach `Modify` through wrappers
-
-Carries a modifier through leading components/containers to the first real element, applies once. Good for cross-cutting attributes (test ids):
-
-```go
-func TestID(id string) gox.Proxy {
-    return goxx.ProxyMod(gox.ModifyFunc(func(_ context.Context, _ string, attrs gox.Attrs) error {
-        attrs.Get("data-testid").Set(id)
-        return nil
-    }))
-}
-```
-
-```gox
-elem Toolbar() {
-    ~>(TestID("save-button")) ~(SaveButton())
-}
-```
-
-Captured item must begin with element/component/container that resolves to an element. Text first → error. (`goxx.Class` as proxy uses this machinery.)
-
 ## Common pitfalls
 
 1. **Edited `.x.go` by hand** — gone on next `gen`. Edit `.gox`.
@@ -729,8 +618,7 @@ Captured item must begin with element/component/container that resolves to an el
 21. **Whitespace between placeholders** — `~(a) ~(b)`, `~(a)~(b)` have no space, `~(a, " ", b)` has.
 22. **Expected raw template indentation/newlines** — normalized. Intentional spaces preserved. Use raw blocks for verbatim.
 23. **Expected proxy to capture multiple siblings** — captures one. Group via fragment/wrapper/multi-value placeholder.
-24. **Custom `Proxy` for ordinary wrapping/attributes** — use components/`Modify`/`goxx.ProxyMod` instead.
+24. **Custom `Proxy` for ordinary wrapping/attributes** — use components/`Modify` instead.
 25. **Imported `gox` but unused in `.gox`** — fine; generated `.x.go` references `gox.Elem` for `elem` and HTML syntax, so module must be in `go.mod`.
 26. **Version drift** — generated files have version markers; CI must use matching `gox`.
-27. **Added `goxx` to a Doors project** — skip `goxx`.
-28. **Raw `http.Handler` calling `Elem.Render(ctx, w)` directly** — failure leaves bytes written. Prefer `goxx.Render` (buffers first).
+27. **Raw `http.Handler` calling `Elem.Render(ctx, w)` directly** — failure leaves bytes written. Render into a buffer first; write it out only on success.

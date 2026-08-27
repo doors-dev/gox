@@ -15,8 +15,6 @@ GoX lets you write HTML templates as typed Go expressions that compile to plain 
 
 > Syntax guide: [doors.dev/docs/template-syntax](https://doors.dev/docs/template-syntax)  
 
-> For practical extensions on top of GoX, see [`github.com/doors-dev/goxx`](https://github.com/doors-dev/goxx).
-
 > This README focuses on installation, workflow, editor integration, and the rendering API behind GoX.
 
 > Working with an LLM agent? Point it at [`llms.md`](./llms.md) — the condensed agent-facing reference (syntax, workflow, pitfalls). See [Using with LLM agents](#using-with-llm-agents) below for setup.
@@ -370,7 +368,7 @@ The helpers in `helpers.go` keep the API lightweight when you want one-off imple
 
 ## Using with LLM agents
 
-[`llms.md`](./llms.md) is a condensed, agent-facing reference: syntax essentials, workflow rules, common pitfalls, and the `goxx` defaults. Wire it into whichever agent you use:
+[`llms.md`](./llms.md) is a condensed, agent-facing reference: syntax essentials, workflow rules, and common pitfalls. Wire it into whichever agent you use:
 
 - **Claude Code** — add a line to your project's `CLAUDE.md`:
   ```markdown

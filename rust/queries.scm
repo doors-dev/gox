@@ -108,6 +108,10 @@
  ";" @delete
 )
 
+(import_spec
+  name: (_) @append_space
+)
+
 ; list: statements
 (statement_list
   (_) @allow_blank_line_before

@@ -151,6 +151,25 @@ func TestFormatDefaultFormatsGoAndGox(t *testing.T) {
 	}
 }
 
+func TestFormatKeepsSpaceAfterImportName(t *testing.T) {
+	dir := t.TempDir()
+	goxFile := filepath.Join(dir, "a.gox")
+	writeFile(t, goxFile, "package main\n\nimport (\n\t_\"embed\"\n\tf\"fmt\"\n\t.\"strings\"\n)\n\nelem A() {\n\t<div>~(f.Sprint(Title(\"x\")))</div>\n}\n")
+
+	if err := Format([]string{dir}, false, false, false, true); err != nil {
+		t.Fatalf("Format() error = %v", err)
+	}
+	content, err := os.ReadFile(goxFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"\t_ \"embed\"\n", "\tf \"fmt\"\n", "\t. \"strings\"\n"} {
+		if !strings.Contains(string(content), want) {
+			t.Fatalf("a.gox = %q, missing %q", string(content), want)
+		}
+	}
+}
+
 func TestFormatCheckReportsDriftAndWritesNothing(t *testing.T) {
 	dir := t.TempDir()
 	goFile := filepath.Join(dir, "main.go")
