@@ -28,7 +28,7 @@ import (
 //
 // Attr handles returned by Get, Find, and List point into the owning Attrs.
 //
-// Attrs values are pooled. Passing one to NewJobHeadOpen transfers ownership:
+// Attrs values are pooled. Passing one to NewJobOpen transfers ownership:
 // that job's Output releases the attribute set, and every Attr handle it
 // renders, back to the pools, so neither the Attrs nor any Attr handle from it
 // may be used afterwards, and one attribute set must not back two heads. Use

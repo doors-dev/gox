@@ -30,15 +30,14 @@ type Output = utils.Output
 
 // Job is a single render operation emitted by Cursor.
 //
-// Concrete jobs such as JobHeadOpen, JobText, and JobComp let custom printers
-// observe or transform the stream. Each job carries its own context: the
-// cursor's context by default, or the one passed to Cursor.CompCtx,
-// Cursor.TemplCtx, or a NewJob* constructor, so the jobs of one stream do not
-// necessarily share a cancellation signal.
+// Concrete jobs such as JobOpen and JobText let custom printers observe or
+// transform the stream. Each job carries its own context: the cursor's context
+// by default, or the one passed to a NewJob* constructor, so the jobs of one
+// stream do not necessarily share a cancellation signal.
 //
 // The jobs GoX emits are pooled and single-use: Output returns the job to its
-// pool and clears its fields, so a job may be output at most once and must not
-// be inspected or resent afterwards.
+// pool and clears its fields, so afterwards a job must not be resent or even
+// inspected.
 type Job interface {
 	// Context returns the context associated with this job.
 	Context() context.Context

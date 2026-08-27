@@ -3,20 +3,22 @@ package gox
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync/atomic"
 )
 
-// HeadError reports an invalid Cursor state transition.
-//
-// Cursor returns HeadError from Init, InitVoid, InitContainer and from methods
-// that require a content state when the current head has not been submitted
-// yet, and from Set and Modify when it already has been. Submit and Close
-// report their own misuse (submitting twice, closing a head that is still
-// pending, closing with no head open) with plain errors, so a type check for
-// HeadError does not catch every state error.
-type HeadError string
+// ErrState reports Cursor misuse: a method was called in a cursor state that
+// does not allow it. Every state error returned by Cursor wraps ErrState, so
+// errors.Is(err, ErrState) distinguishes cursor misuse from printer and
+// rendering failures.
+var ErrState = errors.New("invalid cursor state")
 
-func (e HeadError) Error() string { return string(e) }
+var (
+	errHeadNotOpen      = fmt.Errorf("%w: the head is not open", ErrState)
+	errHeadSubmitted    = fmt.Errorf("%w: the head has already been submitted", ErrState)
+	errHeadNotSubmitted = fmt.Errorf("%w: submit the head before closing it", ErrState)
+	errNothingToClose   = fmt.Errorf("%w: there is nothing to close", ErrState)
+)
 
 // HeadKind identifies what kind of head Cursor is building.
 //
@@ -79,18 +81,18 @@ func (s *stack) Opened() error {
 	if s.submitted && last.kind != KindVoid {
 		return nil
 	}
-	return HeadError("The head is not open.")
+	return errHeadNotOpen
 }
 
 func (s *stack) Submit(p Printer) error {
 	if s.submitted {
-		return errors.New("The head has already been submitted.")
+		return errHeadSubmitted
 	}
 	last := s.last()
 	if last.kind == KindVoid {
 		s.heads = s.heads[:len(s.heads)-1]
 	}
-	err := p.Send(NewJobHeadOpen(s.ctx, last.id, last.kind, last.tag, s.attrs))
+	err := p.Send(NewJobOpen(s.ctx, last.id, last.kind, last.tag, s.attrs))
 	s.submitted = true
 	s.attrs = nil
 	return err
@@ -98,15 +100,15 @@ func (s *stack) Submit(p Printer) error {
 
 func (s *stack) Close(p Printer) error {
 	if !s.submitted {
-		return errors.New("Submit the head before closing it.")
+		return errHeadNotSubmitted
 	}
 	last := s.last()
 	if !last.isValid() {
-		return errors.New("There is nothing to close.")
+		return errNothingToClose
 	}
 	s.submitted = true
 	s.heads = s.heads[:len(s.heads)-1]
-	return p.Send(NewJobHeadClose(s.ctx, last.id, last.kind, last.tag))
+	return p.Send(NewJobClose(s.ctx, last.id, last.kind, last.tag))
 }
 
 func (s *stack) Init(name string) error {
@@ -151,7 +153,7 @@ func (s *stack) InitSubmitContainer(p Printer) error {
 
 func (s *stack) Attrs() (*attrs, error) {
 	if s.submitted {
-		return nil, HeadError("The head has already been submitted.")
+		return nil, errHeadSubmitted
 	}
 	return s.attrs, nil
 }
@@ -260,11 +262,9 @@ func (c Cursor) InitContainer() error {
 // Submit emits the current head's opening job.
 //
 // After Submit the head no longer accepts attributes: Set and Modify fail from
-// this point on. A regular or container head stays on the stack, open for
-// child content until Close. A void head is complete once submitted and is
-// removed from the stack immediately, so the cursor returns to the enclosing
-// head's content state: following content belongs to that enclosing head, and
-// the next Close closes it, not the void element.
+// this point on. A regular head stays on the stack, open for child content
+// until Close. A void head is complete once submitted: it is removed from the
+// stack immediately and must not be closed.
 //
 // Submit fails when there is no pending head or the head was already
 // submitted.
@@ -283,25 +283,28 @@ func (c Cursor) Close() error {
 	return c.stack.Close(c.printer)
 }
 
-// Comp emits comp at the current cursor position.
+// Comp expands comp at the current cursor position.
 //
-// The component is emitted as one JobComp rather than expanded onto this
-// cursor: the default Printer renders that job through a fresh default Printer
-// and Cursor, so the component's head stack is independent of this one and its
-// jobs never reach this cursor's Printer. A nil comp renders nothing.
+// Comp calls comp.Main immediately and runs the returned Elem against this
+// cursor: the component's jobs go to this cursor's Printer and its heads share
+// this head stack. The component is expected to leave the stack balanced; an
+// unbalanced component affects the enclosing heads. A nil comp or a nil Main
+// result renders nothing.
+//
+// Comp is also the entry point for low-level components: an Elem written by
+// hand receives this cursor directly and may use the full cursor API.
 func (c Cursor) Comp(comp Comp) error {
 	if err := c.stack.Opened(); err != nil {
 		return err
 	}
-	return c.printer.Send(NewJobComp(c.ctx, comp))
-}
-
-// CompCtx is like Comp but uses ctx for the emitted job.
-func (c Cursor) CompCtx(ctx context.Context, comp Comp) error {
-	if err := c.stack.Opened(); err != nil {
-		return err
+	if comp == nil {
+		return nil
 	}
-	return c.printer.Send(NewJobComp(ctx, comp))
+	el := comp.Main()
+	if el == nil {
+		return nil
+	}
+	return el(c)
 }
 
 // Text emits escaped text at the current cursor position.
@@ -341,30 +344,12 @@ func (c Cursor) Templ(templ Templ) error {
 	return c.printer.Send(NewJobTempl(c.ctx, templ))
 }
 
-// TemplCtx is like Templ but uses ctx for the emitted job.
-func (c Cursor) TemplCtx(ctx context.Context, templ Templ) error {
-	if err := c.stack.Opened(); err != nil {
-		return err
-	}
-	return c.printer.Send(NewJobTempl(ctx, templ))
-}
-
 // Fprint renders any with fmt.Fprint and GoX escaping.
 func (c Cursor) Fprint(any any) error {
 	if err := c.stack.Opened(); err != nil {
 		return err
 	}
 	return c.printer.Send(NewJobFprint(c.ctx, any))
-}
-
-// Send forwards job directly to the underlying Printer.
-//
-// Send skips cursor state validation, so callers must preserve any ordering and
-// nesting guarantees they need.
-//
-// Deprecated: use Printer instead.
-func (c Cursor) Send(job Job) error {
-	return c.printer.Send(job)
 }
 
 // Printer returns the underlying Printer for direct job emission.
@@ -376,19 +361,9 @@ func (c Cursor) Printer() Printer {
 	return c.printer
 }
 
-// Editor applies editor to this cursor.
-//
-// Unlike Comp, the editor runs directly against this cursor and its head
-// stack, and Editor performs no cursor state validation of its own: an editor
-// may set attributes on a head that is still pending, or open and close heads
-// that outlive the call. A nil editor panics.
-func (c Cursor) Editor(editor Editor) error {
-	return editor.Edit(c)
-}
-
 // Many renders each value in order using Any.
 //
-// Many is a convenient way to emit mixed values without switching manually.
+// Many is a convenient way to emit mixed values.
 func (c Cursor) Many(many ...any) error {
 	for _, any := range many {
 		if err := c.Any(any); err != nil {
@@ -401,13 +376,12 @@ func (c Cursor) Many(many ...any) error {
 // Any renders a value using GoX's default dynamic dispatch.
 //
 // Cases are tried in this order, so a value that satisfies several of them is
-// handled by the first match (an EditorComp, for example, is applied as an
-// Editor rather than rendered as a Comp):
+// handled by the first match:
 //   - string / []string
 //   - Elem / []Elem
-//   - Editor
 //   - Comp / []Comp
 //   - Job / []Job
+//   - func(cur Cursor) error (rendered as an Elem)
 //   - Templ
 //   - []any (treated as a variadic list)
 //
@@ -437,8 +411,6 @@ func (c Cursor) Any(any any) error {
 			}
 		}
 		return nil
-	case Editor:
-		return c.Editor(v)
 	case Comp:
 		return c.Comp(v)
 	case []Comp:
@@ -457,6 +429,8 @@ func (c Cursor) Any(any any) error {
 			}
 		}
 		return nil
+	case func(cur Cursor) error:
+		return c.Comp(Elem(v))
 	case Templ:
 		return c.Templ(v)
 	case []interface{}:
@@ -469,7 +443,7 @@ func (c Cursor) Any(any any) error {
 // Set sets attribute name on the current head.
 //
 // Set may be used only after Init or InitVoid and before Submit; otherwise it
-// returns a HeadError and stores nothing.
+// returns an error wrapping ErrState and stores nothing.
 //
 // Values follow Attr.Set rules: a later Set replaces the value from an earlier
 // one, nil and false leave the attribute unset so it does not render, true
@@ -483,15 +457,6 @@ func (c Cursor) Set(name string, value any) error {
 	}
 	attrs.Get(name).Set(value)
 	return nil
-}
-
-// AttrSet sets an attribute on the current head.
-//
-// AttrSet may be used only after Init or InitVoid and before Submit.
-//
-// Deprecated: use Set instead.
-func (c Cursor) AttrSet(name string, value any) error {
-	return c.Set(name, value)
 }
 
 // Modify adds one or more modifiers to the current head.
@@ -508,15 +473,4 @@ func (c Cursor) Modify(mods ...Modify) error {
 		attrs.AddMod(m)
 	}
 	return nil
-}
-
-// AttrMod adds one or more modifiers to the current head.
-//
-// AttrMod may be used only after Init or InitVoid and before Submit. Modifiers
-// run right before rendering and may inspect, leave unchanged, or mutate the
-// full attribute set.
-//
-// Deprecated: use Modify instead.
-func (c Cursor) AttrMod(mods ...Modify) error {
-	return c.Modify(mods...)
 }

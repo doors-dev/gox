@@ -31,16 +31,16 @@ type OutputError string
 
 func (e OutputError) Error() string { return string(e) }
 
-var headOpenPool = utils.NewStructPool[JobHeadOpen]()
+var headOpenPool = utils.NewStructPool[JobOpen]()
 
-// NewJobHeadOpen returns a pooled JobHeadOpen.
+// NewJobOpen returns a pooled JobOpen.
 //
 // The returned job is single-use and is usually sent straight to a Printer. It
 // takes ownership of attrs: outputting or releasing the job also releases the
 // attribute set, and Output additionally releases the Attr handles it renders,
 // so the caller must not use them afterwards. attrs may be nil, in which case
 // the job writes the tag with no attributes.
-func NewJobHeadOpen(ctx context.Context, id uint64, kind HeadKind, tag string, attrs Attrs) *JobHeadOpen {
+func NewJobOpen(ctx context.Context, id uint64, kind HeadKind, tag string, attrs Attrs) *JobOpen {
 	job := headOpenPool.Get()
 	job.ID = id
 	job.Kind = kind
@@ -50,10 +50,10 @@ func NewJobHeadOpen(ctx context.Context, id uint64, kind HeadKind, tag string, a
 	return job
 }
 
-// JobHeadOpen writes the opening half of a head.
+// JobOpen writes the opening half of a head.
 //
 // Regular and void heads emit `<tag ...>`. Container heads emit no HTML.
-type JobHeadOpen struct {
+type JobOpen struct {
 	// ID is the head identifier associated with this element/container.
 	// The opening and closing jobs for the same head share the same ID.
 	ID uint64
@@ -72,9 +72,9 @@ type JobHeadOpen struct {
 }
 
 // Context returns the context associated with this job.
-func (j *JobHeadOpen) Context() context.Context { return j.Ctx }
+func (j *JobOpen) Context() context.Context { return j.Ctx }
 
-func (j *JobHeadOpen) release() {
+func (j *JobOpen) release() {
 	j.ID = 0
 	j.Kind = 0
 	j.Tag = ""
@@ -91,7 +91,7 @@ func (j *JobHeadOpen) release() {
 // Behavior by kind:
 //   - KindContainer: writes nothing and returns nil
 //   - KindRegular / KindVoid: requires Tag to be non-empty and writes `<tag ...>`
-func (j *JobHeadOpen) Output(w io.Writer) error {
+func (j *JobOpen) Output(w io.Writer) error {
 	defer j.release()
 
 	if j.Kind == KindContainer {
@@ -109,10 +109,10 @@ func (j *JobHeadOpen) Output(w io.Writer) error {
 	return utils.WriteTagOpenEnd(w)
 }
 
-var headClosePool = utils.NewStructPool[JobHeadClose]()
+var headClosePool = utils.NewStructPool[JobClose]()
 
-// NewJobHeadClose returns a pooled JobHeadClose.
-func NewJobHeadClose(ctx context.Context, id uint64, kind HeadKind, tag string) *JobHeadClose {
+// NewJobClose returns a pooled JobClose.
+func NewJobClose(ctx context.Context, id uint64, kind HeadKind, tag string) *JobClose {
 	job := headClosePool.Get()
 	job.ID = id
 	job.Kind = kind
@@ -121,11 +121,11 @@ func NewJobHeadClose(ctx context.Context, id uint64, kind HeadKind, tag string) 
 	return job
 }
 
-// JobHeadClose writes the closing half of a head.
+// JobClose writes the closing half of a head.
 //
 // Regular heads emit `</tag>`. Container heads emit no HTML. Closing a void
 // head is an error.
-type JobHeadClose struct {
+type JobClose struct {
 	// ID is the head identifier associated with this element/container.
 	// The opening and closing jobs for the same head share the same ID.
 	ID uint64
@@ -141,9 +141,9 @@ type JobHeadClose struct {
 }
 
 // Context returns the context associated with this job.
-func (j *JobHeadClose) Context() context.Context { return j.Ctx }
+func (j *JobClose) Context() context.Context { return j.Ctx }
 
-func (j *JobHeadClose) release() {
+func (j *JobClose) release() {
 	j.ID = 0
 	j.Kind = 0
 	j.Tag = ""
@@ -157,7 +157,7 @@ func (j *JobHeadClose) release() {
 //   - KindContainer: writes nothing and returns nil
 //   - KindVoid: returns an error (void elements cannot be closed)
 //   - KindRegular: requires Tag to be non-empty and writes `</tag>`
-func (j *JobHeadClose) Output(w io.Writer) error {
+func (j *JobClose) Output(w io.Writer) error {
 	defer j.release()
 
 	if j.Kind == KindContainer {
@@ -170,52 +170,6 @@ func (j *JobHeadClose) Output(w io.Writer) error {
 		return OutputError("Regular elements must have a name.")
 	}
 	return utils.WriteTagClose(w, j.Tag)
-}
-
-var compPool = utils.NewStructPool[JobComp]()
-
-// NewJobComp returns a pooled JobComp.
-func NewJobComp(ctx context.Context, comp Comp) *JobComp {
-	j := compPool.Get()
-	j.Ctx = ctx
-	j.Comp = comp
-	return j
-}
-
-// JobComp renders a Comp.
-//
-// Cursor emits one for every Comp or Elem value passed to Cursor.Comp,
-// Cursor.CompCtx, or Cursor.Any, and Elem.Print sends one as the root job.
-// Output calls Comp.Main and, when it returns a non-nil Elem, renders that
-// Elem through a fresh default Printer and Cursor writing to w, so the jobs
-// produced inside the component never reach the Printer that received this
-// JobComp. A custom printer that needs those jobs must expand the component
-// itself, by running Comp.Main's Elem against a Cursor bound to that printer
-// instead of calling Output. A nil Comp or a nil Main result renders nothing.
-type JobComp struct {
-	Comp Comp
-	Ctx  context.Context
-}
-
-// Context returns the context associated with this job.
-func (j *JobComp) Context() context.Context { return j.Ctx }
-
-func (j *JobComp) release() {
-	j.Comp = nil
-	j.Ctx = nil
-	compPool.Put(j)
-}
-
-// Output renders the component's root element (if any) into w.
-func (j *JobComp) Output(w io.Writer) error {
-	defer j.release()
-	if j.Comp == nil {
-		return nil
-	}
-	if el := j.Comp.Main(); el != nil {
-		return el.Render(j.Ctx, w)
-	}
-	return nil
 }
 
 var textPool = utils.NewStructPool[JobText]()

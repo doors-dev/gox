@@ -135,10 +135,10 @@ func WriteAttrName(w io.Writer, name string) error {
 
 func WriteAttrValue(w io.Writer, value any) error {
 	if value == nil {
-		return errors.New("Nil attribute values cannot be written.")
+		return errors.New("nil attribute values cannot be written")
 	}
 	if _, ok := value.(bool); ok {
-		return errors.New("Boolean attribute values cannot be written.")
+		return errors.New("boolean attribute values cannot be written")
 	}
 	return writeAttrValue(w, value)
 }

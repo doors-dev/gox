@@ -27,7 +27,7 @@ Check first: `grep doors-dev/doors go.mod`. If Doors is present, skip `goxx`.
 
 ## Golden rule
 
-**Always edit `.gox` files. Never edit/hand-write `.x.go` files. Never write templates in cursor style directly.** `.x.go` is overwritten on every `gox gen` (and by the language server on save). The cursor API is for runtime extension points (`Editor`, `Proxy`, `Printer`, custom `Modify`), not authoring.
+**Always edit `.gox` files. Never edit/hand-write `.x.go` files. Never write templates in cursor style directly.** `.x.go` is overwritten on every `gox gen` (and by the language server on save). The cursor API is for runtime extension points (`Proxy`, `Printer`, custom `Modify`, hand-written low-level `Elem`/`Comp`), not authoring.
 
 Don't:
 - Hand-write `gox.Elem(func(cur gox.Cursor) error { ... })` as authoring style — that's what `.gox` compiles *to*.
@@ -317,7 +317,7 @@ Standard HTML void tags (`<br>`, `<hr>`, `<img>`, `<input>`, `<meta>`, `<link>`,
 
 ### Reading third-party docs: naming → syntax
 
-- **`AttrMod` / "modifier"** → modifier syntax: `<tag (x)>`.
+- **`Modify` / "modifier"** → modifier syntax: `<tag (x)>`.
 - **`Proxy`** → proxy syntax: `~>(x) nextItem`.
 - **Both** (e.g. `goxx.Class`) → **default to modifier**. Use proxy only when you can't reach the target tag (wrapping a component whose outer tag you don't author):
   ```gox
@@ -565,7 +565,7 @@ elem.Print(ctx, customPrint) // streams jobs to a custom Printer
 - `gox.Elem`, `[]gox.Elem`
 - `gox.Comp`, `[]gox.Comp`
 - `gox.Job`, `[]gox.Job`
-- `gox.Editor`
+- `func(cur gox.Cursor) error` (rendered as `gox.Elem`)
 - `gox.Templ` (anything with `Render(ctx, w) error`, e.g. `templ.Component`)
 - `[]any`
 
@@ -573,11 +573,11 @@ Else: escaped `fmt.Fprint`. `nil` Elem/Comp render nothing.
 
 ### Raw HTML
 
-`<:>...</:>` for static raw. For programmatic raw output, drop an `Editor` through a placeholder:
+`<:>...</:>` for static raw. For programmatic raw output, drop a cursor func through a placeholder:
 ```gox
-~(gox.EditorFunc(func(cur gox.Cursor) error {
+~(func(cur gox.Cursor) error {
     return cur.Raw("<mark>unescaped</mark>")
-}))
+})
 ```
 
 Never pipe untrusted input through these.
@@ -586,16 +586,16 @@ Never pipe untrusted input through these.
 
 Reach for these only when ordinary templating can't express the need. They live in `.go` files, not `.gox`.
 
-- `gox.Editor` — `Edit(cur gox.Cursor) error`. Direct cursor for low-level emission. Use `gox.EditorFunc` for one-offs.
+- `gox.Elem` / `gox.Comp` — a hand-written `Elem` (`func(cur gox.Cursor) error`) receives the rendering cursor directly for low-level emission; components expand on the caller's cursor.
 - `gox.Proxy` — `Proxy(cur gox.Cursor, e gox.Elem) error`. Intercepts next renderable. Prefer existing proxies.
 - `gox.Modify` — `Modify(ctx, tag, attrs Attrs) error`. Head-level attribute transformer (`<tag (Modifier)>`). Use `gox.ModifyFunc`.
 - `gox.Mutate` — `Mutate(name, prev any) any`. Value-level: combine with existing attribute under same name.
 - `gox.Output` — `Output(w io.Writer) error`. Value controls own serialization (still escaped).
 - `gox.Printer` — consumes the `Job` stream. Custom printers can buffer/transform/reroute.
 
-**Cursor lifecycle when writing `Editor` / low-level code:**
-1. Regular: `Init(tag)` → `AttrSet`/`AttrMod` → `Submit()` → children → `Close()`.
-2. Void: `InitVoid(tag)` → `AttrSet` → `Submit()` (no `Close`).
+**Cursor lifecycle when writing low-level code:**
+1. Regular: `Init(tag)` → `Set`/`Modify` → `Submit()` → children → `Close()`.
+2. Void: `InitVoid(tag)` → `Set` → `Submit()` (no `Close`).
 3. Container: `InitContainer()` → children → `Close()` (no tag).
 
 Before `Submit()` you may mutate attributes; after, the head is frozen but children may be emitted.
@@ -648,7 +648,7 @@ elem Page() {
 
 Use for DB queries, outbound HTTP, FS reads, heavy compute. Default pool: 7 workers + caller; tune via `goxx.NewPrinter(w, goxx.WithWorkers(n))` (`0` = unbounded).
 
-Custom printer: `goxx.WithPrinter(factory)` (+ `goxx.WithFlat()` if printer wants expanded content rather than `*gox.JobComp`). Rarely needed.
+Custom printer: `goxx.WithPrinter(factory)`. Rarely needed.
 
 ### `goxx.Class` — three-in-one class helper
 
@@ -725,7 +725,7 @@ Captured item must begin with element/component/container that resolves to an el
 17. **`~(...)` in attribute** — text/template positions only. Use `id=(id)`, `checked=({ ... })`.
 18. **Called `attrs.Set(...)` in `Modify`** — method is `attrs.Get(name).Set(value)`.
 19. **`</br>` / `</input>`** — void tags have no closing. Use `<br>`, `<br/>`, `<br />`.
-20. **Unescaped via `~(untrustedHTML)`** — that escapes. `<:>...</:>` or `gox.EditorFunc + cur.Raw` for trusted only.
+20. **Unescaped via `~(untrustedHTML)`** — that escapes. `<:>...</:>` or a `func(cur gox.Cursor) error` placeholder + `cur.Raw` for trusted only.
 21. **Whitespace between placeholders** — `~(a) ~(b)`, `~(a)~(b)` have no space, `~(a, " ", b)` has.
 22. **Expected raw template indentation/newlines** — normalized. Intentional spaces preserved. Use raw blocks for verbatim.
 23. **Expected proxy to capture multiple siblings** — captures one. Group via fragment/wrapper/multi-value placeholder.

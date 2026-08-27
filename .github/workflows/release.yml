@@ -10,8 +10,30 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  guard:
     if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    outputs:
+      on_main: ${{ steps.check.outputs.on_main }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check tag commit is on main
+        id: check
+        run: |
+          set -euxo pipefail
+          sha="$(git rev-parse "$GITHUB_SHA^{commit}")"
+          if git merge-base --is-ancestor "$sha" origin/main; then
+            echo "on_main=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "on_main=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: guard
+    if: needs.guard.outputs.on_main == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -129,6 +151,8 @@ jobs:
           echo "Release must be dispatched from a tag, got ${{ github.ref_type }} '${{ github.ref_name }}'." >&2
           exit 1
 
+      - uses: actions/checkout@v4
+
       - name: Download all build artifacts
         uses: actions/download-artifact@v4
         with:
@@ -164,5 +188,6 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
+          body_path: RELEASE_NOTES.md
           generate_release_notes: true
           files: dist/*

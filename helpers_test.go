@@ -7,49 +7,6 @@ import (
 	"testing"
 )
 
-func TestEditorFunc(t *testing.T) {
-	buf := &bytes.Buffer{}
-	cur := NewCursor(context.Background(), NewPrinter(buf))
-	want := errors.New("boom")
-	ed := EditorFunc(func(got Cursor) error {
-		if got != cur {
-			t.Fatalf("Edit() cursor = %v, want %v", got, cur)
-		}
-		return want
-	})
-	if err := ed.Edit(cur); !errors.Is(err, want) {
-		t.Fatalf("Edit() error = %v, want %v", err, want)
-	}
-}
-
-func TestEditorCompFunc(t *testing.T) {
-	called := 0
-	ec := EditorCompFunc(func(c Cursor) error {
-		called++
-		return c.Text("ok")
-	})
-	// Edit
-	buf := &bytes.Buffer{}
-	c := NewCursor(context.Background(), NewPrinter(buf))
-	if err := ec.Edit(c); err != nil {
-		t.Fatal(err)
-	}
-	if buf.String() != "ok" {
-		t.Fatalf("got %q", buf.String())
-	}
-	// Main returns an Elem that runs the same func
-	buf2 := &bytes.Buffer{}
-	if err := ec.Main().Render(context.Background(), buf2); err != nil {
-		t.Fatal(err)
-	}
-	if buf2.String() != "ok" {
-		t.Fatalf("got %q", buf2.String())
-	}
-	if called != 2 {
-		t.Errorf("called = %d", called)
-	}
-}
-
 func TestProxyFunc(t *testing.T) {
 	buf := &bytes.Buffer{}
 	cur := NewCursor(context.Background(), NewPrinter(buf))

@@ -7,10 +7,10 @@ import (
 	"testing"
 )
 
-func TestJobHeadOpenContainerNoOutput(t *testing.T) {
+func TestJobOpenContainerNoOutput(t *testing.T) {
 	a := NewAttrs()
 	a.Get("class").Set("ignored")
-	j := NewJobHeadOpen(context.Background(), 1, KindContainer, "div", a)
+	j := NewJobOpen(context.Background(), 1, KindContainer, "div", a)
 	buf := &bytes.Buffer{}
 	if err := j.Output(buf); err != nil {
 		t.Fatal(err)
@@ -20,19 +20,19 @@ func TestJobHeadOpenContainerNoOutput(t *testing.T) {
 	}
 }
 
-func TestJobHeadOpenEmptyTagErrors(t *testing.T) {
-	j := NewJobHeadOpen(context.Background(), 1, KindRegular, "", nil)
+func TestJobOpenEmptyTagErrors(t *testing.T) {
+	j := NewJobOpen(context.Background(), 1, KindRegular, "", nil)
 	buf := &bytes.Buffer{}
 	if err := j.Output(buf); err == nil {
 		t.Fatal("expected error")
 	}
 }
 
-func TestJobHeadOpenWithAttrs(t *testing.T) {
+func TestJobOpenWithAttrs(t *testing.T) {
 	a := NewAttrs()
 	a.Get("class").Set("c")
 	a.Get("id").Set("x")
-	j := NewJobHeadOpen(context.Background(), 1, KindRegular, "div", a)
+	j := NewJobOpen(context.Background(), 1, KindRegular, "div", a)
 	buf := &bytes.Buffer{}
 	if err := j.Output(buf); err != nil {
 		t.Fatal(err)
@@ -42,8 +42,8 @@ func TestJobHeadOpenWithAttrs(t *testing.T) {
 	}
 }
 
-func TestJobHeadOpenNilAttrs(t *testing.T) {
-	j := NewJobHeadOpen(context.Background(), 1, KindRegular, "div", nil)
+func TestJobOpenNilAttrs(t *testing.T) {
+	j := NewJobOpen(context.Background(), 1, KindRegular, "div", nil)
 	buf := &bytes.Buffer{}
 	if err := j.Output(buf); err != nil {
 		t.Fatal(err)
@@ -53,16 +53,16 @@ func TestJobHeadOpenNilAttrs(t *testing.T) {
 	}
 }
 
-func TestJobHeadOpenWriteError(t *testing.T) {
+func TestJobOpenWriteError(t *testing.T) {
 	want := errors.New("write failed")
-	j := NewJobHeadOpen(context.Background(), 1, KindRegular, "div", nil)
+	j := NewJobOpen(context.Background(), 1, KindRegular, "div", nil)
 	if err := j.Output(&errWriter{failAt: 0, err: want}); !errors.Is(err, want) {
 		t.Fatalf("Output() error = %v, want %v", err, want)
 	}
 }
 
-func TestJobHeadCloseContainerNoOutput(t *testing.T) {
-	j := NewJobHeadClose(context.Background(), 1, KindContainer, "")
+func TestJobCloseContainerNoOutput(t *testing.T) {
+	j := NewJobClose(context.Background(), 1, KindContainer, "")
 	buf := &bytes.Buffer{}
 	if err := j.Output(buf); err != nil {
 		t.Fatal(err)
@@ -72,22 +72,22 @@ func TestJobHeadCloseContainerNoOutput(t *testing.T) {
 	}
 }
 
-func TestJobHeadCloseVoidErrors(t *testing.T) {
-	j := NewJobHeadClose(context.Background(), 1, KindVoid, "input")
+func TestJobCloseVoidErrors(t *testing.T) {
+	j := NewJobClose(context.Background(), 1, KindVoid, "input")
 	if err := j.Output(&bytes.Buffer{}); err == nil {
 		t.Fatal("expected error closing void")
 	}
 }
 
-func TestJobHeadCloseEmptyTagErrors(t *testing.T) {
-	j := NewJobHeadClose(context.Background(), 1, KindRegular, "")
+func TestJobCloseEmptyTagErrors(t *testing.T) {
+	j := NewJobClose(context.Background(), 1, KindRegular, "")
 	if err := j.Output(&bytes.Buffer{}); err == nil {
 		t.Fatal("expected error empty tag")
 	}
 }
 
-func TestJobHeadCloseRegular(t *testing.T) {
-	j := NewJobHeadClose(context.Background(), 1, KindRegular, "section")
+func TestJobCloseRegular(t *testing.T) {
+	j := NewJobClose(context.Background(), 1, KindRegular, "section")
 	buf := &bytes.Buffer{}
 	if err := j.Output(buf); err != nil {
 		t.Fatal(err)
@@ -97,19 +97,19 @@ func TestJobHeadCloseRegular(t *testing.T) {
 	}
 }
 
-func TestJobHeadOpenContext(t *testing.T) {
+func TestJobOpenContext(t *testing.T) {
 	type k struct{}
 	ctx := context.WithValue(context.Background(), k{}, "v")
-	j := NewJobHeadOpen(ctx, 1, KindContainer, "", nil)
+	j := NewJobOpen(ctx, 1, KindContainer, "", nil)
 	if j.Context().Value(k{}) != "v" {
 		t.Fatal("context not propagated")
 	}
 	_ = j.Output(&bytes.Buffer{})
 }
 
-func TestJobHeadCloseContext(t *testing.T) {
+func TestJobCloseContext(t *testing.T) {
 	ctx := context.Background()
-	j := NewJobHeadClose(ctx, 1, KindContainer, "")
+	j := NewJobClose(ctx, 1, KindContainer, "")
 	if j.Context() != ctx {
 		t.Fatal("ctx mismatch")
 	}
@@ -177,37 +177,6 @@ func TestJobFprintOutput(t *testing.T) {
 	}
 	if buf.String() != "42" {
 		t.Fatalf("got %q", buf.String())
-	}
-}
-
-func TestJobCompOutput(t *testing.T) {
-	type ctxKey string
-	ctx := context.WithValue(context.Background(), ctxKey("job"), "comp")
-	j := NewJobComp(ctx, compStub{s: "x"})
-	if j.Context() != ctx {
-		t.Fatal("Context() did not round-trip the provided context")
-	}
-	buf := &bytes.Buffer{}
-	if err := j.Output(buf); err != nil {
-		t.Fatal(err)
-	}
-	if buf.String() != "x" {
-		t.Fatalf("got %q", buf.String())
-	}
-}
-
-type nilComp struct{}
-
-func (nilComp) Main() Elem { return nil }
-
-func TestJobCompNilElem(t *testing.T) {
-	j := NewJobComp(context.Background(), nilComp{})
-	buf := &bytes.Buffer{}
-	if err := j.Output(buf); err != nil {
-		t.Fatal(err)
-	}
-	if buf.Len() != 0 {
-		t.Fatal("expected empty output")
 	}
 }
 

@@ -2,8 +2,6 @@ use std::collections::HashMap;
 
 use std::io::Write;
 
-use crate::init::indent;
-
 use super::init;
 use tree_sitter::Node;
 
@@ -279,7 +277,7 @@ impl<'a> PostProcessor<'a> {
                 output: 0,
             }],
             state: ProcessorState::Look,
-            indent: indent().to_string(),
+            indent: init::INDENT.to_string(),
         }
     }
     fn add_externals(&mut self, nodes: Vec<Node<'_>>, formatter: Formatter, head: bool) {
@@ -471,21 +469,28 @@ fn format_js(
     indent: Indent,
     indent_str: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let source_type = biome_js_syntax::JsFileSource::js_script();
-    let parsed = biome_js_parser::parse(
+    let mut source_type = biome_js_syntax::JsFileSource::js_script();
+    let mut parsed = biome_js_parser::parse(
         code,
         source_type,
         biome_js_parser::JsParserOptions::default(),
     );
-    let root = parsed.syntax();
-    /*
+    if parsed.has_errors() {
+        source_type = biome_js_syntax::JsFileSource::js_module();
+        parsed = biome_js_parser::parse(
+            code,
+            source_type,
+            biome_js_parser::JsParserOptions::default(),
+        );
+    }
     if parsed.has_errors() {
         write_inline_errored_body(out, code, &indent, indent_str);
         return Ok(());
-    } */
+    }
+    let root = parsed.syntax();
     let mut options = biome_js_formatter::context::JsFormatOptions::new(source_type);
     options.set_semicolons(biome_js_formatter::context::Semicolons::AsNeeded);
-    init::indent().apply_js(&mut options);
+    options.set_indent_style(biome_formatter::IndentStyle::Tab);
     let formatted = biome_js_formatter::format_node(options, &root)?;
     let printed = formatted.print()?;
     write_inline_body(out, &printed.into_code(), &indent, indent_str);
@@ -506,7 +511,7 @@ fn format_css(
         return Ok(());
     }
     let mut options = biome_css_formatter::context::CssFormatOptions::new(source_type);
-    init::indent().apply_css(&mut options);
+    options.set_indent_style(biome_formatter::IndentStyle::Tab);
     let formatted = biome_css_formatter::format_node(options, &root)?;
     let printed = formatted.print()?;
     write_inline_body(out, &printed.into_code(), &indent, indent_str);

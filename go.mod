@@ -3,7 +3,7 @@ module github.com/doors-dev/gox
 go 1.25.1
 
 require (
-	github.com/bytedance/sonic v1.15.1
+	github.com/bytedance/sonic v1.15.3
 	github.com/doors-dev/tree-sitter-gox v0.2.1
 	github.com/go-git/go-billy/v5 v5.9.0
 	github.com/go-git/go-git/v5 v5.19.1
@@ -22,7 +22,7 @@ require (
 
 require (
 	github.com/bytedance/gopkg v0.1.4 // indirect
-	github.com/bytedance/sonic/loader v0.5.1 // indirect
+	github.com/bytedance/sonic/loader v0.5.2 // indirect
 	github.com/cloudwego/base64x v0.1.7 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/mattn/go-pointer v0.0.1 // indirect
