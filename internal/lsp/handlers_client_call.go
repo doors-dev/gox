@@ -3,6 +3,7 @@ package lsp
 import (
 	"log/slog"
 
+	"github.com/bytedance/sonic/ast"
 	"github.com/doors-dev/gox/internal/common"
 	jsonrpc2 "github.com/doors-dev/gox/internal/jsonrpc"
 	"github.com/doors-dev/gox/internal/workspace"
@@ -149,6 +150,10 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 		}
 		jsonDoc.setAsTarget(j, doc)
 		c.proxy(j, func(res Json) {
+			if res.TypeSafe() == ast.V_NULL {
+				c.res(res)
+				return
+			}
 			err := jsonPos.convertRangeToSource(sess.enc(), doc, res, workspace.Strict)
 			if err != nil {
 				c.err(common.NewErr(jsonrpc2.ErrInternal, "Could not map the rename response back to the source file: "+err.Error()))

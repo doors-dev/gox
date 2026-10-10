@@ -908,6 +908,14 @@ func TestLSPServerE2EWithRealGopls(t *testing.T) {
 			assertRawContains(t, prepareRename, "\"range\"")
 		})
 
+		run("prepare rename on an embedded field", func(t *testing.T) {
+			prepareRename := h.callRaw("textDocument/prepareRename", map[string]any{
+				"textDocument": map[string]any{"uri": viewURI},
+				"position":     fixture.view.Marker("embedded_field"),
+			})
+			assertRawEquals(t, prepareRename, "null")
+		})
+
 		run("rename", func(t *testing.T) {
 			rename := h.callRaw("textDocument/rename", map[string]any{
 				"textDocument": map[string]any{"uri": viewURI},
@@ -1580,6 +1588,18 @@ func /*@helper_def*/helper(name string) string {
 func /*@view_def*/View(person /*@iface_ref*/Namer) gox.Elem {
 	value := /*@helper_use*/helper(/*@helper_sig*/person./*@complete_method*/NameValue())
 	return <div class="badge">~(/*@template_label_use*/label(value))</div>
+}
+
+type embedded struct {
+	value string
+}
+
+type embedder struct {
+	embedded
+}
+
+func embeddedValue(e embedder) string {
+	return e./*@embedded_field*/embedded.value
 }
 `)
 
