@@ -93,3 +93,77 @@ func f( {
 		t.Fatalf("report = %q, want a missing-token line", report)
 	}
 }
+
+func syntaxErrorTexts(t *testing.T, src string) []string {
+	t.Helper()
+	lines := strings.Split(src, "\n")
+	var out []string
+	for _, e := range makeDocLoose(t, src).SyntaxErrors(common.UTF8) {
+		if e.Range.Beg().Line() != e.Range.End().Line() {
+			t.Fatalf("multi-line syntax error range %s", e.Range)
+		}
+		line := lines[e.Range.Beg().Line()]
+		out = append(out, line[e.Range.Beg().Column():e.Range.End().Column()])
+	}
+	return out
+}
+
+func TestSyntaxErrorsFocusNestedErrorOnFirstLine(t *testing.T) {
+	const broken = `package demo
+
+import "github.com/doors-dev/gox"
+
+elem Card(name string) {
+	<div class=(name + >
+		<h1>hi</h1>
+	</div>
+}
+
+elem Other() {
+	<p>ok</p>
+}
+`
+	texts := syntaxErrorTexts(t, broken)
+	if len(texts) == 0 || texts[0] != ">" {
+		t.Fatalf("focus = %q, want first \">\"", texts)
+	}
+}
+
+func TestSyntaxErrorsFocusClampsToFirstLine(t *testing.T) {
+	const broken = `package demo
+
+import "github.com/doors-dev/gox"
+
+elem Card(name string) {
+	<div class="card">
+		~(if name != "" {
+			<h1>hi</h1>
+	</div>
+}
+
+elem Other() {
+	<p>ok</p>
+}
+`
+	texts := syntaxErrorTexts(t, broken)
+	if len(texts) == 0 || texts[0] != `~(if name != "" {` {
+		t.Fatalf("focus = %q, want the opener line", texts)
+	}
+}
+
+func TestSyntaxErrorsFocusKeepsSingleLineError(t *testing.T) {
+	const broken = `package demo
+
+import "github.com/doors-dev/gox"
+
+elem Card(name string) {
+	<div class="card">
+		<h1>~(name.</h1>
+	</div>
+}
+`
+	texts := syntaxErrorTexts(t, broken)
+	if len(texts) == 0 || !strings.HasPrefix(texts[0], "~(name.") {
+		t.Fatalf("focus = %q, want it to start at \"~(name.\"", texts)
+	}
+}

@@ -24,6 +24,7 @@ type SyntaxError struct {
 // with positions in tree-sitter (UTF-8 byte) coordinates.
 type syntaxErrorNode struct {
 	ran     common.Range
+	focus   common.Range
 	missing bool
 	kind    string
 	near    string
@@ -52,7 +53,7 @@ func (d Doc) SyntaxErrors(enc common.Encoding) []SyntaxError {
 	out := make([]SyntaxError, 0, len(nodes))
 	for _, n := range nodes {
 		out = append(out, SyntaxError{
-			Range:   d.source.FromRange(enc, n.ran),
+			Range:   d.source.FromRange(enc, n.focus),
 			Message: capitalize(n.message()),
 		})
 	}
@@ -214,9 +215,11 @@ func appendVariadicProxyArgs(proxy *tree_sitter.Node, out *[]syntaxErrorNode) {
 		if arg.Kind() != grammer.VARIADIC_ARGUMENT {
 			continue
 		}
+		ran := common.NewTSRange(arg.Range())
 		*out = append(*out, syntaxErrorNode{
-			ran:  common.NewTSRange(arg.Range()),
-			kind: arg.Kind(),
+			ran:   ran,
+			focus: ran,
+			kind:  arg.Kind(),
 		})
 	}
 }
@@ -224,15 +227,18 @@ func appendVariadicProxyArgs(proxy *tree_sitter.Node, out *[]syntaxErrorNode) {
 func walkSyntaxErrors(source []byte, cursor *tree_sitter.TreeCursor, node *tree_sitter.Node, out *[]syntaxErrorNode) {
 	if node.IsError() {
 		*out = append(*out, syntaxErrorNode{
-			ran:  common.NewTSRange(node.Range()),
-			kind: node.Kind(),
-			near: snippet(node.Utf8Text(source)),
+			ran:   common.NewTSRange(node.Range()),
+			focus: errorFocus(source, cursor, node),
+			kind:  node.Kind(),
+			near:  snippet(node.Utf8Text(source)),
 		})
 		return
 	}
 	if node.IsMissing() {
+		ran := common.NewTSRange(node.Range())
 		*out = append(*out, syntaxErrorNode{
-			ran:     common.NewTSRange(node.Range()),
+			ran:     ran,
+			focus:   ran,
 			missing: true,
 			kind:    node.Kind(),
 		})
@@ -246,6 +252,52 @@ func walkSyntaxErrors(source []byte, cursor *tree_sitter.TreeCursor, node *tree_
 		}
 		walkSyntaxErrors(source, cursor, child, out)
 	}
+}
+
+func errorFocus(source []byte, cursor *tree_sitter.TreeCursor, node *tree_sitter.Node) common.Range {
+	if node.StartPosition().Row == node.EndPosition().Row {
+		return common.NewTSRange(node.Range())
+	}
+	if nested := firstErrorOnRow(cursor, node, node.StartPosition().Row); nested != nil {
+		return firstLineRange(source, nested)
+	}
+	return firstLineRange(source, node)
+}
+
+func firstErrorOnRow(cursor *tree_sitter.TreeCursor, node *tree_sitter.Node, row uint) *tree_sitter.Node {
+	children := node.Children(cursor)
+	for i := range children {
+		child := &children[i]
+		if child.StartPosition().Row > row {
+			return nil
+		}
+		if child.IsError() || child.IsMissing() {
+			return child
+		}
+		if !child.HasError() {
+			continue
+		}
+		if nested := firstErrorOnRow(cursor, child, row); nested != nil {
+			return nested
+		}
+	}
+	return nil
+}
+
+func firstLineRange(source []byte, node *tree_sitter.Node) common.Range {
+	if node.StartPosition().Row == node.EndPosition().Row {
+		return common.NewTSRange(node.Range())
+	}
+	beg, _ := node.ByteRange()
+	end := beg
+	for end < uint(len(source)) && source[end] != '\n' {
+		end++
+	}
+	for end > beg+1 && (source[end-1] == ' ' || source[end-1] == '\t' || source[end-1] == '\r') {
+		end--
+	}
+	start := common.NewTSPos(node.StartPosition())
+	return common.NewRange(start, common.NewPos(start.Line(), start.Column()+int(end-beg)))
 }
 
 func snippet(s string) string {
