@@ -9,7 +9,7 @@ import (
 
 func initClientNotifs(sess *session, on func(on onNotif, m ...method)) {
 	on(func(n notifier, j Json) {
-		doc, kind, err := jsonDoc.get(sess.man(), j, false)
+		doc, kind, err := jsonDoc.open(sess.man(), j)
 		if err != nil {
 			n.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
@@ -204,12 +204,14 @@ func initClientNotifs(sess *session, on func(on onNotif, m ...method)) {
 			n.forward()
 			return
 		}
-		if doc.Err() != nil {
-			n.err(common.FromErr(jsonrpc2.ErrUnknown, doc.Err()))
+		if doc == nil {
 			return
 		}
 		switch kind {
 		case workspace.KindSource:
+			if !doc.SourceIsOpened() && doc.Err() != nil {
+				return
+			}
 			doc.SourceClose()
 			if doc.TargetIsOpened() {
 				return
@@ -217,6 +219,9 @@ func initClientNotifs(sess *session, on func(on onNotif, m ...method)) {
 			jsonDoc.setAsTarget(j, doc)
 			n.notify(j)
 		case workspace.KindTarget:
+			if !doc.TargetIsOpened() && doc.Err() != nil {
+				return
+			}
 			doc.TargetClose()
 			if doc.SourceIsOpened() {
 				return

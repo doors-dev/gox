@@ -12,18 +12,19 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/format/gitignore"
 )
 
-func newWs(root string, lock sync.Locker) *workspace {
+func newWs(root string, lock sync.Locker, onGhost func(Doc)) *workspace {
 	fs := osfs.New(root)
 	pats, err := gitignore.ReadPatterns(fs, nil)
 	if err != nil {
 		slog.Error("Error reading .gitignore: " + err.Error())
 	}
 	w := &workspace{
-		ignore: gitignore.NewMatcher(pats),
-		dirs:   make(map[string]*dir),
-		root:   root,
-		lock:   lock,
-		done:   make(chan struct{}),
+		ignore:  gitignore.NewMatcher(pats),
+		dirs:    make(map[string]*dir),
+		root:    root,
+		lock:    lock,
+		onGhost: onGhost,
+		done:    make(chan struct{}),
 	}
 	w.scan(root)
 	go w.ticker()
@@ -35,6 +36,7 @@ type workspace struct {
 	dirs     map[string]*dir
 	root     string
 	lock     sync.Locker
+	onGhost  func(Doc)
 	done     chan struct{}
 	stopOnce sync.Once
 }
@@ -54,6 +56,23 @@ func (w *workspace) load(file File) Doc {
 		}
 	}
 	return d.load(file)
+}
+
+func (w *workspace) Open(file File) Doc {
+	if file.Kind() != KindSource || file.Exists() {
+		return w.load(file)
+	}
+	path := file.Dir()
+	d, found := w.dirs[path]
+	if !found {
+		w.scan(path)
+		d, found = w.dirs[path]
+	}
+	if !found {
+		d = newDir(path, w)
+		w.addDir(d)
+	}
+	return d.open(file)
 }
 
 func (w *workspace) ticker() {
@@ -125,12 +144,7 @@ func (w *workspace) scan(path string) {
 			continue
 		}
 	}
-	d := &dir{
-		path: path,
-		docs: make(map[string]Doc),
-		sus:  make(map[string]struct{}),
-		ws:   w,
-	}
+	d := newDir(path, w)
 	for _, file := range files {
 		_ = d.load(file)
 	}

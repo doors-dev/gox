@@ -23,6 +23,17 @@ func NewManager() Manager {
 type manager struct {
 	mu         *sync.Mutex
 	workspaces []*workspace
+	onGhost    func(Doc)
+}
+
+func (m *manager) OnGhost(f func(Doc)) {
+	m.onGhost = f
+}
+
+func (m *manager) ghost(doc Doc) {
+	if m.onGhost != nil {
+		m.onGhost(doc)
+	}
 }
 
 func (m *manager) Lock() {
@@ -67,7 +78,7 @@ func (m *manager) EnsureWorkspaces(uris []string) {
 		}
 	}
 	for _, path := range paths {
-		ws := newWs(path, m.mu)
+		ws := newWs(path, m.mu, m.ghost)
 		m.workspaces = append(m.workspaces, ws)
 	}
 	if len(paths) != 0 || len(toRemove) != 0 {
@@ -110,7 +121,7 @@ func (m *manager) AddWorkspace(uri string) {
 		ws.Stop()
 		return true
 	})
-	ws := newWs(path, m.mu)
+	ws := newWs(path, m.mu, m.ghost)
 	m.workspaces = append(m.workspaces, ws)
 	slog.Debug("Workspace root added", "root", path, "roots", m.roots())
 }
@@ -142,6 +153,14 @@ func (m *manager) StopAll() {
 }
 
 func (m *manager) Doc(uri string) (Doc, FileKind) {
+	return m.doc(uri, (*workspace).Load)
+}
+
+func (m *manager) Open(uri string) (Doc, FileKind) {
+	return m.doc(uri, (*workspace).Open)
+}
+
+func (m *manager) doc(uri string, load func(*workspace, File) Doc) (Doc, FileKind) {
 	file, ok := NewFileFromURI(uri)
 	if !ok {
 		return nil, KindUnknown
@@ -150,8 +169,7 @@ func (m *manager) Doc(uri string) (Doc, FileKind) {
 		root := ws.Root()
 		path := file.Path()
 		if containsPath(root, path) {
-			doc := ws.Load(file)
-			return doc, file.Kind()
+			return load(ws, file), file.Kind()
 		}
 	}
 	slog.Debug("Document is outside active workspaces", "uri", uri, "path", file.Path(), "kind", file.Kind(), "roots", m.roots())

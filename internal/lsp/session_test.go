@@ -365,6 +365,7 @@ func TestApplyEditConvertsChangesMap(t *testing.T) {
 
 	bridge := &asyncBridgeStub{callResp: Response{Result: json.RawMessage(`{"applied":true}`)}}
 	router := NewRouter(bridge)
+	t.Cleanup(router.Stop)
 	router.session.setEnc(common.UTF8)
 	router.session.ensureWorkspaces([]string{string(docpath.URIFromPath(root))})
 
@@ -427,6 +428,7 @@ func TestWorkspaceFoldersForwardsAbsentParams(t *testing.T) {
 	root := t.TempDir()
 	bridge := &asyncBridgeStub{}
 	router := NewRouter(bridge)
+	t.Cleanup(router.Stop)
 	router.session.setEnc(common.UTF8)
 	bridge.callResp = Response{Result: json.RawMessage(`[{"uri":` + strconv.Quote(string(docpath.URIFromPath(root))) + `,"name":"root"}]`)}
 
@@ -465,6 +467,7 @@ func TestRouterStopStopsManager(t *testing.T) {
 	}
 
 	router := NewRouter(&bridgeStub{})
+	t.Cleanup(router.Stop)
 	ensureRouterWorkspaces(router, string(docpath.URIFromPath(root)))
 	man := router.session.man()
 	man.Lock()
@@ -525,6 +528,7 @@ func TestSubtypesRejectsSourceOutsideWorkspace(t *testing.T) {
 
 	bridge := &bridgeStub{}
 	router := NewRouter(bridge)
+	t.Cleanup(router.Stop)
 	router.session.setEnc(common.UTF8)
 
 	params, err := json.Marshal(map[string]any{
@@ -572,6 +576,7 @@ func TestDidChangeRejectsPresentInvalidRange(t *testing.T) {
 
 	bridge := &bridgeStub{}
 	router := NewRouter(bridge)
+	t.Cleanup(router.Stop)
 	router.session.setEnc(common.UTF8)
 	router.session.ensureWorkspaces([]string{string(docpath.URIFromPath(root))})
 
@@ -630,6 +635,7 @@ func TestDidChangeAbsentRangeAppliesFullUpdate(t *testing.T) {
 
 	bridge := &bridgeStub{}
 	router := NewRouter(bridge)
+	t.Cleanup(router.Stop)
 	router.session.setEnc(common.UTF8)
 	router.session.ensureWorkspaces([]string{string(docpath.URIFromPath(root))})
 

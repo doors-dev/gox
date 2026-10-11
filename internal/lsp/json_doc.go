@@ -26,6 +26,30 @@ func (r jsonDocDriver) getText(j Json) (string, error) {
 }
 
 func (r jsonDocDriver) get(man workspace.Manager, j Json, forEdit bool) (workspace.Doc, workspace.FileKind, error) {
+	uri, err := r.uri(j)
+	if err != nil {
+		return nil, workspace.KindUnknown, err
+	}
+	doc, kind := man.Doc(uri)
+	if !forEdit && doc == nil && kind == workspace.KindTarget {
+		return nil, workspace.KindUnknown, nil
+	}
+	return doc, kind, nil
+}
+
+func (r jsonDocDriver) open(man workspace.Manager, j Json) (workspace.Doc, workspace.FileKind, error) {
+	uri, err := r.uri(j)
+	if err != nil {
+		return nil, workspace.KindUnknown, err
+	}
+	doc, kind := man.Open(uri)
+	if doc == nil && kind == workspace.KindTarget {
+		return nil, workspace.KindUnknown, nil
+	}
+	return doc, kind, nil
+}
+
+func (r jsonDocDriver) uri(j Json) (string, error) {
 	uri := func() Json {
 		uri := j.Get("uri")
 		if uri.Exists() {
@@ -60,17 +84,13 @@ func (r jsonDocDriver) get(man workspace.Manager, j Json, forEdit bool) (workspa
 		return nil
 	}()
 	if uri == nil {
-		return nil, workspace.KindUnknown, errors.New("A document URI is missing.")
+		return "", errors.New("A document URI is missing.")
 	}
 	uriStr, err := uri.String()
 	if err != nil {
-		return nil, workspace.KindUnknown, errors.New("A document URI is invalid.")
+		return "", errors.New("A document URI is invalid.")
 	}
-	doc, kind := man.Doc(uriStr)
-	if !forEdit && doc == nil && kind == workspace.KindTarget {
-		return nil, workspace.KindUnknown, nil
-	}
-	return doc, kind, nil
+	return uriStr, nil
 }
 
 func (r jsonDocDriver) setVersion(j Json, version int32) {

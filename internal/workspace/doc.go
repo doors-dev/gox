@@ -154,6 +154,15 @@ func (d Doc) Init() {
 	slog.Debug("Document initialized", "source", d.SourceFile().Path(), "target", d.TargetFile().Path(), "targetUpdated", needsUpdate)
 }
 
+func (d Doc) InitUnsaved() {
+	d.targetRemove()
+	d.source = text.NewText()
+	if err := d.Parse(); err != nil {
+		slog.Debug("Document parsed with syntax errors", "source", d.SourceFile().Path(), "target", d.TargetFile().Path(), "error", err)
+	}
+	d.Assemble()
+}
+
 func (d Doc) Save() error {
 	return d.TargetWrite()
 }

@@ -298,6 +298,7 @@ func (b *builder) build(br Bridge) Router {
 		bridge:  br,
 		manager: workspace.NewManager(),
 	}
+	session.manager.OnGhost(session.ghosted)
 	initClientCalls(session, b.clientCall)
 	initClientNotifs(session, b.clientNotif)
 	initServerCalls(session, b.serverCall)

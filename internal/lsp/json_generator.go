@@ -24,6 +24,12 @@ func (r jsonGeneratorDriver) newNull() Json {
 	return &node
 }
 
+func (r jsonGeneratorDriver) newDocumentRef(uri string) Json {
+	ref := ast.NewObject([]ast.Pair{ast.NewPair("uri", ast.NewString(uri))})
+	node := ast.NewObject([]ast.Pair{ast.NewPair("textDocument", ref)})
+	return &node
+}
+
 func (r jsonGeneratorDriver) newSymbols(symbols []workspace.Symbol) Json {
 	arr := make([]ast.Node, 0, len(symbols))
 	for _, s := range symbols {

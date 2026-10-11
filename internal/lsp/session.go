@@ -41,6 +41,10 @@ func (s *session) setEnc(e common.Encoding) {
 	s.encoding = e
 }
 
+func (s *session) ghosted(doc workspace.Doc) {
+	s.notifGo(didClose, jsonGenerator.newDocumentRef(doc.TargetFile().URI()))
+}
+
 func (s *session) notifGo(m method, params Json) {
 	data, err := params.MarshalJSON()
 	if err != nil {

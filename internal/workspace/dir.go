@@ -13,6 +13,25 @@ func (d *dir) IsEmpty() bool {
 	return len(d.docs) == 0
 }
 
+func newDir(path string, ws *workspace) *dir {
+	return &dir{
+		path: path,
+		docs: make(map[string]Doc),
+		sus:  make(map[string]struct{}),
+		ws:   ws,
+	}
+}
+
+func (dr *dir) open(file File) Doc {
+	d, found := dr.docs[file.Name()]
+	if !found {
+		d = NewDoc(file)
+		d.InitUnsaved()
+		dr.docs[d.Name()] = d
+	}
+	return d
+}
+
 func (dr *dir) load(file File) Doc {
 	d, found := dr.docs[file.Name()]
 	if !found {
@@ -35,9 +54,15 @@ func (d *dir) ProcessFileRemovals() {
 				d.sus[name] = struct{}{}
 				continue
 			}
+			doc.targetRemove()
+			if doc.SourceIsOpened() {
+				continue
+			}
 			delete(d.sus, name)
 			delete(d.docs, name)
-			doc.targetRemove()
+			if doc.TargetIsOpened() {
+				d.ws.onGhost(doc)
+			}
 			doc.Close()
 			continue
 		}
