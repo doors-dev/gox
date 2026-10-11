@@ -11,9 +11,15 @@ import (
 
 	"github.com/doors-dev/gox/internal/common"
 	"github.com/doors-dev/gox/internal/docpath"
+	"github.com/doors-dev/gox/internal/workspace"
 )
 
-const docModelEviction = 3 * time.Second
+const (
+	docModelTick   = 250 * time.Millisecond
+	docModelSettle = 3 * docModelTick
+	docModelWait   = 10 * time.Second
+	docModelPoll   = 10 * time.Millisecond
+)
 
 type docModelBridge struct {
 	mu            sync.Mutex
@@ -41,90 +47,148 @@ func (b *docModelBridge) snapshot() []recordedNotify {
 	return append([]recordedNotify(nil), b.notifications...)
 }
 
-type docModelRig struct {
+type docModelEnv struct {
 	t      *testing.T
+	root   string
+	source string
+	target string
 	bridge *docModelBridge
 	router Router
 }
 
-func newDocModelRig(t *testing.T, roots ...string) *docModelRig {
+type docModelState struct {
+	doc          workspace.Doc
+	err          error
+	sourceOpened bool
+	content      string
+}
+
+func docModelTempDir(t *testing.T) string {
 	t.Helper()
-	bridge := &docModelBridge{}
-	router := NewRouter(bridge)
-	t.Cleanup(router.Stop)
-	router.session.setEnc(common.UTF8)
-	uris := make([]string, 0, len(roots))
-	for _, root := range roots {
-		uris = append(uris, docModelURI(root))
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
 	}
-	ensureRouterWorkspaces(router, uris...)
-	return &docModelRig{t: t, bridge: bridge, router: router}
+	return dir
+}
+
+func newDocModelEnv(t *testing.T, dir ...string) *docModelEnv {
+	t.Helper()
+	root := docModelTempDir(t)
+	pkg := filepath.Join(append([]string{root}, dir...)...)
+	return &docModelEnv{
+		t:      t,
+		root:   root,
+		source: filepath.Join(pkg, "view.gox"),
+		target: filepath.Join(pkg, "view.x.go"),
+	}
 }
 
 func docModelURI(path string) string {
 	return string(docpath.URIFromPath(path))
 }
 
-func docModelWrite(t *testing.T, path string, content string) {
-	t.Helper()
+func docModelNotifURI(n recordedNotify) string {
+	var payload struct {
+		TextDocument struct {
+			URI string `json:"uri"`
+		} `json:"textDocument"`
+	}
+	if err := json.Unmarshal(n.req.Params, &payload); err != nil {
+		return ""
+	}
+	return payload.TextDocument.URI
+}
+
+func docModelExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
+func (e *docModelEnv) start(workspaces ...string) {
+	e.t.Helper()
+	e.bridge = &docModelBridge{}
+	e.router = NewRouter(e.bridge)
+	e.t.Cleanup(e.router.Stop)
+	e.router.session.setEnc(common.UTF8)
+	uris := make([]string, 0, len(workspaces))
+	for _, dir := range workspaces {
+		uris = append(uris, docModelURI(dir))
+	}
+	ensureRouterWorkspaces(e.router, uris...)
+}
+
+func (e *docModelEnv) write(path string, content string) {
+	e.t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatal(err)
+		e.t.Fatal(err)
 	}
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatal(err)
+		e.t.Fatal(err)
 	}
 }
 
-func (r *docModelRig) send(m method, params any) {
-	r.t.Helper()
+func (e *docModelEnv) notify(m method, params any) {
+	e.t.Helper()
 	data, err := json.Marshal(params)
 	if err != nil {
-		r.t.Fatal(err)
+		e.t.Fatal(err)
 	}
-	r.router.Notification(Client, Request{Method: string(m), Params: data})
+	e.router.Notification(Client, Request{Method: string(m), Params: data})
 }
 
-func (r *docModelRig) open(path string, lang string, version int, text string) {
-	r.t.Helper()
-	r.send(didOpen, map[string]any{
+func (e *docModelEnv) open(path string, text string) {
+	e.t.Helper()
+	lang := "gox"
+	if strings.HasSuffix(path, ".go") {
+		lang = "go"
+	}
+	e.notify(didOpen, map[string]any{
 		"textDocument": map[string]any{
 			"uri":        docModelURI(path),
 			"languageId": lang,
-			"version":    version,
+			"version":    1,
 			"text":       text,
 		},
 	})
 }
 
-func (r *docModelRig) close(path string) {
-	r.t.Helper()
-	r.send(didClose, map[string]any{
+func (e *docModelEnv) openTarget() {
+	e.t.Helper()
+	e.open(e.target, e.waitTarget(""))
+}
+
+func (e *docModelEnv) close(path string) {
+	e.t.Helper()
+	e.notify(didClose, map[string]any{
 		"textDocument": map[string]any{"uri": docModelURI(path)},
 	})
 }
 
-func (r *docModelRig) changeFull(path string, version int, text string) {
-	r.t.Helper()
-	r.send(didChange, map[string]any{
+func (e *docModelEnv) changeFull(path string, version int, text string) {
+	e.t.Helper()
+	e.notify(didChange, map[string]any{
 		"textDocument":   map[string]any{"uri": docModelURI(path), "version": version},
 		"contentChanges": []map[string]any{{"text": text}},
 	})
 }
 
-func (r *docModelRig) changeRange(path string, version int, line int, char int, text string) {
-	r.t.Helper()
-	pos := map[string]any{"line": line, "character": char}
-	r.send(didChange, map[string]any{
+func (e *docModelEnv) changeRange(path string, version int, start [2]int, end [2]int, text string) {
+	e.t.Helper()
+	e.notify(didChange, map[string]any{
 		"textDocument": map[string]any{"uri": docModelURI(path), "version": version},
 		"contentChanges": []map[string]any{{
-			"range": map[string]any{"start": pos, "end": pos},
-			"text":  text,
+			"range": map[string]any{
+				"start": map[string]any{"line": start[0], "character": start[1]},
+				"end":   map[string]any{"line": end[0], "character": end[1]},
+			},
+			"text": text,
 		}},
 	})
 }
 
-func (r *docModelRig) folders(added []string, removed []string) {
-	r.t.Helper()
+func (e *docModelEnv) folders(added []string, removed []string) {
+	e.t.Helper()
 	conv := func(paths []string) []map[string]any {
 		out := make([]map[string]any, 0, len(paths))
 		for _, p := range paths {
@@ -132,342 +196,605 @@ func (r *docModelRig) folders(added []string, removed []string) {
 		}
 		return out
 	}
-	r.send(didChangeWorkspaceFolders, map[string]any{
+	e.notify(didChangeWorkspaceFolders, map[string]any{
 		"event": map[string]any{"added": conv(added), "removed": conv(removed)},
 	})
 }
 
-func (r *docModelRig) goplsNotifs(m method, path string) []Request {
+func (e *docModelEnv) gopls(m method, path string) []Request {
 	uri := docModelURI(path)
 	var found []Request
-	for _, n := range r.bridge.snapshot() {
-		if n.role != Gopls || n.req.Method != string(m) {
-			continue
-		}
-		var payload struct {
-			TextDocument struct {
-				URI string `json:"uri"`
-			} `json:"textDocument"`
-		}
-		if err := json.Unmarshal(n.req.Params, &payload); err != nil {
-			continue
-		}
-		if payload.TextDocument.URI == uri {
+	for _, n := range e.bridge.snapshot() {
+		if n.role == Gopls && n.req.Method == string(m) && docModelNotifURI(n) == uri {
 			found = append(found, n.req)
 		}
 	}
 	return found
 }
 
-func (r *docModelRig) clientErrors() []string {
-	var found []string
-	for _, n := range r.bridge.snapshot() {
-		if n.role != Client {
+func (e *docModelEnv) traffic() []string {
+	var out []string
+	for _, n := range e.bridge.snapshot() {
+		if n.role == Gopls {
+			out = append(out, "gopls "+n.req.Method+" "+docModelNotifURI(n))
 			continue
 		}
 		var payload struct {
 			Message string `json:"message"`
-			Type    int    `json:"type"`
 		}
-		if err := json.Unmarshal(n.req.Params, &payload); err != nil || payload.Message == "" {
-			continue
+		if err := json.Unmarshal(n.req.Params, &payload); err == nil && payload.Message != "" {
+			out = append(out, "client "+n.req.Method+" "+payload.Message)
 		}
-		found = append(found, payload.Message)
 	}
-	return found
+	return out
 }
 
-func (r *docModelRig) waitCount(m method, path string, want int) int {
-	r.t.Helper()
-	deadline := time.Now().Add(docModelEviction)
-	got := 0
-	for time.Now().Before(deadline) {
-		got = len(r.goplsNotifs(m, path))
-		if got >= want {
-			return got
-		}
-		time.Sleep(20 * time.Millisecond)
+func (e *docModelEnv) assertOverlay(step string, wantOpens int, wantCloses int) {
+	e.t.Helper()
+	opens := len(e.gopls(didOpen, e.target))
+	closes := len(e.gopls(didClose, e.target))
+	if opens != wantOpens || closes != wantCloses {
+		e.t.Fatalf("%s: gopls received didOpen=%d didClose=%d for the target, want didOpen=%d didClose=%d; traffic: %v",
+			step, opens, closes, wantOpens, wantCloses, e.traffic())
 	}
-	return got
+	if n := len(e.gopls(didOpen, e.source)) + len(e.gopls(didClose, e.source)); n != 0 {
+		e.t.Fatalf("%s: gopls received %d open/close notifications with the source URI; traffic: %v", step, n, e.traffic())
+	}
 }
 
-func (r *docModelRig) settle() {
-	time.Sleep(900 * time.Millisecond)
+func (e *docModelEnv) sync() {
+	man := e.router.session.man()
+	man.Lock()
+	man.Unlock()
 }
 
-func (r *docModelRig) tracked(path string) (opened bool, exists bool) {
-	man := r.router.session.man()
+func (e *docModelEnv) waitFor(what string, cond func() bool) {
+	e.t.Helper()
+	deadline := time.Now().Add(docModelWait)
+	for !cond() {
+		if time.Now().After(deadline) {
+			e.t.Fatalf("timed out waiting for %s; traffic: %v", what, e.traffic())
+		}
+		time.Sleep(docModelPoll)
+	}
+	e.sync()
+}
+
+func (e *docModelEnv) settle() {
+	time.Sleep(docModelSettle)
+	e.sync()
+}
+
+func (e *docModelEnv) waitTarget(fragment string) string {
+	e.t.Helper()
+	var content string
+	e.waitFor("the target on disk containing "+fragment, func() bool {
+		data, err := os.ReadFile(e.target)
+		content = string(data)
+		return err == nil && len(data) != 0 && strings.Contains(content, fragment)
+	})
+	return content
+}
+
+func (e *docModelEnv) waitTargetGone() {
+	e.t.Helper()
+	e.waitFor("the target to be removed from disk", func() bool { return !docModelExists(e.target) })
+}
+
+func (e *docModelEnv) removeSource() {
+	e.t.Helper()
+	e.waitTarget("")
+	if err := os.Remove(e.source); err != nil {
+		e.t.Fatal(err)
+	}
+	e.waitTargetGone()
+}
+
+func (e *docModelEnv) state(path string) *docModelState {
+	man := e.router.session.man()
 	man.Lock()
 	defer man.Unlock()
 	doc, _ := man.Doc(docModelURI(path))
-	if doc == nil || doc.Err() != nil {
-		return false, false
+	if doc == nil {
+		return nil
 	}
-	return doc.SourceIsOpened(), true
+	state := &docModelState{doc: doc, err: doc.Err(), sourceOpened: doc.SourceIsOpened()}
+	if state.err == nil {
+		state.content = doc.TargetContent()
+	}
+	return state
 }
 
-func waitGone(t *testing.T, path string) {
-	t.Helper()
-	deadline := time.Now().Add(docModelEviction)
-	for time.Now().Before(deadline) {
-		if _, err := os.Stat(path); os.IsNotExist(err) {
-			return
-		}
-		time.Sleep(20 * time.Millisecond)
+func (e *docModelEnv) healthyState(step string) *docModelState {
+	e.t.Helper()
+	state := e.state(e.source)
+	if state == nil {
+		e.t.Fatalf("%s: no document is tracked for the source; traffic: %v", step, e.traffic())
 	}
-	t.Fatalf("%s is still on disk", path)
+	if state.err != nil {
+		e.t.Fatalf("%s: document carries an error: %v", step, state.err)
+	}
+	return state
 }
 
-func waitPresent(t *testing.T, path string) string {
-	t.Helper()
-	deadline := time.Now().Add(docModelEviction)
-	for time.Now().Before(deadline) {
-		if data, err := os.ReadFile(path); err == nil && len(data) != 0 {
-			return string(data)
-		}
-		time.Sleep(20 * time.Millisecond)
+func (e *docModelEnv) forceDocumentError() {
+	e.t.Helper()
+	e.changeRange(e.source, 2, [2]int{5, 0}, [2]int{1, 0}, "junk")
+	state := e.state(e.source)
+	if state == nil {
+		e.t.Fatal("document is no longer tracked after an invalid edit")
 	}
-	t.Fatalf("%s never appeared on disk", path)
-	return ""
+	if state.err == nil {
+		e.t.Fatal("an edit with an inverted range did not put the document into its error state")
+	}
+}
+
+func docModelEdited() string {
+	return strings.Replace(lspHelperSource, "Title string", "Title string\n\tBody string", 1)
+}
+
+func TestDocModelCloseSourceAfterFileDeleted(t *testing.T) {
+	t.Parallel()
+	env := newDocModelEnv(t)
+	env.write(env.source, lspHelperSource)
+	env.start(env.root)
+
+	env.open(env.source, lspHelperSource)
+	env.assertOverlay("after source open", 1, 0)
+
+	env.removeSource()
+	env.settle()
+	env.assertOverlay("file deleted, source buffer still open", 1, 0)
+
+	env.close(env.source)
+	env.assertOverlay("after source close", 1, 1)
+	env.settle()
+	env.assertOverlay("after the document was dropped", 1, 1)
+}
+
+func TestDocModelCloseSourceThenDeleteFile(t *testing.T) {
+	t.Parallel()
+	env := newDocModelEnv(t)
+	env.write(env.source, lspHelperSource)
+	env.start(env.root)
+
+	env.open(env.source, lspHelperSource)
+	env.assertOverlay("after source open", 1, 0)
+
+	env.close(env.source)
+	env.assertOverlay("after source close", 1, 1)
+
+	env.removeSource()
+	env.settle()
+	env.assertOverlay("after file deleted", 1, 1)
+}
+
+func TestDocModelTargetOnlyGhostClosedOnceByTicker(t *testing.T) {
+	t.Parallel()
+	env := newDocModelEnv(t)
+	env.write(env.source, lspHelperSource)
+	env.start(env.root)
+
+	env.openTarget()
+	env.assertOverlay("after target open", 1, 0)
+
+	if err := os.Remove(env.source); err != nil {
+		t.Fatal(err)
+	}
+	env.waitFor("the ticker to close the target overlay", func() bool {
+		return len(env.gopls(didClose, env.target)) == 1
+	})
+	env.waitTargetGone()
+	env.settle()
+	env.assertOverlay("after the source file vanished", 1, 1)
 }
 
 func TestDocModelGhostTargetCloseWithSiblingIsIgnored(t *testing.T) {
-	root := t.TempDir()
-	source := filepath.Join(root, "pkg", "view.gox")
-	target := filepath.Join(root, "pkg", "view.x.go")
-	docModelWrite(t, source, lspHelperSource)
-	docModelWrite(t, filepath.Join(root, "pkg", "other.gox"), "package demo\n")
-	r := newDocModelRig(t, root)
+	t.Parallel()
+	env := newDocModelEnv(t, "pkg")
+	env.write(env.source, lspHelperSource)
+	env.write(filepath.Join(env.root, "pkg", "other.gox"), "package demo\n")
+	env.start(env.root)
 
-	r.open(target, "go", 1, waitPresent(t, target))
-	if err := os.Remove(source); err != nil {
+	env.openTarget()
+	if err := os.Remove(env.source); err != nil {
 		t.Fatal(err)
 	}
-	if got := r.waitCount(didClose, target, 1); got != 1 {
-		t.Fatalf("ghost didClose reached gopls %d times, want 1", got)
+	env.waitFor("the ticker to close the target overlay", func() bool {
+		return len(env.gopls(didClose, env.target)) == 1
+	})
+	env.settle()
+	env.assertOverlay("after the source file vanished", 1, 1)
+	env.close(env.target)
+	env.settle()
+	env.assertOverlay("after the target buffer closed", 1, 1)
+}
+
+func TestDocModelSourceAndTargetOpenCloseSourceFirst(t *testing.T) {
+	t.Parallel()
+	t.Run("Alone", func(t *testing.T) { testDocModelSourceAndTargetOpenCloseSourceFirst(t, false) })
+	t.Run("WithSibling", func(t *testing.T) { testDocModelSourceAndTargetOpenCloseSourceFirst(t, true) })
+}
+
+func testDocModelSourceAndTargetOpenCloseSourceFirst(t *testing.T, sibling bool) {
+	t.Parallel()
+	env := newDocModelEnv(t)
+	env.write(env.source, lspHelperSource)
+	if sibling {
+		env.write(filepath.Join(env.root, "other.gox"), "package demo\n")
 	}
-	r.settle()
-	r.close(target)
-	r.settle()
-	if got := len(r.goplsNotifs(didClose, target)); got != 1 {
-		t.Fatalf("gopls received %d didClose for the ghost target, want exactly 1", got)
+	env.start(env.root)
+
+	env.open(env.source, lspHelperSource)
+	env.openTarget()
+	env.assertOverlay("after source and target open", 1, 0)
+
+	env.removeSource()
+	env.settle()
+	if state := env.healthyState("file deleted, both buffers open"); !state.sourceOpened {
+		t.Fatal("document is not marked source-open while its source buffer is open")
+	}
+	env.assertOverlay("file deleted, both buffers open", 1, 0)
+
+	env.changeFull(env.source, 2, docModelEdited())
+	if changes := env.gopls(didChange, env.target); len(changes) != 1 {
+		t.Fatalf("gopls received %d didChange for an edit of a document without a source file, want 1; traffic: %v", len(changes), env.traffic())
+	}
+	env.settle()
+	if docModelExists(env.target) {
+		t.Fatal("target is on disk while the source file is absent")
+	}
+
+	env.close(env.source)
+	env.waitFor("the overlay close after the source buffer closed", func() bool {
+		return len(env.gopls(didClose, env.target)) >= 1
+	})
+	env.settle()
+	env.assertOverlay("after source close", 1, 1)
+	if !sibling {
+		return
+	}
+	env.close(env.target)
+	env.settle()
+	env.assertOverlay("after target close", 1, 1)
+}
+
+func TestDocModelSourceAndTargetOpenCloseTargetFirst(t *testing.T) {
+	t.Parallel()
+	env := newDocModelEnv(t)
+	env.write(env.source, lspHelperSource)
+	env.start(env.root)
+
+	env.open(env.source, lspHelperSource)
+	env.openTarget()
+	env.assertOverlay("after source and target open", 1, 0)
+
+	env.removeSource()
+	env.settle()
+	env.assertOverlay("file deleted, both buffers open", 1, 0)
+
+	env.close(env.target)
+	env.assertOverlay("after target close", 1, 0)
+
+	env.close(env.source)
+	env.assertOverlay("after source close", 1, 1)
+	env.settle()
+	env.assertOverlay("after the document was dropped", 1, 1)
+}
+
+func TestDocModelBufferStaysAuthoritativeWhileFileGoneAndBack(t *testing.T) {
+	t.Parallel()
+	env := newDocModelEnv(t)
+	env.write(env.source, lspHelperSource)
+	env.start(env.root)
+
+	env.open(env.source, lspHelperSource)
+	env.removeSource()
+	env.settle()
+
+	line, col := -1, -1
+	for i, l := range strings.Split(lspHelperSource, "\n") {
+		if c := strings.Index(l, "card"); c >= 0 {
+			line, col = i, c
+		}
+	}
+	if line < 0 {
+		t.Fatal("marker not found in helper source")
+	}
+	env.changeRange(env.source, 2, [2]int{line, col}, [2]int{line, col + len("card")}, "frombuffer")
+
+	if n := len(env.gopls(didChange, env.source)); n != 0 {
+		t.Fatalf("gopls received %d didChange with the source URI", n)
+	}
+	changes := env.gopls(didChange, env.target)
+	if len(changes) != 1 {
+		t.Fatalf("gopls received %d didChange for a ranged edit of a document without a source file, want 1; traffic: %v", len(changes), env.traffic())
+	}
+	var payload struct {
+		ContentChanges []struct {
+			Text string `json:"text"`
+		} `json:"contentChanges"`
+	}
+	if err := json.Unmarshal(changes[0].Params, &payload); err != nil {
+		t.Fatal(err)
+	}
+	if len(payload.ContentChanges) != 1 {
+		t.Fatalf("forwarded didChange has %d changes, want 1: %s", len(payload.ContentChanges), changes[0].Params)
+	}
+	forwarded := payload.ContentChanges[0].Text
+	if !strings.Contains(forwarded, "frombuffer") || strings.Contains(forwarded, `"card"`) {
+		t.Fatalf("forwarded content was not generated from the edited buffer:\n%s", forwarded)
+	}
+	if state := env.healthyState("file deleted, source buffer edited"); forwarded != state.content {
+		t.Fatal("forwarded content differs from the document target content")
+	}
+	if docModelExists(env.target) {
+		t.Fatal("target is on disk while the source file is absent")
+	}
+
+	env.write(env.source, strings.Replace(lspHelperSource, "card", "fromdisk", 1))
+	env.waitTarget("frombuffer")
+	env.settle()
+
+	state := env.healthyState("source file back on disk")
+	if !state.sourceOpened {
+		t.Fatal("document is not marked source-open after the file reappeared")
+	}
+	if !strings.Contains(state.content, "frombuffer") || strings.Contains(state.content, "fromdisk") {
+		t.Fatalf("document content does not equal the buffer:\n%s", state.content)
+	}
+	onDisk, err := os.ReadFile(env.target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(onDisk) != state.content {
+		t.Fatalf("target on disk was not written from the buffer:\n%s", onDisk)
+	}
+	env.assertOverlay("file gone and back with the source buffer open", 1, 0)
+
+	env.close(env.source)
+	env.assertOverlay("after source close", 1, 1)
+	env.settle()
+	env.assertOverlay("after source close and ticker", 1, 1)
+}
+
+func TestDocModelDidCloseUntrackedSource(t *testing.T) {
+	t.Parallel()
+	env := newDocModelEnv(t)
+	env.write(env.source, lspHelperSource)
+	env.start(env.root)
+
+	env.close(filepath.Join(docModelTempDir(t), "other.gox"))
+	if got := env.bridge.snapshot(); len(got) != 0 {
+		t.Fatalf("didClose for a source outside any workspace produced traffic: %#v", got)
+	}
+
+	emptyDir := filepath.Join(env.root, "empty")
+	if err := os.Mkdir(emptyDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	env.close(filepath.Join(emptyDir, "nothing.gox"))
+	env.close(filepath.Join(env.root, "missingdir", "nothing.gox"))
+	env.close(filepath.Join(env.root, "untracked.gox"))
+	env.settle()
+	if got := env.bridge.snapshot(); len(got) != 0 {
+		t.Fatalf("didClose for untracked sources inside the workspace produced traffic: %#v", got)
+	}
+	env.assertOverlay("after closing untracked sources", 0, 0)
+}
+
+func TestDocModelDidCloseReachesGoplsDespiteStickyError(t *testing.T) {
+	t.Parallel()
+	env := newDocModelEnv(t)
+	env.write(env.source, lspHelperSource)
+	env.start(env.root)
+
+	env.open(env.source, lspHelperSource)
+	env.assertOverlay("after source open", 1, 0)
+	env.forceDocumentError()
+
+	env.close(env.source)
+	env.assertOverlay("after closing an errored document", 1, 1)
+	if after := env.state(env.source); after == nil || after.sourceOpened {
+		t.Fatalf("errored document is still marked source-open after didClose: %v", after)
+	}
+
+	env.removeSource()
+	env.settle()
+	env.assertOverlay("after the errored document was dropped", 1, 1)
+}
+
+func TestDocModelDidCloseErroredTargetOnlyReachesGopls(t *testing.T) {
+	t.Parallel()
+	env := newDocModelEnv(t)
+	env.write(env.source, lspHelperSource)
+	env.start(env.root)
+
+	env.open(env.source, lspHelperSource)
+	env.openTarget()
+	env.forceDocumentError()
+
+	env.close(env.source)
+	env.assertOverlay("errored, source closed, target open", 1, 0)
+	env.close(env.target)
+	env.assertOverlay("errored, both closed", 1, 1)
+}
+
+func TestDocModelUnsavedSourceOpenCreatesDocumentFromBuffer(t *testing.T) {
+	t.Parallel()
+	t.Run("Alone", func(t *testing.T) { testDocModelUnsavedSourceOpenCreatesDocumentFromBuffer(t, false) })
+	t.Run("WithSibling", func(t *testing.T) { testDocModelUnsavedSourceOpenCreatesDocumentFromBuffer(t, true) })
+}
+
+func testDocModelUnsavedSourceOpenCreatesDocumentFromBuffer(t *testing.T, sibling bool) {
+	t.Parallel()
+	env := newDocModelEnv(t)
+	if sibling {
+		env.write(filepath.Join(env.root, "keep.gox"), "package demo\n")
+	}
+	env.start(env.root)
+
+	env.open(env.source, lspHelperSource)
+	env.assertOverlay("unsaved buffer open", 1, 0)
+	var payload struct {
+		TextDocument struct {
+			Text string `json:"text"`
+		} `json:"textDocument"`
+	}
+	if err := json.Unmarshal(env.gopls(didOpen, env.target)[0].Params, &payload); err != nil {
+		t.Fatal(err)
+	}
+	state := env.healthyState("unsaved buffer open")
+	if !state.sourceOpened {
+		t.Fatal("unsaved document is not marked source-open")
+	}
+	if payload.TextDocument.Text != state.content || !strings.Contains(payload.TextDocument.Text, "card") {
+		t.Fatalf("overlay content was not generated from the buffer text:\n%s", payload.TextDocument.Text)
+	}
+	env.settle()
+	if docModelExists(env.target) {
+		t.Fatal("target was written to disk for a source that was never saved")
+	}
+	if got := env.state(env.source); got == nil || got.doc != state.doc {
+		t.Fatal("document of an open unsaved buffer was dropped")
+	}
+	env.assertOverlay("unsaved buffer open after ticker", 1, 0)
+
+	env.close(env.source)
+	env.assertOverlay("unsaved buffer closed", 1, 1)
+	env.settle()
+	if got := env.state(env.source); got != nil && got.err == nil {
+		t.Fatal("document is still tracked with no file and no buffer")
+	}
+	env.assertOverlay("after the unsaved document was dropped", 1, 1)
+	if docModelExists(env.target) {
+		t.Fatal("target appeared on disk after the unsaved buffer closed")
+	}
+	if !sibling {
+		return
+	}
+
+	env.close(env.source)
+	env.close(env.target)
+	env.assertOverlay("after repeated closes", 1, 1)
+}
+
+func TestDocModelBufferCreatedDocumentLifecycle(t *testing.T) {
+	t.Parallel()
+	env := newDocModelEnv(t, "fresh")
+	env.write(filepath.Join(env.root, "go.mod"), "module example.com/app\n")
+	env.start(env.root)
+
+	env.open(env.source, lspHelperSource)
+	env.assertOverlay("unsaved buffer open", 1, 0)
+	if opened := env.gopls(didOpen, env.target)[0]; !strings.Contains(string(opened.Params), "package demo") {
+		t.Fatalf("gopls overlay does not carry the buffer text: %s", opened.Params)
+	}
+	env.settle()
+	if docModelExists(env.target) {
+		t.Fatal("target was written to disk for a source that was never saved")
+	}
+	if state := env.healthyState("unsaved buffer open after ticker"); !state.sourceOpened {
+		t.Fatal("unsaved document is not marked source-open")
+	}
+
+	edited := docModelEdited()
+	env.changeFull(env.source, 2, edited)
+	changes := env.gopls(didChange, env.target)
+	if len(changes) != 1 || !strings.Contains(string(changes[0].Params), "Body string") {
+		t.Fatalf("edit of an unsaved document did not reach gopls: %v; traffic: %v", changes, env.traffic())
+	}
+
+	env.write(env.source, edited)
+	env.notify(didSave, map[string]any{"textDocument": map[string]any{"uri": docModelURI(env.source)}})
+	env.waitTarget("Body string")
+
+	env.close(env.source)
+	env.assertOverlay("after source close", 1, 1)
+	env.settle()
+	env.healthyState("saved source closed")
+	if !docModelExists(env.target) {
+		t.Fatal("target of a source on disk is missing")
+	}
+}
+
+func TestDocModelBufferCreatedFromBlankLinesTracksBufferText(t *testing.T) {
+	t.Parallel()
+	env := newDocModelEnv(t)
+	env.start(env.root)
+
+	env.open(env.source, "\n\n")
+	env.changeRange(env.source, 2, [2]int{2, 0}, [2]int{2, 0}, "package demo\n\nfunc Marker() {}\n")
+	buffer := "\n\npackage demo\n\nfunc Marker() {}\n"
+
+	file, ok := workspace.NewFileFromURI(docModelURI(env.source))
+	if !ok {
+		t.Fatal("bad uri")
+	}
+	reference := workspace.NewDoc(file)
+	reference.InitUnsaved()
+	if _, err := reference.SourceUpdate(buffer); err != nil {
+		t.Fatal(err)
+	}
+	defer reference.Close()
+
+	var got string
+	if state := env.state(env.source); state != nil {
+		got = state.content
+	}
+	if got != reference.TargetContent() {
+		t.Fatalf("document differs from the editor buffer.\nwant target (from buffer text %q):\n%s\ngot target:\n%s\ntraffic: %v", buffer, reference.TargetContent(), got, env.traffic())
 	}
 }
 
 func TestDocModelSourceCloseAfterParentFolderAddedStillReachesGopls(t *testing.T) {
-	root := t.TempDir()
-	sub := filepath.Join(root, "sub")
-	source := filepath.Join(sub, "view.gox")
-	target := filepath.Join(sub, "view.x.go")
-	docModelWrite(t, source, lspHelperSource)
-	r := newDocModelRig(t, sub)
+	t.Parallel()
+	env := newDocModelEnv(t, "sub")
+	env.write(env.source, lspHelperSource)
+	env.start(filepath.Join(env.root, "sub"))
 
-	r.open(source, "gox", 1, lspHelperSource)
-	if got := len(r.goplsNotifs(didOpen, target)); got != 1 {
-		t.Fatalf("didOpen reached gopls %d times, want 1", got)
-	}
-	r.folders([]string{root}, nil)
-	r.close(source)
-	if got := len(r.goplsNotifs(didClose, target)); got != 1 {
-		t.Fatalf("gopls received %d didClose after the source buffer closed, want 1 (overlay leaks: S closed, T closed)", got)
-	}
+	env.open(env.source, lspHelperSource)
+	env.assertOverlay("after source open", 1, 0)
+	env.folders([]string{env.root}, nil)
+	env.close(env.source)
+	env.assertOverlay("source closed after the parent folder was added", 1, 1)
 }
 
 func TestDocModelSourceCloseAfterFolderReAddedStillReachesGopls(t *testing.T) {
-	root := t.TempDir()
-	source := filepath.Join(root, "view.gox")
-	target := filepath.Join(root, "view.x.go")
-	docModelWrite(t, source, lspHelperSource)
-	r := newDocModelRig(t, root)
+	t.Parallel()
+	env := newDocModelEnv(t)
+	env.write(env.source, lspHelperSource)
+	env.start(env.root)
 
-	r.open(source, "gox", 1, lspHelperSource)
-	r.folders(nil, []string{root})
-	r.folders([]string{root}, nil)
-	r.close(source)
-	if got := len(r.goplsNotifs(didClose, target)); got != 1 {
-		t.Fatalf("gopls received %d didClose after the source buffer closed, want 1 (overlay leaks: S closed, T closed)", got)
+	env.open(env.source, lspHelperSource)
+	env.folders(nil, []string{env.root})
+	env.folders([]string{env.root}, nil)
+	env.close(env.source)
+	if got := len(env.gopls(didClose, env.target)); got != 1 {
+		t.Fatalf("gopls received %d didClose for a source closed after its folder was removed and added again, want 1; traffic: %v", got, env.traffic())
 	}
 }
 
 func TestDocModelTargetCloseAfterFolderAddedStillReachesGopls(t *testing.T) {
-	root := t.TempDir()
-	other := t.TempDir()
-	source := filepath.Join(root, "view.gox")
-	target := filepath.Join(root, "view.x.go")
-	docModelWrite(t, source, lspHelperSource)
-	seed := newDocModelRig(t, root)
-	generated := waitPresent(t, target)
-	seed.router.Stop()
+	t.Parallel()
+	env := newDocModelEnv(t)
+	env.write(env.source, lspHelperSource)
+	env.start(env.root)
+	generated := env.waitTarget("")
+	env.router.Stop()
 
-	r := newDocModelRig(t, other)
-	r.open(target, "go", 1, generated)
-	if got := len(r.goplsNotifs(didOpen, target)); got != 1 {
-		t.Fatalf("target didOpen reached gopls %d times, want 1", got)
-	}
-	r.folders([]string{root}, nil)
-	r.close(target)
-	if got := len(r.goplsNotifs(didClose, target)); got != 1 {
-		t.Fatalf("gopls received %d didClose after the target buffer closed, want 1 (overlay leaks)", got)
-	}
-}
-
-func TestDocModelBufferCreatedDocumentLifecycle(t *testing.T) {
-	root := t.TempDir()
-	docModelWrite(t, filepath.Join(root, "go.mod"), "module example.com/x\n")
-	source := filepath.Join(root, "fresh", "view.gox")
-	target := filepath.Join(root, "fresh", "view.x.go")
-	r := newDocModelRig(t, root)
-
-	r.open(source, "gox", 1, lspHelperSource)
-	opens := r.goplsNotifs(didOpen, target)
-	if len(opens) != 1 {
-		t.Fatalf("didOpen reached gopls %d times, want 1; client messages: %v", len(opens), r.clientErrors())
-	}
-	if !strings.Contains(string(opens[0].Params), "package demo") {
-		t.Fatalf("gopls overlay does not carry the buffer text: %s", opens[0].Params)
-	}
-	r.settle()
-	if _, err := os.Stat(target); !os.IsNotExist(err) {
-		t.Fatalf("generated target exists on disk for an unsaved buffer: %v", err)
-	}
-	if opened, exists := r.tracked(source); !exists || !opened {
-		t.Fatalf("buffer-created document was dropped while its buffer is open (exists=%v opened=%v)", exists, opened)
-	}
-	edited := strings.Replace(lspHelperSource, "Title string", "Title string\n\tBody string", 1)
-	r.changeFull(source, 2, edited)
-	changes := r.goplsNotifs(didChange, target)
-	if len(changes) != 1 || !strings.Contains(string(changes[0].Params), "Body string") {
-		t.Fatalf("edit of a buffer-created document did not reach gopls: %v; client messages: %v", changes, r.clientErrors())
-	}
-
-	docModelWrite(t, source, edited)
-	r.send(didSave, map[string]any{"textDocument": map[string]any{"uri": docModelURI(source)}})
-	if got := waitPresent(t, target); !strings.Contains(got, "Body string") {
-		t.Fatalf("saved target does not hold the buffer content:\n%s", got)
-	}
-
-	r.close(source)
-	if got := len(r.goplsNotifs(didClose, target)); got != 1 {
-		t.Fatalf("gopls received %d didClose, want 1", got)
-	}
-	r.settle()
-	if _, exists := r.tracked(source); !exists {
-		t.Fatal("document for an on-disk source vanished after close")
-	}
-	if _, err := os.Stat(target); err != nil {
-		t.Fatalf("target of an on-disk source is missing: %v", err)
-	}
-}
-
-func TestDocModelBufferCreatedThenClosedUnsavedIsDropped(t *testing.T) {
-	root := t.TempDir()
-	docModelWrite(t, filepath.Join(root, "keep.gox"), "package demo\n")
-	source := filepath.Join(root, "view.gox")
-	target := filepath.Join(root, "view.x.go")
-	r := newDocModelRig(t, root)
-
-	r.open(source, "gox", 1, lspHelperSource)
-	r.settle()
-	r.close(source)
-	if got := len(r.goplsNotifs(didClose, target)); got != 1 {
-		t.Fatalf("gopls received %d didClose, want 1", got)
-	}
-	r.settle()
-	if _, exists := r.tracked(source); exists {
-		t.Fatal("document survives with no file and no buffer")
-	}
-	if got := len(r.goplsNotifs(didClose, target)); got != 1 {
-		t.Fatalf("gopls received %d didClose after drop, want 1", got)
-	}
-	if _, err := os.Stat(target); !os.IsNotExist(err) {
-		t.Fatalf("target exists for a never-saved source: %v", err)
-	}
-	r.close(source)
-	r.close(target)
-	if got := len(r.goplsNotifs(didClose, target)); got != 1 {
-		t.Fatalf("stray didClose reached gopls: %d", got)
-	}
-}
-
-func TestDocModelKeptDocumentSurvivesSourceRemoval(t *testing.T) {
-	root := t.TempDir()
-	source := filepath.Join(root, "view.gox")
-	target := filepath.Join(root, "view.x.go")
-	docModelWrite(t, source, lspHelperSource)
-	docModelWrite(t, filepath.Join(root, "other.gox"), "package demo\n")
-	r := newDocModelRig(t, root)
-
-	r.open(source, "gox", 1, lspHelperSource)
-	generated := waitPresent(t, target)
-	r.open(target, "go", 1, generated)
-	if err := os.Remove(source); err != nil {
-		t.Fatal(err)
-	}
-	waitGone(t, target)
-	r.settle()
-	if opened, exists := r.tracked(source); !exists || !opened {
-		t.Fatalf("document dropped while its source buffer is open (exists=%v opened=%v)", exists, opened)
-	}
-	if got := len(r.goplsNotifs(didClose, target)); got != 0 {
-		t.Fatalf("gopls received %d didClose while the source buffer is open", got)
-	}
-	edited := strings.Replace(lspHelperSource, "Title string", "Title string\n\tBody string", 1)
-	r.changeFull(source, 2, edited)
-	if changes := r.goplsNotifs(didChange, target); len(changes) != 1 {
-		t.Fatalf("edit of a kept document did not reach gopls; client messages: %v", r.clientErrors())
-	}
-	r.settle()
-	if _, err := os.Stat(target); !os.IsNotExist(err) {
-		t.Fatalf("target on disk while the source file is absent: %v", err)
-	}
-
-	r.close(source)
-	if got := r.waitCount(didClose, target, 1); got != 1 {
-		t.Fatalf("gopls received %d didClose after source closed with ghost target open, want 1", got)
-	}
-	r.settle()
-	r.close(target)
-	r.settle()
-	if got := len(r.goplsNotifs(didClose, target)); got != 1 {
-		t.Fatalf("gopls received %d didClose in total, want exactly 1", got)
-	}
-}
-
-func TestDocModelKeptDocumentSourceReappears(t *testing.T) {
-	root := t.TempDir()
-	source := filepath.Join(root, "view.gox")
-	target := filepath.Join(root, "view.x.go")
-	docModelWrite(t, source, lspHelperSource)
-	r := newDocModelRig(t, root)
-
-	r.open(source, "gox", 1, lspHelperSource)
-	waitPresent(t, target)
-	if err := os.Remove(source); err != nil {
-		t.Fatal(err)
-	}
-	waitGone(t, target)
-	edited := strings.Replace(lspHelperSource, "Title string", "Title string\n\tBody string", 1)
-	r.changeFull(source, 2, edited)
-	docModelWrite(t, source, "package demo\n")
-	if got := waitPresent(t, target); !strings.Contains(got, "Body string") {
-		t.Fatalf("target was not rewritten from the buffer:\n%s", got)
-	}
-	r.close(source)
-	if got := len(r.goplsNotifs(didClose, target)); got != 1 {
-		t.Fatalf("gopls received %d didClose, want 1", got)
-	}
-	if got := len(r.goplsNotifs(didOpen, target)); got != 1 {
-		t.Fatalf("gopls received %d didOpen, want 1", got)
-	}
+	env.start(docModelTempDir(t))
+	env.open(env.target, generated)
+	env.assertOverlay("target opened outside any workspace", 1, 0)
+	env.folders([]string{env.root}, nil)
+	env.close(env.target)
+	env.assertOverlay("target closed after its folder was added", 1, 1)
 }
 
 func TestDocModelOpenCloseChurnAgainstTicker(t *testing.T) {
-	root := t.TempDir()
-	source := filepath.Join(root, "view.gox")
-	target := filepath.Join(root, "view.x.go")
-	ghostSource := filepath.Join(root, "ghost.gox")
-	ghostTarget := filepath.Join(root, "ghost.x.go")
-	r := newDocModelRig(t, root)
+	t.Parallel()
+	env := newDocModelEnv(t)
+	env.start(env.root)
 
 	stop := make(chan struct{})
 	done := make(chan struct{})
@@ -480,36 +807,40 @@ func TestDocModelOpenCloseChurnAgainstTicker(t *testing.T) {
 			default:
 			}
 			if i%2 == 0 {
-				_ = os.WriteFile(source, []byte(lspHelperSource), 0o644)
-				_ = os.WriteFile(ghostSource, []byte(lspHelperSource), 0o644)
+				_ = os.WriteFile(env.source, []byte(lspHelperSource), 0o644)
 			} else {
-				_ = os.Remove(source)
-				_ = os.Remove(ghostSource)
+				_ = os.Remove(env.source)
 			}
 			time.Sleep(60 * time.Millisecond)
 		}
 	}()
-	deadline := time.Now().Add(2500 * time.Millisecond)
-	version := 1
-	for time.Now().Before(deadline) {
-		r.open(source, "gox", version, lspHelperSource)
-		r.open(ghostTarget, "go", version, "package demo\n")
-		version++
-		r.changeFull(source, version, lspHelperSource+"\n// x\n")
-		r.open(target, "go", version, "package demo\n")
-		r.close(target)
-		r.close(source)
-		r.close(ghostTarget)
+	deadline := time.Now().Add(6 * docModelTick)
+	for version := 2; time.Now().Before(deadline); version++ {
+		env.open(env.source, lspHelperSource)
+		env.changeFull(env.source, version, lspHelperSource+"\nfunc Extra() {}\n")
+		env.open(env.target, "package demo\n")
+		env.close(env.target)
+		env.close(env.source)
 		time.Sleep(15 * time.Millisecond)
 	}
 	close(stop)
 	<-done
-	_ = os.Remove(source)
-	_ = os.Remove(ghostSource)
-	r.settle()
-	opens := len(r.goplsNotifs(didOpen, target))
-	closes := len(r.goplsNotifs(didClose, target))
-	if opens != closes {
-		t.Fatalf("unbalanced gopls overlay for %s: %d didOpen vs %d didClose", target, opens, closes)
+	_ = os.Remove(env.source)
+
+	balance := func() (int, int) {
+		return len(env.gopls(didOpen, env.target)), len(env.gopls(didClose, env.target))
 	}
+	env.waitFor("equal didOpen and didClose counts for the target", func() bool {
+		opens, closes := balance()
+		return opens == closes
+	})
+	env.settle()
+	opens, closes := balance()
+	if opens == 0 {
+		t.Fatal("gopls received no didOpen for the target of a source that was opened repeatedly")
+	}
+	if opens != closes {
+		t.Fatalf("gopls received %d didOpen and %d didClose for the target, want equal counts", opens, closes)
+	}
+	env.assertOverlay("after churn", opens, closes)
 }

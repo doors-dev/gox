@@ -13,9 +13,8 @@ const (
 	watchedFileCreated = 1
 	watchedFileDeleted = 3
 
-	sourceGoneRemovalTimeout = 5 * time.Second
-	sourceGoneSettleWindow   = 2 * time.Second
-	sourceGoneSettleTimeout  = 10 * time.Second
+	sourceGoneSettleWindow  = 2 * time.Second
+	sourceGoneSettleTimeout = 10 * time.Second
 )
 
 const sourceGoneScrollSource = `package pkg
@@ -53,7 +52,7 @@ type sourceGoneFixture struct {
 func newSourceGoneFixture(t *testing.T) *sourceGoneFixture {
 	t.Helper()
 	root := filepath.Join(t.TempDir(), "main")
-	writeFile(t, filepath.Join(root, "go.mod"), "module example.com/probe\n\ngo 1.25.1\n")
+	writeFile(t, filepath.Join(root, "go.mod"), singleFolderGoMod)
 	writeFile(t, filepath.Join(root, "pkg", "user.go"), sourceGoneUserSource)
 	f := &sourceGoneFixture{
 		root:          root,
@@ -68,24 +67,7 @@ func newSourceGoneFixture(t *testing.T) *sourceGoneFixture {
 	f.newSourceURI = uriForPath(f.newSourcePath)
 	f.newTargetURI = uriForPath(f.newTargetPath)
 
-	folder := workspaceFolder{URI: uriForPath(root), Name: "main"}
-	f.h = newLSPHarness(t, []workspaceFolder{folder})
-	f.h.callRaw("initialize", map[string]any{
-		"processId": nil,
-		"rootUri":   folder.URI,
-		"capabilities": map[string]any{
-			"workspace": map[string]any{
-				"applyEdit":        true,
-				"workspaceFolders": true,
-			},
-			"textDocument": map[string]any{
-				"publishDiagnostics": map[string]any{},
-			},
-			"window": map[string]any{},
-		},
-		"workspaceFolders": []workspaceFolder{folder},
-	})
-	f.h.notify("initialized", map[string]any{})
+	f.h = newSingleFolderHarness(t, root)
 	return f
 }
 
@@ -138,15 +120,8 @@ func (f *sourceGoneFixture) notifySourceRenamed() {
 
 func (f *sourceGoneFixture) waitForOldTargetRemoved(t *testing.T) {
 	t.Helper()
-	deadline := time.Now().Add(sourceGoneRemovalTimeout)
-	for time.Now().Before(deadline) {
-		if _, err := os.Stat(f.oldTargetPath); os.IsNotExist(err) {
-			f.changeWatchedFiles(watchedFileEvent{URI: f.oldTargetURI, Type: watchedFileDeleted})
-			return
-		}
-		time.Sleep(lspPollInterval)
-	}
-	t.Fatalf("old generated target was not removed within %s: %s", sourceGoneRemovalTimeout, f.oldTargetPath)
+	waitForFileRemoved(t, f.oldTargetPath)
+	f.changeWatchedFiles(watchedFileEvent{URI: f.oldTargetURI, Type: watchedFileDeleted})
 }
 
 func (f *sourceGoneFixture) scrollPosition(t *testing.T, uri string) lspPosition {
@@ -196,7 +171,7 @@ func (f *sourceGoneFixture) assertNewSourceIsClean(t *testing.T) {
 	if !strings.Contains(string(refs.Result), "user.go") {
 		t.Errorf("references did not return the usage in user.go: %s", compactJSON(refs.Result))
 	}
-	sourceGoneAssertNoStaleLocation(t, "references", refs.Result)
+	sourceGoneAssertNoOldLocation(t, "references", refs.Result)
 
 	symbols := h.call("workspace/symbol", map[string]any{"query": "Scroll"})
 	if symbols.Err != nil {
@@ -205,7 +180,7 @@ func (f *sourceGoneFixture) assertNewSourceIsClean(t *testing.T) {
 	if !strings.Contains(string(symbols.Result), "scroll2.") {
 		t.Errorf("workspace/symbol did not return the symbol in the renamed file: %s", compactJSON(symbols.Result))
 	}
-	sourceGoneAssertNoStaleLocation(t, "workspace/symbol", symbols.Result)
+	sourceGoneAssertNoOldLocation(t, "workspace/symbol", symbols.Result)
 
 	if _, err := os.Stat(f.oldTargetPath); !os.IsNotExist(err) {
 		t.Errorf("old generated target is on disk: %s (stat err: %v)", f.oldTargetPath, err)
@@ -222,11 +197,11 @@ func sourceGoneRedeclared(params publishDiagnosticsParams) []string {
 	return found
 }
 
-func sourceGoneAssertNoStaleLocation(t *testing.T, method string, raw json.RawMessage) {
+func sourceGoneAssertNoOldLocation(t *testing.T, method string, raw json.RawMessage) {
 	t.Helper()
-	for _, stale := range []string{"/scroll.gox", "/scroll.x.go"} {
-		if strings.Contains(string(raw), stale) {
-			t.Errorf("%s returned a stale location in %s: %s", method, stale, compactJSON(raw))
+	for _, old := range []string{"/scroll.gox", "/scroll.x.go"} {
+		if strings.Contains(string(raw), old) {
+			t.Errorf("%s returned a location in the renamed-away %s: %s", method, old, compactJSON(raw))
 		}
 	}
 }
@@ -297,7 +272,7 @@ func TestLSPSourceGoneOpenBufferKeepsDocument(t *testing.T) {
 	f.renameSource(t)
 	f.notifySourceRenamed()
 	f.waitForOldTargetRemoved(t)
-	time.Sleep(time.Second)
+	assertAbsentThroughSettle(t, f.oldTargetPath, "open buffer after the source file is gone")
 
 	position := f.scrollPosition(t, f.oldSourceURI)
 	hover := h.call("textDocument/hover", map[string]any{

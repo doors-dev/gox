@@ -155,7 +155,6 @@ func (d Doc) Init() {
 }
 
 func (d Doc) InitUnsaved() {
-	d.targetRemove()
 	d.source = text.NewText()
 	if err := d.Parse(); err != nil {
 		slog.Debug("Document parsed with syntax errors", "source", d.SourceFile().Path(), "target", d.TargetFile().Path(), "error", err)
