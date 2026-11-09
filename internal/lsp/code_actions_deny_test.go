@@ -20,6 +20,8 @@ func deniedAndKeptCodeActions(editURI string, editRange string) string {
 		{"title":"Declare missing method Card.Render","kind":"quickfix","edit":{"changes":{%q:[{"range":%s,"newText":"stub"}]}}},
 		{"title":"Add struct tags","kind":"refactor.rewrite.addTags","command":{"title":"Add struct tags","command":"gopls.modify_tags","arguments":[]}},
 		{"title":"Remove struct tags","kind":"refactor.rewrite.removeTags","command":{"title":"Remove struct tags","command":"gopls.modify_tags","arguments":[]}},
+		{"title":"Move type Card","kind":"refactor.move.moveType","command":{"title":"Move type Card","command":"gopls.move_type","arguments":[]}},
+		{"title":"Move declaration Card","kind":"refactor.move.moveDeclaration","command":{"title":"Move declaration Card","command":"gopls.move_declaration","arguments":[]}},
 		{"title":"Fill in struct fields","kind":"quickfix","edit":{"changes":{%q:[{"range":%s,"newText":"filled"}]}}}
 	]`, editURI, editRange, editURI, editRange, editURI, editRange)
 }
@@ -62,6 +64,21 @@ func unmappableTargetRange(t *testing.T, doc workspace.Doc) common.Range {
 	}
 	t.Fatal("no unmappable target range found")
 	return common.NoRange()
+}
+
+func unmappableTargetPos(t *testing.T, doc workspace.Doc) common.Pos {
+	t.Helper()
+	lines := strings.Split(doc.TargetContent(), "\n")
+	for i, line := range lines {
+		for col := range len(line) {
+			pos := common.NewPos(i, col)
+			if _, ok := doc.SourcePos(common.UTF8, pos, workspace.Edge); !ok {
+				return pos
+			}
+		}
+	}
+	t.Fatal("no unmappable target position found")
+	return common.NoPos()
 }
 
 func callRouter(t *testing.T, router Router, m method, params []byte) Response {
@@ -156,12 +173,14 @@ func TestCodeActionsPlainGoPassThrough(t *testing.T) {
 	if got := mustString(t, proxied.Get("textDocument").Get("uri")); got != uri {
 		t.Fatalf("proxied uri = %q, want %q", got, uri)
 	}
-	actions := mustActionArray(t, resp, 5)
+	actions := mustActionArray(t, resp, 7)
 	wantTitles := []string{
 		"Declare missing methods of demo.Renderer",
 		"Declare missing method Card.Render",
 		"Add struct tags",
 		"Remove struct tags",
+		"Move type Card",
+		"Move declaration Card",
 		"Fill in struct fields",
 	}
 	for i, want := range wantTitles {

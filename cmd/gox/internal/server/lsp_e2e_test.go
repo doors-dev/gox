@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -67,6 +68,27 @@ type documentDiagnosticReport struct {
 type documentLink struct {
 	Range  lspRange `json:"range"`
 	Target string   `json:"target"`
+}
+
+type inlayHint struct {
+	Position lspPosition     `json:"position"`
+	Label    json.RawMessage `json:"label"`
+}
+
+func (h inlayHint) text() string {
+	var plain string
+	if json.Unmarshal(h.Label, &plain) == nil {
+		return plain
+	}
+	var parts []struct {
+		Value string `json:"value"`
+	}
+	_ = json.Unmarshal(h.Label, &parts)
+	var b strings.Builder
+	for _, part := range parts {
+		b.WriteString(part.Value)
+	}
+	return b.String()
 }
 
 type openDocument struct {
@@ -806,6 +828,9 @@ func TestLSPServerE2EWithRealGopls(t *testing.T) {
 		"clientInfo": map[string]any{
 			"name": "codex-e2e",
 		},
+		"initializationOptions": map[string]any{
+			"hints": map[string]any{"parameterNames": true, "assignVariableTypes": true},
+		},
 		"workspaceFolders": []workspaceFolder{fixture.mainFolder},
 	}))
 	h.notify("initialized", map[string]any{})
@@ -1098,9 +1123,29 @@ func TestLSPServerE2EWithRealGopls(t *testing.T) {
 		run("inlay hints", func(t *testing.T) {
 			inlayHints := h.callRaw("textDocument/inlayHint", map[string]any{
 				"textDocument": map[string]any{"uri": viewURI},
-				"range":        fixture.rangeAt("view_def", len("View")),
+				"range":        lspRange{Start: fixture.view.Marker("view_def"), End: fixture.view.Marker("embedded_field")},
 			})
-			assertValidJSON(t, inlayHints)
+			hints := mustJSON[[]inlayHint](t, inlayHints)
+			labelArg := fixture.view.Marker("template_label_use")
+			labelArg.Character += len("label(")
+			want := []string{
+				fmt.Sprintf("name:@%v", fixture.view.Marker("helper_sig")),
+				fmt.Sprintf("name:@%v", labelArg),
+				fmt.Sprintf("string@line%d", fixture.view.Marker("helper_use").Line),
+			}
+			var got []string
+			for _, hint := range hints {
+				if label := hint.text(); label == "string" {
+					got = append(got, fmt.Sprintf("string@line%d", hint.Position.Line))
+				} else {
+					got = append(got, fmt.Sprintf("%s@%v", label, hint.Position))
+				}
+			}
+			slices.Sort(want)
+			slices.Sort(got)
+			if !slices.Equal(got, want) {
+				t.Fatalf("inlay hints = %v, want %v: %s", got, want, compactJSON(inlayHints))
+			}
 		})
 
 		run("selection range", func(t *testing.T) {

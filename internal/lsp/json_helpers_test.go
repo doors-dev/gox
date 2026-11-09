@@ -261,19 +261,40 @@ func TestJSONChangesAndPositionHelpers(t *testing.T) {
 		t.Fatalf("completion range = %v, err = %v", gotCompletionRange, err)
 	}
 
+	generatedPos := unmappableTargetPos(t, doc)
+	hintSourcePos := sourceRangeFor(t, doc.SourceFile().Path(), "Title").End()
+	hintTargetPos, ok := doc.TargetPos(common.UTF8, hintSourcePos, workspace.Edge)
+	if !ok {
+		t.Fatalf("TargetPos(%v) = !ok", hintSourcePos)
+	}
 	inlayHints := mustJSONNode(t, fmt.Sprintf(`[
-		{"position":%s,"textEdits":[{"range":%s,"newText":"renamed"}]}
-	]`, jsonFromNode(t, jsonPos.fromPos(sourcePos)), jsonFromNode(t, jsonPos.fromRange(srcRange))))
+		{"position":%s,"label":"generated"},
+		{"position":%s,"label":"generated call param"},
+		{"position":%s,"label":"kept","textEdits":[{"range":%s,"newText":"renamed"}]},
+		{"position":%s,"label":"generated edit","textEdits":[{"range":%s,"newText":"x"}]}
+	]`,
+		jsonFromNode(t, jsonPos.fromPos(generatedPos)),
+		jsonFromNode(t, jsonPos.fromPos(targetPos)),
+		jsonFromNode(t, jsonPos.fromPos(hintTargetPos)), jsonFromNode(t, jsonPos.fromRange(targetRange)),
+		jsonFromNode(t, jsonPos.fromPos(hintTargetPos)), jsonFromNode(t, jsonPos.fromRange(common.NewRange(generatedPos, generatedPos))),
+	))
 	if err := jsonChanges.convertInlayHints(common.UTF8, doc, inlayHints); err != nil {
 		t.Fatalf("convertInlayHints() error = %v", err)
 	}
-	gotPos, err := jsonPos.intoPos(mustArrayIndex(t, inlayHints, 0).Get("position"))
-	if err != nil || gotPos != targetPos {
-		t.Fatalf("inlay hint pos = %v, err = %v", gotPos, err)
+	keptHints, err := inlayHints.ArrayUseNode()
+	if err != nil || len(keptHints) != 1 {
+		t.Fatalf("inlay hints kept = %s, err = %v, want only the mapped hint", jsonFromNode(t, *inlayHints), err)
 	}
-	gotHintRange, err := jsonPos.intoRange(mustArrayIndex(t, mustArrayIndex(t, inlayHints, 0).Get("textEdits"), 0).Get("range"))
-	if err != nil || gotHintRange != targetRange {
-		t.Fatalf("inlay hint range = %v, err = %v", gotHintRange, err)
+	if got := mustString(t, keptHints[0].Get("label")); got != "kept" {
+		t.Fatalf("kept inlay hint label = %q, want kept", got)
+	}
+	gotPos, err := jsonPos.intoPos(keptHints[0].Get("position"))
+	if err != nil || gotPos != hintSourcePos {
+		t.Fatalf("inlay hint pos = %v, err = %v, want %v", gotPos, err, hintSourcePos)
+	}
+	gotHintRange, err := jsonPos.intoRange(mustArrayIndex(t, keptHints[0].Get("textEdits"), 0).Get("range"))
+	if err != nil || gotHintRange != srcRange {
+		t.Fatalf("inlay hint range = %v, err = %v, want %v", gotHintRange, err, srcRange)
 	}
 
 	editNode := mustJSONNode(t, fmt.Sprintf(`{

@@ -52,33 +52,70 @@ func (r jsonChangesDriver) convertInlayHints(enc common.Encoding, doc workspace.
 	if j.TypeSafe() == ast.V_NULL {
 		return nil
 	}
-	j.ForEach(func(path ast.Sequence, node *ast.Node) bool {
-		if path.Index == -1 || path.Key != nil {
-			err = errors.New("The gopls inlay hints response format is invalid.")
-			return false
-		}
+	hints, err := j.ArrayUseNode()
+	if err != nil {
+		return errInvalidInlayHints
+	}
+	kept := make([]ast.Node, 0, len(hints))
+	for _, hint := range hints {
+		mapped, err := r.convertInlayHint(enc, doc, &hint)
 		if err != nil {
+			return err
+		}
+		if mapped {
+			kept = append(kept, hint)
+		}
+	}
+	*j = ast.NewArray(kept)
+	return nil
+}
+
+var errInvalidInlayHints = errors.New("The gopls inlay hints response format is invalid.")
+
+func (r jsonChangesDriver) convertInlayHint(enc common.Encoding, doc workspace.Doc, hint Json) (bool, error) {
+	if hint.TypeSafe() != ast.V_OBJECT {
+		return false, errInvalidInlayHints
+	}
+	textEdits := hint.Get("textEdits")
+	if textEdits.Exists() && textEdits.TypeSafe() != ast.V_ARRAY {
+		return false, errInvalidInlayHints
+	}
+	pos, err := jsonPos.getPos(hint)
+	if err != nil {
+		return false, errInvalidInlayHints
+	}
+	if !inlayHintAnchorMapped(enc, doc, pos) {
+		return false, nil
+	}
+	if jsonPos.convertPosToSource(enc, doc, hint, workspace.Edge) != nil {
+		return false, nil
+	}
+	textEdits = hint.Get("textEdits")
+	if !textEdits.Exists() {
+		return true, nil
+	}
+	mapped := true
+	textEdits.ForEach(func(_ ast.Sequence, edit *ast.Node) bool {
+		if _, err = jsonPos.getRange(edit); err != nil {
+			err = errInvalidInlayHints
 			return false
 		}
-		err = jsonPos.convertPosToTarget(enc, doc, node, workspace.Edge)
-		if err != nil {
-			return false
-		}
-		textEdits := node.Get("textEdits")
-		if !textEdits.Exists() {
-			return true
-		}
-		textEdits.ForEach(func(path ast.Sequence, node *ast.Node) bool {
-			if path.Index == -1 || path.Key != nil {
-				err = errors.New("The gopls inlay hints response format is invalid.")
-				return false
-			}
-			err = jsonPos.convertRangeToTarget(enc, doc, node, workspace.Strict)
-			return err == nil
-		})
-		return err == nil
+		mapped = jsonPos.convertRangeToSource(enc, doc, edit, workspace.Strict) == nil
+		return mapped
 	})
-	return
+	if err != nil {
+		return false, err
+	}
+	return mapped, nil
+}
+
+func inlayHintAnchorMapped(enc common.Encoding, doc workspace.Doc, pos common.Pos) bool {
+	if pos.Column() == 0 {
+		return true
+	}
+	anchor := common.NewRange(common.NewPos(pos.Line(), pos.Column()-1), pos)
+	_, ok := doc.SourceRange(enc, anchor, workspace.Strict)
+	return ok
 }
 
 type sourceDeniedCodeAction struct {
@@ -113,8 +150,13 @@ func (r jsonChangesDriver) codeActionDeniedOnSource(j Json) bool {
 func (r jsonChangesDriver) convertCodeAction(man workspace.Manager, enc common.Encoding, doc workspace.Doc, j Json) (err error) {
 	if doc != nil {
 		if kindNode := j.Get("kind"); kindNode.Exists() {
-			if kind, e := kindNode.String(); e == nil && strings.HasPrefix(kind, "refactor.extract") {
-				return errors.New("gox: extract action handled natively")
+			if kind, e := kindNode.String(); e == nil {
+				if strings.HasPrefix(kind, "refactor.extract") {
+					return errors.New("gox: extract action handled natively")
+				}
+				if strings.HasPrefix(kind, "refactor.move") {
+					return errors.New("gox: move action not supported on source")
+				}
 			}
 		}
 		if j.Get("diagnostics").Exists() {
