@@ -104,7 +104,7 @@ func TestAttrsList(t *testing.T) {
 	}
 }
 
-func TestAttrsIterSkipsUnset(t *testing.T) {
+func TestAttrsAllIncludesUnset(t *testing.T) {
 	a := NewAttrs()
 	a.Get("id").Set("x")
 	a.Get("hidden").Set(false)
@@ -114,28 +114,28 @@ func TestAttrsIterSkipsUnset(t *testing.T) {
 	a.Get("data-x").Unset()
 	a.Get("disabled").Set(true)
 	var names []string
-	for attr := range a.Iter() {
+	for attr := range a.All() {
 		names = append(names, attr.Name())
 	}
-	if want := []string{"class", "disabled", "id"}; !slices.Equal(names, want) {
-		t.Fatalf("Iter names = %v, want %v", names, want)
+	if want := []string{"class", "data-x", "disabled", "hidden", "id", "title"}; !slices.Equal(names, want) {
+		t.Fatalf("All names = %v, want %v", names, want)
 	}
 }
 
-func TestAttrsIterStopsEarly(t *testing.T) {
+func TestAttrsAllStopsEarly(t *testing.T) {
 	a := NewAttrs()
 	a.Get("a").Set("1")
 	a.Get("b").Set("2")
 	a.Get("c").Set("3")
 	var names []string
-	for attr := range a.Iter() {
+	for attr := range a.All() {
 		names = append(names, attr.Name())
 		if attr.Name() == "b" {
 			break
 		}
 	}
 	if want := []string{"a", "b"}; !slices.Equal(names, want) {
-		t.Fatalf("Iter names = %v, want %v", names, want)
+		t.Fatalf("All names = %v, want %v", names, want)
 	}
 }
 
