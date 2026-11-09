@@ -104,6 +104,41 @@ func TestAttrsList(t *testing.T) {
 	}
 }
 
+func TestAttrsIterSkipsUnset(t *testing.T) {
+	a := NewAttrs()
+	a.Get("id").Set("x")
+	a.Get("hidden").Set(false)
+	a.Get("class").Set("c")
+	a.Get("title")
+	a.Get("data-x").Set("y")
+	a.Get("data-x").Unset()
+	a.Get("disabled").Set(true)
+	var names []string
+	for attr := range a.Iter() {
+		names = append(names, attr.Name())
+	}
+	if want := []string{"class", "disabled", "id"}; !slices.Equal(names, want) {
+		t.Fatalf("Iter names = %v, want %v", names, want)
+	}
+}
+
+func TestAttrsIterStopsEarly(t *testing.T) {
+	a := NewAttrs()
+	a.Get("a").Set("1")
+	a.Get("b").Set("2")
+	a.Get("c").Set("3")
+	var names []string
+	for attr := range a.Iter() {
+		names = append(names, attr.Name())
+		if attr.Name() == "b" {
+			break
+		}
+	}
+	if want := []string{"a", "b"}; !slices.Equal(names, want) {
+		t.Fatalf("Iter names = %v, want %v", names, want)
+	}
+}
+
 func TestAttrsClone(t *testing.T) {
 	a := NewAttrs()
 	a.Get("id").Set("x")

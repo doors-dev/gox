@@ -3,6 +3,7 @@ package gox
 import (
 	"context"
 	"io"
+	"iter"
 	"slices"
 	"strings"
 
@@ -148,6 +149,18 @@ func (a Attrs) Clone() Attrs {
 // List includes unset attributes.
 func (a Attrs) List() []Attr {
 	return slices.Clone(a.entries)
+}
+
+// Iter yields the attributes that are set, in name order. Do not add
+// attributes while iterating.
+func (a Attrs) Iter() iter.Seq[Attr] {
+	return func(yield func(Attr) bool) {
+		for _, attr := range a.entries {
+			if attr.IsSet() && !yield(attr) {
+				return
+			}
+		}
+	}
 }
 
 var attrPool = utils.NewStructPool[attr]()
