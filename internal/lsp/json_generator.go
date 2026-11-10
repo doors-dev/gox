@@ -30,6 +30,20 @@ func (r jsonGeneratorDriver) newDocumentRef(uri string) Json {
 	return &node
 }
 
+// newFullChange builds didChange params that replace the whole document text.
+func (r jsonGeneratorDriver) newFullChange(uri string, version int32, text string) Json {
+	ref := ast.NewObject([]ast.Pair{
+		ast.NewPair("uri", ast.NewString(uri)),
+		ast.NewPair("version", ast.NewAny(version)),
+	})
+	change := ast.NewObject([]ast.Pair{ast.NewPair("text", ast.NewString(text))})
+	node := ast.NewObject([]ast.Pair{
+		ast.NewPair("textDocument", ref),
+		ast.NewPair("contentChanges", ast.NewArray([]ast.Node{change})),
+	})
+	return &node
+}
+
 func (r jsonGeneratorDriver) newSymbols(symbols []workspace.Symbol) Json {
 	arr := make([]ast.Node, 0, len(symbols))
 	for _, s := range symbols {
