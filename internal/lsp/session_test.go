@@ -235,6 +235,8 @@ func TestDidSaveAcceptsSourceWhenWorkspaceURIHasTrailingSlash(t *testing.T) {
 	t.Cleanup(router.Stop)
 	router.session.setEnc(common.UTF8)
 	ensureRouterWorkspaces(router, string(docpath.URIFromPath(root))+"/")
+	openSourceBuffer(t, router, path, lspHelperSource)
+	bridge.notifications = nil
 
 	params, err := json.Marshal(map[string]any{
 		"textDocument": map[string]any{
@@ -277,6 +279,8 @@ func TestDidSaveSurvivesWorkspaceURIChangingToTrailingSlash(t *testing.T) {
 	t.Cleanup(router.Stop)
 	router.session.setEnc(common.UTF8)
 	ensureRouterWorkspaces(router, string(docpath.URIFromPath(root)))
+	openSourceBuffer(t, router, path, lspHelperSource)
+	bridge.notifications = nil
 
 	params, err := json.Marshal(map[string]any{
 		"textDocument": map[string]any{
@@ -346,6 +350,7 @@ func TestDidSaveSurvivesWorkspaceFoldersRefreshWithTrailingSlash(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	openSourceBuffer(t, router, path, lspHelperSource)
 	bridge.notifications = nil
 	router.Notification(Client, Request{
 		Method: string(didSave),
@@ -585,6 +590,8 @@ func TestDidChangeRejectsPresentInvalidRange(t *testing.T) {
 	if kind != workspace.KindSource || doc == nil {
 		t.Fatalf("Doc() = (%v, %v), want source doc", doc, kind)
 	}
+	openSourceBuffer(t, router, path, lspHelperSource)
+	bridge.notifications = nil
 	targetBefore := doc.TargetContent()
 
 	params, err := json.Marshal(map[string]any{
@@ -645,6 +652,7 @@ func TestDidChangeAbsentRangeAppliesFullUpdate(t *testing.T) {
 		t.Fatalf("Doc() = (%v, %v), want source doc", doc, kind)
 	}
 
+	openSourceBuffer(t, router, path, lspHelperSource)
 	newSrc := strings.Replace(lspHelperSource, "card", "panel", 1)
 	params, err := json.Marshal(map[string]any{
 		"textDocument": map[string]any{"uri": uri},
@@ -672,4 +680,22 @@ func TestDidChangeAbsentRangeAppliesFullUpdate(t *testing.T) {
 	if !forwarded {
 		t.Fatalf("full-document didChange was not forwarded to gopls: %#v", bridge.notifications)
 	}
+}
+
+// openSourceBuffer sends the didOpen a client sends before it edits or saves
+// a .gox buffer.
+func openSourceBuffer(t *testing.T, router Router, path string, text string) {
+	t.Helper()
+	params, err := json.Marshal(map[string]any{
+		"textDocument": map[string]any{
+			"uri":        string(docpath.URIFromPath(path)),
+			"languageId": "gox",
+			"version":    1,
+			"text":       text,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	router.Notification(Client, Request{Method: string(didOpen), Params: params})
 }

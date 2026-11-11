@@ -6,19 +6,17 @@ type dir struct {
 	path string
 	docs map[string]Doc
 	sus  map[string]struct{}
-	ws   *workspace
 }
 
 func (d *dir) IsEmpty() bool {
 	return len(d.docs) == 0
 }
 
-func newDir(path string, ws *workspace) *dir {
+func newDir(path string) *dir {
 	return &dir{
 		path: path,
 		docs: make(map[string]Doc),
 		sus:  make(map[string]struct{}),
-		ws:   ws,
 	}
 }
 
@@ -46,7 +44,7 @@ func (dr *dir) load(file File) Doc {
 	return d
 }
 
-func (d *dir) ProcessFileRemovals() {
+func (d *dir) ProcessFileRemovals(ghost func(Doc)) {
 	for name, doc := range d.docs {
 		if !doc.SourceFile().Exists() {
 			_, ok := d.sus[name]
@@ -58,12 +56,11 @@ func (d *dir) ProcessFileRemovals() {
 			if doc.SourceIsOpened() {
 				continue
 			}
-			delete(d.sus, name)
-			delete(d.docs, name)
 			if doc.TargetIsOpened() {
-				d.ws.onGhost(doc)
+				doc.TargetClose()
+				ghost(doc)
 			}
-			doc.Close()
+			d.drop(name, doc)
 			continue
 		}
 		delete(d.sus, name)
@@ -73,6 +70,20 @@ func (d *dir) ProcessFileRemovals() {
 			}
 		}
 	}
+}
+
+func (d *dir) releaseIdle() {
+	for name, doc := range d.docs {
+		if !doc.opened() {
+			d.drop(name, doc)
+		}
+	}
+}
+
+func (d *dir) drop(name string, doc Doc) {
+	delete(d.sus, name)
+	delete(d.docs, name)
+	doc.Close()
 }
 
 func (d *dir) Path() string {

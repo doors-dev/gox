@@ -1,6 +1,8 @@
 package lsp
 
 import (
+	"encoding/json"
+
 	"github.com/bytedance/sonic/ast"
 	"github.com/doors-dev/gox/internal/common"
 	jsonrpc2 "github.com/doors-dev/gox/internal/jsonrpc"
@@ -34,12 +36,12 @@ func initClientNotifs(sess *session, on func(on onNotif, m ...method)) {
 		}
 		switch kind {
 		case workspace.KindSource:
-			doc.SourceOpen(int32(version))
 			upd, err := doc.SourceUpdate(text)
 			if err != nil {
 				n.err(common.FromErr(jsonrpc2.ErrInternal, err))
 				return
 			}
+			doc.SourceOpen(int32(version))
 			insertGoxImport(sess, doc)
 			if !doc.TargetIsOpened() {
 				jsonDoc.setAsTarget(j, doc)
@@ -70,7 +72,7 @@ func initClientNotifs(sess *session, on func(on onNotif, m ...method)) {
 			// With the source open, gopls is already in sync and its
 			// diagnostics are stored; send them once the buffer matches.
 			publishDiag := func() {
-				if !sourceOpened {
+				if !sourceOpened || !doc.TargetIsOpened() {
 					return
 				}
 				if diag := doc.GetDiag(); diag != nil {
@@ -85,7 +87,7 @@ func initClientNotifs(sess *session, on func(on onNotif, m ...method)) {
 				applyEdit,
 				jsonGenerator.newUpdateEdit(doc.TargetFile().URI(), doc.TargetContent(), "synced with the .gox file"),
 				func(r Response) {
-					if r.Err == nil {
+					if r.Err == nil && editApplied(r) {
 						publishDiag()
 					}
 				})
@@ -109,6 +111,10 @@ func initClientNotifs(sess *session, on func(on onNotif, m ...method)) {
 		}
 		if doc.Err() != nil {
 			n.err(common.FromErr(jsonrpc2.ErrUnknown, doc.Err()))
+			return
+		}
+		if kind == workspace.KindSource && !doc.SourceIsOpened() {
+			n.err(errSourceNotOpened)
 			return
 		}
 		switch kind {
@@ -181,8 +187,11 @@ func initClientNotifs(sess *session, on func(on onNotif, m ...method)) {
 				n.err(common.FromErr(jsonrpc2.ErrInternal, err))
 				return
 			}
+			overlay := doc.SourceIsOpened() || doc.TargetIsOpened()
 			if !needUpd {
-				n.forward()
+				if overlay {
+					n.forward()
+				}
 				return
 			}
 			if err := doc.TargetWrite(); err != nil {
@@ -194,7 +203,13 @@ func initClientNotifs(sess *session, on func(on onNotif, m ...method)) {
 			if text.Exists() {
 				j.Set("text", ast.NewString(doc.TargetContent()))
 			}
-			n.notify(j)
+			if overlay {
+				n.notify(j)
+			}
+			return
+		}
+		if !doc.SourceIsOpened() {
+			n.err(errSourceNotOpened)
 			return
 		}
 		err = doc.Save()
@@ -221,15 +236,22 @@ func initClientNotifs(sess *session, on func(on onNotif, m ...method)) {
 		}
 		switch kind {
 		case workspace.KindSource:
-			if !doc.SourceIsOpened() && doc.Err() != nil {
+			if !doc.SourceIsOpened() {
 				return
 			}
-			doc.SourceClose()
-			if doc.TargetIsOpened() {
+			reverted := doc.SourceClose()
+			if !doc.TargetIsOpened() {
+				jsonDoc.setAsTarget(j, doc)
+				n.notify(j)
 				return
 			}
-			jsonDoc.setAsTarget(j, doc)
-			n.notify(j)
+			if reverted {
+				sess.notifGo(didChange, jsonGenerator.newFullChange(doc.TargetFile().URI(), 0, doc.TargetContent()))
+				sess.callClient(
+					applyEdit,
+					jsonGenerator.newUpdateEdit(doc.TargetFile().URI(), doc.TargetContent(), "synced with the .gox file"),
+				)
+			}
 		case workspace.KindTarget:
 			if !doc.TargetIsOpened() && doc.Err() != nil {
 				return
@@ -257,6 +279,15 @@ func initClientNotifs(sess *session, on func(on onNotif, m ...method)) {
 		n.forward()
 	}, didChangeWorkspaceFolders)
 
+}
+
+var errSourceNotOpened = common.NewErr(jsonrpc2.ErrUnknown, "GoX is not tracking this buffer: it was opened outside the workspace folders or could not be loaded. Close and reopen the file.")
+
+func editApplied(r Response) bool {
+	var res struct {
+		Applied bool `json:"applied"`
+	}
+	return json.Unmarshal(r.Result, &res) == nil && res.Applied
 }
 
 func insertGoxImport(sess *session, doc workspace.Doc) {

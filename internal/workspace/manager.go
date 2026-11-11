@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/doors-dev/gox/internal/docpath"
 )
@@ -15,15 +16,22 @@ type Manager = *manager
 
 func NewManager() Manager {
 	return &manager{
-		mu: &sync.Mutex{},
+		mu:   &sync.Mutex{},
+		dirs: make(map[string]*dir),
+		done: make(chan struct{}),
 	}
 
 }
 
 type manager struct {
-	mu         *sync.Mutex
-	workspaces []*workspace
-	onGhost    func(Doc)
+	mu               *sync.Mutex
+	workspaceFolders []string
+	workspaces       []*workspace
+	dirs             map[string]*dir
+	onGhost          func(Doc)
+	done             chan struct{}
+	startOnce        sync.Once
+	stopOnce         sync.Once
 }
 
 func (m *manager) OnGhost(f func(Doc)) {
@@ -45,45 +53,18 @@ func (m *manager) Unlock() {
 }
 
 func (m *manager) EnsureWorkspaces(uris []string) {
-	toRemove := make([]string, 0)
-	paths := make([]string, 0, len(uris))
+	workspaceFolders := make([]string, 0, len(uris))
 	for _, uri := range uris {
 		path, err := workspacePath(uri)
 		if err != nil {
 			slog.Error("Workspace uri parse error: " + err.Error())
 			continue
 		}
-		if slices.Contains(paths, path) {
-			continue
-		}
-		paths = append(paths, path)
-	}
-	paths = pruneNestedPaths(paths)
-	for _, ws := range m.workspaces {
-		i := slices.Index(paths, ws.Root())
-		if i == -1 {
-			toRemove = append(toRemove, ws.Root())
-		} else {
-			paths = slices.Delete(paths, i, i+1)
+		if !slices.Contains(workspaceFolders, path) {
+			workspaceFolders = append(workspaceFolders, path)
 		}
 	}
-	for _, path := range toRemove {
-		for i, ws := range m.workspaces {
-			if ws.Root() != path {
-				continue
-			}
-			ws.Stop()
-			m.workspaces = slices.Delete(m.workspaces, i, i+1)
-			break
-		}
-	}
-	for _, path := range paths {
-		ws := newWs(path, m.mu, m.ghost)
-		m.workspaces = append(m.workspaces, ws)
-	}
-	if len(paths) != 0 || len(toRemove) != 0 {
-		slog.Debug("Workspace roots updated", "added", paths, "removed", toRemove, "roots", m.roots())
-	}
+	m.setWorkspaceFolders(workspaceFolders)
 }
 
 func (m *manager) RemoveWorkspace(uri string) {
@@ -92,15 +73,10 @@ func (m *manager) RemoveWorkspace(uri string) {
 		slog.Error("Workspace uri parse error: " + err.Error())
 		return
 	}
-	for i, ws := range m.workspaces {
-		if ws.Root() != path {
-			continue
-		}
-		ws.Stop()
-		m.workspaces = slices.Delete(m.workspaces, i, i+1)
-		slog.Debug("Workspace root removed", "root", path, "roots", m.roots())
-		return
-	}
+	workspaceFolders := slices.DeleteFunc(slices.Clone(m.workspaceFolders), func(f string) bool {
+		return f == path
+	})
+	m.setWorkspaceFolders(workspaceFolders)
 }
 
 func (m *manager) AddWorkspace(uri string) {
@@ -109,21 +85,78 @@ func (m *manager) AddWorkspace(uri string) {
 		slog.Error("Workspace uri parse error: " + err.Error())
 		return
 	}
-	for _, ws := range m.workspaces {
-		if containsPath(ws.Root(), path) {
-			return
+	if slices.Contains(m.workspaceFolders, path) {
+		return
+	}
+	m.setWorkspaceFolders(append(slices.Clone(m.workspaceFolders), path))
+}
+
+func (m *manager) setWorkspaceFolders(workspaceFolders []string) {
+	m.workspaceFolders = workspaceFolders
+	workspaces := make([]*workspace, 0, len(workspaceFolders))
+	for _, root := range pruneNestedPaths(workspaceFolders) {
+		i := slices.IndexFunc(m.workspaces, func(ws *workspace) bool {
+			return ws.Root() == root
+		})
+		if i == -1 {
+			workspaces = append(workspaces, newWs(root, m.dirs))
+			continue
+		}
+		workspaces = append(workspaces, m.workspaces[i])
+	}
+	m.workspaces = workspaces
+	m.release()
+	if len(m.workspaces) != 0 {
+		m.startOnce.Do(func() {
+			go m.ticker()
+		})
+	}
+	slog.Debug("Workspace roots updated", "workspaceFolders", m.workspaceFolders, "roots", m.roots())
+}
+
+func (m *manager) release() {
+	for path, d := range m.dirs {
+		if m.covering(path) == nil {
+			d.releaseIdle()
+		}
+		if d.IsEmpty() {
+			delete(m.dirs, path)
 		}
 	}
-	m.workspaces = slices.DeleteFunc(m.workspaces, func(ws *workspace) bool {
-		if !containsPath(path, ws.Root()) {
-			return false
+}
+
+func (m *manager) ticker() {
+	for {
+		select {
+		case <-time.After(250 * time.Millisecond):
+		case <-m.done:
+			return
 		}
-		ws.Stop()
-		return true
-	})
-	ws := newWs(path, m.mu, m.ghost)
-	m.workspaces = append(m.workspaces, ws)
-	slog.Debug("Workspace root added", "root", path, "roots", m.roots())
+		m.mu.Lock()
+		select {
+		case <-m.done:
+			m.mu.Unlock()
+			return
+		default:
+		}
+		m.release()
+		for path, d := range m.dirs {
+			d.ProcessFileRemovals(m.ghost)
+			if d.IsEmpty() {
+				delete(m.dirs, path)
+			}
+		}
+		m.mu.Unlock()
+	}
+}
+
+func (m *manager) covering(path string) *workspace {
+	for _, ws := range m.workspaces {
+		if containsPath(ws.Root(), path) {
+			return ws
+		}
+	}
+	return nil
 }
 
 func pruneNestedPaths(paths []string) []string {
@@ -146,10 +179,16 @@ func pruneNestedPaths(paths []string) []string {
 func (m *manager) StopAll() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	for _, ws := range m.workspaces {
-		ws.Stop()
+	m.stopOnce.Do(func() {
+		close(m.done)
+	})
+	for _, d := range m.dirs {
+		for _, doc := range d.docs {
+			doc.Close()
+		}
 	}
-	m.workspaces = nil
+	clear(m.dirs)
+	m.workspaceFolders, m.workspaces = nil, nil
 }
 
 func (m *manager) Doc(uri string) (Doc, FileKind) {
@@ -165,12 +204,13 @@ func (m *manager) doc(uri string, load func(*workspace, File) Doc) (Doc, FileKin
 	if !ok {
 		return nil, KindUnknown
 	}
-	for _, ws := range m.workspaces {
-		root := ws.Root()
-		path := file.Path()
-		if containsPath(root, path) {
-			return load(ws, file), file.Kind()
+	if d, ok := m.dirs[file.Dir()]; ok {
+		if doc, ok := d.docs[file.Name()]; ok && doc.opened() {
+			return doc, file.Kind()
 		}
+	}
+	if ws := m.covering(file.Path()); ws != nil {
+		return load(ws, file), file.Kind()
 	}
 	slog.Debug("Document is outside active workspaces", "uri", uri, "path", file.Path(), "kind", file.Kind(), "roots", m.roots())
 	return nil, file.Kind()

@@ -30,6 +30,8 @@ func TestAddWorkspaceSkipsNestedRoot(t *testing.T) {
 	parent, child, source := nestedRootsTree(t)
 	m := NewManager()
 	defer m.StopAll()
+	m.Lock()
+	defer m.Unlock()
 	m.AddWorkspace(rootURI(parent))
 	m.AddWorkspace(rootURI(child))
 	if roots := m.roots(); len(roots) != 1 || roots[0] != parent {
@@ -41,21 +43,19 @@ func TestAddWorkspaceSkipsNestedRoot(t *testing.T) {
 }
 
 func TestAddWorkspaceRemovesCoveredChildren(t *testing.T) {
-	parent, child, _ := nestedRootsTree(t)
+	parent, child, source := nestedRootsTree(t)
 	m := NewManager()
 	defer m.StopAll()
+	m.Lock()
+	defer m.Unlock()
 	m.AddWorkspace(rootURI(child))
-	covered := append([]*workspace(nil), m.workspaces...)
+	loaded, _ := m.Doc(rootURI(source))
 	m.AddWorkspace(rootURI(parent))
 	if roots := m.roots(); len(roots) != 1 || roots[0] != parent {
 		t.Fatalf("roots = %v, want [%s]", roots, parent)
 	}
-	for _, ws := range covered {
-		select {
-		case <-ws.done:
-		default:
-			t.Fatalf("covered workspace %s was not stopped", ws.Root())
-		}
+	if doc, _ := m.Doc(rootURI(source)); doc != loaded || loaded.parser == nil {
+		t.Fatal("the parent folder loaded the document again instead of keeping it")
 	}
 }
 
@@ -63,6 +63,8 @@ func TestEnsureWorkspacesPrunesNestedRoots(t *testing.T) {
 	parent, child, _ := nestedRootsTree(t)
 	m := NewManager()
 	defer m.StopAll()
+	m.Lock()
+	defer m.Unlock()
 	m.EnsureWorkspaces([]string{rootURI(child), rootURI(parent)})
 	if roots := m.roots(); len(roots) != 1 || roots[0] != parent {
 		t.Fatalf("roots = %v, want [%s]", roots, parent)
@@ -70,20 +72,18 @@ func TestEnsureWorkspacesPrunesNestedRoots(t *testing.T) {
 }
 
 func TestEnsureWorkspacesReplacesChildWithParent(t *testing.T) {
-	parent, child, _ := nestedRootsTree(t)
+	parent, child, source := nestedRootsTree(t)
 	m := NewManager()
 	defer m.StopAll()
+	m.Lock()
+	defer m.Unlock()
 	m.EnsureWorkspaces([]string{rootURI(child)})
-	covered := append([]*workspace(nil), m.workspaces...)
+	loaded, _ := m.Doc(rootURI(source))
 	m.EnsureWorkspaces([]string{rootURI(parent), rootURI(child)})
 	if roots := m.roots(); len(roots) != 1 || roots[0] != parent {
 		t.Fatalf("roots = %v, want [%s]", roots, parent)
 	}
-	for _, ws := range covered {
-		select {
-		case <-ws.done:
-		default:
-			t.Fatalf("covered workspace %s was not stopped", ws.Root())
-		}
+	if doc, _ := m.Doc(rootURI(source)); doc != loaded || loaded.parser == nil {
+		t.Fatal("the parent folder loaded the document again instead of keeping it")
 	}
 }

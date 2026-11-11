@@ -25,13 +25,45 @@ type docModelBridge struct {
 	mu            sync.Mutex
 	notifications []recordedNotify
 	calls         []recordedCall
+	hold          bool
+	held          []func()
+	// result answers the calls; nil answers {"applied":true}.
+	result json.RawMessage
 }
 
 func (b *docModelBridge) Call(role Role, call Request, callback Callback) {
 	b.mu.Lock()
+	defer b.mu.Unlock()
 	b.calls = append(b.calls, recordedCall{role: role, req: call})
+	result := b.result
+	if result == nil {
+		result = json.RawMessage(`{"applied":true}`)
+	}
+	respond := func() {
+		callback(Response{Result: result})
+	}
+	if b.hold {
+		b.held = append(b.held, respond)
+		return
+	}
+	go respond()
+}
+
+// release answers the held calls, in order, and stops holding new ones.
+func (b *docModelBridge) release() {
+	b.mu.Lock()
+	held := b.held
+	b.hold, b.held = false, nil
 	b.mu.Unlock()
-	go callback(Response{Result: json.RawMessage(`{"applied":true}`)})
+	for _, respond := range held {
+		respond()
+	}
+}
+
+func (b *docModelBridge) callSnapshot() []recordedCall {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return append([]recordedCall(nil), b.calls...)
 }
 
 func (b *docModelBridge) Notify(role Role, notification Request) error {

@@ -279,6 +279,9 @@ func (r jsonChangesDriver) convertEdit(man workspace.Manager, enc common.Encodin
 			} else {
 				err = jsonPos.convertAllToSource(enc, doc, edits, workspace.Strict)
 				jsonDoc.setAsSource(&node, doc)
+				if !doc.SourceIsOpened() {
+					textDoc.Set("version", ast.NewNull())
+				}
 			}
 			if err != nil {
 				return

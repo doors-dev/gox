@@ -141,6 +141,8 @@ func TestManagerWorkspaceLifecycleAndFileValidation(t *testing.T) {
 	}
 
 	manager := NewManager()
+	manager.Lock()
+	defer manager.Unlock()
 	manager.EnsureWorkspaces([]string{
 		string(docpath.URIFromPath(dirA)),
 		string(docpath.URIFromPath(dirB)),
@@ -152,6 +154,8 @@ func TestManagerWorkspaceLifecycleAndFileValidation(t *testing.T) {
 	}
 
 	slashedManager := NewManager()
+	slashedManager.Lock()
+	defer slashedManager.Unlock()
 	slashedManager.EnsureWorkspaces([]string{string(docpath.URIFromPath(dirA)) + "/"})
 	if doc, kind := slashedManager.Doc(string(docpath.URIFromPath(pathA))); doc == nil || kind != KindSource {
 		t.Fatalf("Doc(pathA) with trailing slash workspace = (%v, %v), want source doc", doc, kind)
@@ -166,12 +170,9 @@ func TestManagerWorkspaceLifecycleAndFileValidation(t *testing.T) {
 	}
 	slashedManager.RemoveWorkspace(string(docpath.URIFromPath(dirA)))
 
-	removedWorkspace := manager.workspaces[0]
 	manager.RemoveWorkspace(string(docpath.URIFromPath(dirA)))
-	select {
-	case <-removedWorkspace.done:
-	case <-time.After(time.Second):
-		t.Fatal("removed workspace scanner did not stop")
+	if docA.parser != nil {
+		t.Fatal("document of a removed workspace was not closed")
 	}
 	if doc, kind := manager.Doc(string(docpath.URIFromPath(pathA))); doc != nil || kind != KindSource {
 		t.Fatalf("Doc(pathA) after remove = (%v, %v), want nil source kind", doc, kind)
@@ -179,7 +180,9 @@ func TestManagerWorkspaceLifecycleAndFileValidation(t *testing.T) {
 	if err := os.Remove(docA.TargetFile().Path()); err != nil && !errors.Is(err, os.ErrNotExist) {
 		t.Fatal(err)
 	}
+	manager.Unlock()
 	time.Sleep(600 * time.Millisecond)
+	manager.Lock()
 	if _, err := os.Stat(docA.TargetFile().Path()); err == nil {
 		t.Fatalf("removed workspace regenerated target %s", docA.TargetFile().Path())
 	} else if !errors.Is(err, os.ErrNotExist) {
@@ -283,7 +286,7 @@ func posAfterMarker(t *testing.T, path string, marker string) common.Pos {
 	return common.NewPos(line, col)
 }
 
-func TestManagerStopAllStopsWorkspaces(t *testing.T) {
+func TestManagerStopAll(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "view.gox")
 	if err := os.WriteFile(path, []byte(sampleSrc), 0o644); err != nil {
@@ -291,24 +294,26 @@ func TestManagerStopAllStopsWorkspaces(t *testing.T) {
 	}
 
 	manager := NewManager()
+	manager.Lock()
 	manager.EnsureWorkspaces([]string{string(docpath.URIFromPath(dir))})
 	doc, kind := manager.Doc(string(docpath.URIFromPath(path)))
+	manager.Unlock()
 	if kind != KindSource || doc == nil {
 		t.Fatalf("Doc(path) = (%v, %v), want source doc", doc, kind)
 	}
-	stopped := manager.workspaces[0]
-
 	manager.StopAll()
 	select {
-	case <-stopped.done:
+	case <-manager.done:
 	case <-time.After(time.Second):
-		t.Fatal("stopped workspace scanner did not stop")
+		t.Fatal("StopAll did not stop the ticker")
+	}
+	if doc.parser != nil {
+		t.Fatal("StopAll did not close the documents")
 	}
 	if roots := manager.RootsLocked(); len(roots) != 0 {
 		t.Fatalf("roots after StopAll = %v, want empty", roots)
 	}
 
-	stopped.Stop()
 	manager.StopAll()
 
 	if err := os.Remove(doc.TargetFile().Path()); err != nil && !errors.Is(err, os.ErrNotExist) {
