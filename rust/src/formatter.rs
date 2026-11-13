@@ -312,7 +312,7 @@ impl<'a> PostProcessor<'a> {
             self.externals.remove(&ext_index);
         }
         ext.write_out(&mut self.output, indent.clone(), &self.indent);
-        let rest = &line[ext.end_pos.column..];
+        let rest = line.get(ext.end_pos.column..).unwrap_or("");
         self.state = ProcessorState::Look;
         self.examine(line_index, line, rest, indent);
     }
@@ -510,6 +510,8 @@ fn format_css(
     indent: Indent,
     indent_str: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let normalized = code.replace("\r\n", "\n");
+    let code = normalized.as_str();
     let source_type = biome_css_syntax::CssFileSource::css();
     let parsed = biome_css_parser::parse_css(code, biome_css_parser::CssParserOptions::default());
     let root = parsed.syntax();
@@ -543,6 +545,7 @@ fn format_keep(
     _indent: Indent,
     _indent_str: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let code = code.strip_suffix('\r').unwrap_or(code);
     for line in code.split_inclusive('\n') {
         match line.strip_suffix("\r\n") {
             Some(rest) if !rest.ends_with('\r') => write!(out, "{}\n", rest).unwrap(),

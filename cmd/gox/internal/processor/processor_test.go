@@ -1498,6 +1498,18 @@ func TestFormatKeepsCRBeforeCRLF(t *testing.T) {
 	)
 }
 
+func TestFormatCRLFTildeLineComment(t *testing.T) {
+	src := "package demo\n\nelem A(ok bool) {\n\t<div>\n\t\t~\n\t\t// c\n\t\t<p>y</p>\n\t</div>\n}\n"
+	checkFormat(t, src, src)
+	checkFormat(t, strings.ReplaceAll(src, "\n", "\r\n"), src)
+}
+
+func TestFormatCRLFStyleStringContinuation(t *testing.T) {
+	src := "package demo\n\nelem A() {\n\t<style>\n\t\tp::before {\n\t\t\tcontent: \"a\\\n  b\";\n\t\t}\n\t</style>\n}\n"
+	checkFormat(t, src, src)
+	checkFormat(t, strings.ReplaceAll(src, "\n", "\r\n"), src)
+}
+
 var rawTextSources = []struct {
 	name string
 	src  string
@@ -1593,6 +1605,11 @@ func TestFormatKeepsTemplateLiteralContent(t *testing.T) {
 			name: "style string continuation",
 			in:   "package demo\n\nelem A() {\n\t<style>\n\t\t.a::before { content: \"a\\\n  b\"; }\n\t</style>\n}\n",
 			want: "package demo\n\nelem A() {\n\t<style>\n\t\t.a::before {\n\t\t\tcontent: \"a\\\n  b\";\n\t\t}\n\t</style>\n}\n",
+		},
+		{
+			name: "crlf style string continuation",
+			in:   "package demo\r\n\r\nelem A() {\r\n\t<style>\r\n\t\tp::before { content: \"a\\\r\n  b\"; }\r\n\t</style>\r\n}\r\n",
+			want: "package demo\n\nelem A() {\n\t<style>\n\t\tp::before {\n\t\t\tcontent: \"a\\\n  b\";\n\t\t}\n\t</style>\n}\n",
 		},
 		{
 			name: "script string continuation",

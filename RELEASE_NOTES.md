@@ -34,6 +34,7 @@
 - Formatter: spacing around `~//` and `~/* */` comments in markup is kept as written. `two~/* c */three` used to get spaces, changing the rendered text.
 - Formatter: multi-line comments in markup got spaces added to their other lines. A `~/* */` after another node gained a space on every run, and a re-indented `<!-- -->` changed the emitted comment text.
 - Formatter: in files with CRLF line endings, multi-line raw strings and `<:>` blocks kept their CRLF line breaks, so the formatted file mixed line endings. Their line breaks are now LF like the rest of the file.
+- Formatter: some CRLF files made `gox fmt` crash, for example a bare `~` followed by a `//` comment on a later line.
 - Formatter: the parentheses of `~( )` around a literal were removed even when a comment was inside, which changed the rendered page: `~(/* note */ "Hi")` rendered `"Hi"` with its quotes, and `~("Hi" /* c */)` rendered the comment.
 - gen and LSP: a `.gox` without a package clause (empty or comment-only, for example) produced a `.x.go` without one, and gen reported success. It is now a syntax error.
 - gen and LSP: a `.x.go` with CRLF line endings (from a Git checkout with `core.autocrlf`, for example) skipped the newer-version check, so `gox gen` overwrote a file written by a newer GoX with older code.
