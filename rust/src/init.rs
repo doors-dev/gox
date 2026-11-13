@@ -51,7 +51,6 @@ const CURE_QUERY: &str = r#"
 pub struct PostNodes<'a> {
     pub scripts: Vec<Node<'a>>,
     pub styles: Vec<Node<'a>>,
-    pub shift: Vec<Node<'a>>,
     pub keep: Vec<Node<'a>>,
     pub align: Vec<Node<'a>>,
     pub antiline: Vec<Node<'a>>,
@@ -62,9 +61,7 @@ const POST_PROCESS_QUERY: &str = r#"
 
 (gox_style_head) @style
 
-(comment) @shift
-
-[(raw_string_literal) (gox_raw_head) (gox_comment) (gox_tilde_comment)] @keep
+[(comment) (raw_string_literal) (gox_raw_head) (gox_comment) (gox_tilde_comment)] @keep
 
 [(gox_plain_text)] @align
 
@@ -119,7 +116,6 @@ impl Queries {
         let mut nodes = PostNodes {
             scripts: Vec::new(),
             styles: Vec::new(),
-            shift: Vec::new(),
             keep: Vec::new(),
             align: Vec::new(),
             antiline: Vec::new(),
@@ -133,11 +129,6 @@ impl Queries {
                 match name {
                     "script" => nodes.scripts.push(node),
                     "style" => nodes.styles.push(node),
-                    "shift" => {
-                        if node.start_position().row != node.end_position().row {
-                            nodes.shift.push(node)
-                        }
-                    }
                     "keep" => {
                         if node.start_position().row != node.end_position().row {
                             nodes.keep.push(node)

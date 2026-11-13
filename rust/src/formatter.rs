@@ -46,7 +46,6 @@ pub fn format(input: &[u8], output: &mut Vec<u8>) -> Result<(), topiary_core::Fo
     proc.add_externals(post_nodes.scripts, format_js, true);
     proc.add_externals(post_nodes.styles, format_css, true);
     proc.add_externals(post_nodes.keep, format_keep, false);
-    proc.add_externals(post_nodes.shift, format_shift, false);
     proc.add_externals(post_nodes.align, format_align, false);
     proc.add_externals(post_nodes.antiline, format_antiline, false);
     proc.write_out();
@@ -549,38 +548,6 @@ fn format_keep(
             Some(rest) if !rest.ends_with('\r') => write!(out, "{}\n", rest).unwrap(),
             _ => write!(out, "{}", line).unwrap(),
         }
-    }
-    Ok(())
-}
-
-fn format_shift(
-    out: &mut Vec<u8>,
-    code: &str,
-    indent: Indent,
-    indent_str: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
-    if code.len() == 0 {
-        return Ok(());
-    }
-    for line in code.lines() {
-        if let Some((actual, rest)) = calc_indent(indent_str, line) {
-            let output = if actual < indent.actual {
-                if indent.output >= (indent.actual - actual) {
-                    indent.output - (indent.actual - actual)
-                } else {
-                    0
-                }
-            } else {
-                indent.output + (actual - indent.actual)
-            };
-            let indent = Indent { actual, output };
-            write!(out, "{}{}\n", indent.indent(indent_str), rest).unwrap();
-            continue;
-        }
-        write!(out, "{}\n", indent.indent(indent_str)).unwrap();
-    }
-    if !code.ends_with('\n') {
-        out.pop();
     }
     Ok(())
 }

@@ -281,8 +281,6 @@
 ((comment) @append_hardline
   (#match? @append_hardline "^//"))
 
-((comment) @multi_line_indent_all
-  (#match? @multi_line_indent_all "^/\\*"))
 
 
 
@@ -483,7 +481,8 @@ _
 [
  (gox_comment)
  (gox_tilde_comment)
- ] @leaf
+ (gox_raw_text)
+ ] @leaf @keep_whitespace
 
 
 

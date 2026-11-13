@@ -1498,6 +1498,41 @@ func TestFormatKeepsCRBeforeCRLF(t *testing.T) {
 	)
 }
 
+var rawTextSources = []struct {
+	name string
+	src  string
+	want string
+}{
+	{
+		name: "trailing newline",
+		src:  "package demo\n\nelem A() {\n\t<:>\na\n b\n</:>\n}\n",
+		want: "package demo\n\nelem A() {\n\t<:>\na\n b\n</:>\n}\n",
+	},
+	{
+		name: "only newlines",
+		src:  "package demo\n\nelem A() {\n\t<div>\n\t\t<:>\n</:>\n\t\t<:>\n\n</:>\n\t</div>\n}\n",
+		want: "package demo\n\nelem A() {\n\t<div>\n\t\t<:>\n</:>\n\t\t<:>\n\n</:>\n\t</div>\n}\n",
+	},
+	{
+		name: "inline",
+		src:  "package demo\n\nelem A() {\n\t<div>~(<:>a\n</:>)</div>\n}\n",
+		want: "package demo\n\nelem A() {\n\t<div>\n\t\t~(<:>a\n</:>)\n\t</div>\n}\n",
+	},
+	{
+		name: "crlf",
+		src:  "package demo\r\n\r\nelem A() {\r\n\t<:>a\r\n b\r\n</:>\r\n}\r\n",
+		want: "package demo\n\nelem A() {\n\t<:>a\n b\n</:>\n}\n",
+	},
+}
+
+func TestFormatKeepsRawText(t *testing.T) {
+	for _, tc := range rawTextSources {
+		t.Run(tc.name, func(t *testing.T) {
+			checkFormat(t, tc.src, tc.want)
+		})
+	}
+}
+
 func TestFormatKeepsTemplateLiteralContent(t *testing.T) {
 	cases := []struct {
 		name string
@@ -1657,6 +1692,21 @@ var blockCommentSources = []struct {
 		name: "invalid css",
 		src:  "package demo\n\nelem A() {\n\t<style>\n\t\t.a { color: red;; }}\n\t\t/* a\n   b */\n\t</style>\n}\n",
 		want: "package demo\n\nelem A() {\n\t<style>\n\t\t.a { color: red;; }}\n\t\t/* a\n   b */\n\t</style>\n}\n",
+	},
+	{
+		name: "go in a tilde block",
+		src:  "package demo\n\nelem A() {\n\t<p>\n\t\t~({\n\t\t\t/* a\n\t\t\t   b */\n\t\t\tx := 1\n\t\t\t_ = x\n\t\t})\n\t</p>\n}\n",
+		want: "package demo\n\nelem A() {\n\t<p>\n\t\t~({\n\t\t\t/* a\n\t\t\t   b */\n\t\t\tx := 1\n\t\t\t_ = x\n\t\t})\n\t</p>\n}\n",
+	},
+	{
+		name: "go in a closure argument",
+		src:  "package demo\n\nfunc F() {\n\tg(func() {\n\t\t/* a\n\n\t\t   b */\n\t})\n}\n",
+		want: "package demo\n\nfunc F() {\n\tg(func() {\n\t\t/* a\n\n\t\t   b */\n\t})\n}\n",
+	},
+	{
+		name: "go before a tilde value",
+		src:  "package demo\n\nelem A() {\n\t<p>~(/* a\n b */ \"Hi\")</p>\n}\n",
+		want: "package demo\n\nelem A() {\n\t<p>\n\t\t~( /* a\n b */ \"Hi\")\n\t</p>\n}\n",
 	},
 }
 
