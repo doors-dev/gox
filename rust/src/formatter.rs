@@ -6,6 +6,8 @@ use super::init;
 use tree_sitter::Node;
 
 pub fn format(input: &[u8], output: &mut Vec<u8>) -> Result<(), topiary_core::FormatterError> {
+    let terminated = input.last().is_some_and(|b| *b != b'\n').then(|| [input, b"\n"].concat());
+    let input = terminated.as_deref().unwrap_or(input);
     let mut parser = init::new_parser();
     let tree = parser.parse(input, None)?;
     if tree.is_none() {
@@ -13,6 +15,9 @@ pub fn format(input: &[u8], output: &mut Vec<u8>) -> Result<(), topiary_core::Fo
     }
     let tree = tree.unwrap();
     let root = tree.root_node();
+    if root.has_error() {
+        return Err(topiary_core::FormatterError::Internal("input has syntax errors".to_string(), None));
+    }
     let cured = cure(input, &root);
     let input = std::str::from_utf8(cured.as_deref().unwrap_or(input)).map_err(|e| {
         topiary_core::FormatterError::Internal("input is not valid UTF-8".to_string(), Some(Box::new(e)))
@@ -63,101 +68,14 @@ struct CureNode<'a> {
     remove: bool,
 }
 
-impl<'a> CureNode<'a> {
-    fn cure(&self, input: &[u8], buf: &mut Vec<u8>, mut end: usize, queue: &[Self]) -> usize {
-        let mut i = 0;
-        while i < queue.len() {
-            let n = queue.get(i).unwrap();
-            if n.node.start_byte() >= self.node.end_byte() {
-                break;
-            }
-            i += 1;
-        }
-        let chunk = &input[end..self.node.start_byte()];
-        let next = queue.get(i);
-        if self.remove {
-            buf.extend_from_slice(chunk);
-            end = self.node.end_byte();
-            if let Some(cure) = next {
-                return cure.cure(input, buf, end, &queue[i + 1..]);
-            }
-            return end;
-        }
-        if self.node.grammar_name() == "gox_implicit_close_head" {
-            let name: Option<String> = (|| {
-                let head = self.node.parent()?;
-                let open = head.child_by_field_name("open")?;
-                let name_node = open.child_by_field_name("name")?;
-                name_node.utf8_text(input).ok().map(|s| s.to_owned())
-            })();
-            if name.is_none() {
-                if let Some(cure) = next {
-                    return cure.cure(input, buf, end, &queue[i + 1..]);
-                }
-                return end;
-            }
-            buf.extend_from_slice(chunk);
-            buf.extend_from_slice("</".as_bytes());
-            buf.extend_from_slice(name.unwrap().as_bytes());
-            buf.extend_from_slice(">".as_bytes());
-            end = self.node.end_byte();
-            if let Some(cure) = next {
-                return cure.cure(input, buf, end, &queue[i + 1..]);
-            }
-            return end;
-        }
-        if self.node.grammar_name() == "gox_func" {
-            buf.extend_from_slice(chunk);
-            buf.extend_from_slice("(".as_bytes());
-            if let Some(body) = self.node.child_by_field_name("body") {
-                if i > 0 {
-                    let start = queue.get(0).unwrap();
-                    let end = start.cure(input, buf, body.start_byte(), &queue[1..i]);
-                    buf.extend_from_slice(&input[end..body.end_byte()]);
-                } else {
-                    buf.extend_from_slice(&input[body.start_byte()..body.end_byte()]);
-                }
-            } else {
-                buf.extend_from_slice("{}".as_bytes());
-            }
-            buf.extend_from_slice(")".as_bytes());
-            end = self.node.end_byte();
-            if let Some(cure) = next {
-                return cure.cure(input, buf, end, &queue[i + 1..]);
-            }
-            return end;
-        }
-        if self.node.grammar_name() == "gox_tilde_block" {
-            buf.extend_from_slice(chunk);
-            buf.extend_from_slice("~~\n".as_bytes());
-            if let Some(body) = self.node.child_by_field_name("body") {
-                if i > 0 {
-                    let start = queue.get(0).unwrap();
-                    let end = start.cure(input, buf, body.start_byte(), &queue[1..i]);
-                    buf.extend_from_slice(&input[end..body.end_byte()]);
-                } else {
-                    buf.extend_from_slice(&input[body.start_byte()..body.end_byte()]);
-                }
-            }
-            buf.extend_from_slice("\n~~".as_bytes());
-            end = self.node.end_byte();
-            if let Some(cure) = next {
-                return cure.cure(input, buf, end, &queue[i + 1..]);
-            }
-            return end;
-        }
-        panic!("Unknown node")
-    }
-}
-
 fn cure(input: &[u8], root: &topiary_tree_sitter_facade::Node) -> Option<Vec<u8>> {
     let cure_nodes = init::queries().cure(root, input);
-    let total = cure_nodes.transform.len() + cure_nodes.remove.len();
+    let total = cure_nodes.implicit_close.len() + cure_nodes.remove.len();
     if total == 0 {
         return None;
     }
     let mut to_cure = Vec::with_capacity(total);
-    for node in cure_nodes.transform.into_iter() {
+    for node in cure_nodes.implicit_close.into_iter() {
         to_cure.push(CureNode {
             node,
             remove: false,
@@ -168,7 +86,33 @@ fn cure(input: &[u8], root: &topiary_tree_sitter_facade::Node) -> Option<Vec<u8>
     }
     to_cure.sort_by_key(|cure| cure.node.start_byte());
     let mut buf = Vec::new();
-    let end = to_cure[0].cure(input, &mut buf, 0, &to_cure[1..]);
+    let mut end = 0;
+    for cure in to_cure.into_iter() {
+        let node = cure.node;
+        let chunk = &input[end..node.start_byte()];
+        if cure.remove {
+            buf.extend_from_slice(chunk);
+            end = node.end_byte();
+            continue;
+        }
+        let name: Option<String> = (|| {
+            let head = node.parent()?;
+            if head.kind() == "gox_container_head" {
+                return Some(String::new());
+            }
+            let open = head.child_by_field_name("open")?;
+            let name_node = open.child_by_field_name("name")?;
+            name_node.utf8_text(input).ok().map(|s| s.to_owned())
+        })();
+        if name.is_none() {
+            continue;
+        }
+        buf.extend_from_slice(chunk);
+        buf.extend_from_slice("</".as_bytes());
+        buf.extend_from_slice(name.unwrap().as_bytes());
+        buf.extend_from_slice(">".as_bytes());
+        end = node.end_byte();
+    }
     buf.extend_from_slice(&input[end..]);
     Some(buf)
 }
@@ -248,9 +192,6 @@ impl Indent {
             actual: self.actual,
             output: self.output + 1,
         }
-    }
-    fn write_out(&self, output: &mut Vec<u8>, indent: &str, rest: &str) {
-        write!(output, "{}{}\n", self.indent(indent), rest).unwrap();
     }
     fn indent(&self, indent: &str) -> String {
         indent.repeat(self.output)
@@ -378,10 +319,7 @@ impl<'a> PostProcessor<'a> {
     }
 
     fn write_empty_line(&mut self) {
-        self.indents
-            .last()
-            .unwrap()
-            .write_out(&mut self.output, &self.indent, "");
+        write!(&mut self.output, "\n").unwrap();
     }
 
     fn process_indent<'b>(&mut self, line: &'b str) -> Option<(Indent, &'b str)> {
@@ -431,20 +369,36 @@ fn dump(content: &[u8]) -> io::Result<()> {
     Ok(())
 } */
 
-fn write_inline_body(out: &mut Vec<u8>, code: &str, indent: &Indent, indent_str: &str) {
+fn write_inline_body(
+    out: &mut Vec<u8>,
+    code: &str,
+    literals: &[std::ops::Range<usize>],
+    indent: &Indent,
+    indent_str: &str,
+) {
     write!(out, "\n").unwrap();
     let advanced = indent.advance();
     for line in code.lines() {
+        if in_literal(code, line, literals) {
+            write!(out, "{}\n", line).unwrap();
+            continue;
+        }
         write!(out, "{}{}\n", advanced.indent(indent_str), line).unwrap();
     }
     write!(out, "{}", indent.indent(indent_str)).unwrap();
 }
 
-fn write_inline_errored_body(out: &mut Vec<u8>, code: &str, indent: &Indent, indent_str: &str) {
+fn write_inline_errored_body(
+    out: &mut Vec<u8>,
+    code: &str,
+    literals: &[std::ops::Range<usize>],
+    indent: &Indent,
+    indent_str: &str,
+) {
     let min_indent = code
         .lines()
         .skip(1)
-        .filter(|l| !l.trim().is_empty())
+        .filter(|l| !l.trim().is_empty() && !in_literal(code, l, literals))
         .map(|l| l.len() - l.trim_start().len())
         .min()
         .unwrap_or(0);
@@ -452,6 +406,10 @@ fn write_inline_errored_body(out: &mut Vec<u8>, code: &str, indent: &Indent, ind
     let advanced = indent.advance();
     let mut first = true;
     for line in code.lines() {
+        if in_literal(code, line, literals) {
+            write!(out, "{}\n", line).unwrap();
+            continue;
+        }
         let trimmed = if !first && line.len() >= min_indent {
             line.get(min_indent..).unwrap_or(line)
         } else {
@@ -461,6 +419,35 @@ fn write_inline_errored_body(out: &mut Vec<u8>, code: &str, indent: &Indent, ind
         write!(out, "{}{}\n", advanced.indent(indent_str), trimmed).unwrap();
     }
     write!(out, "{}", indent.indent(indent_str)).unwrap();
+}
+
+fn in_literal(code: &str, line: &str, literals: &[std::ops::Range<usize>]) -> bool {
+    let offset = line.as_ptr() as usize - code.as_ptr() as usize;
+    literals.iter().any(|r| r.start < offset && offset <= r.end)
+}
+
+fn literal_ranges<L: biome_rowan::Language>(
+    root: &biome_rowan::SyntaxNode<L>,
+    kinds: &[L::Kind],
+    aligned: fn(&biome_rowan::SyntaxTriviaPieceComments<L>) -> bool,
+) -> Vec<std::ops::Range<usize>> {
+    root.descendants_tokens(biome_rowan::Direction::Next)
+        .flat_map(|token| {
+            let comments = token
+                .leading_trivia()
+                .pieces()
+                .chain(token.trailing_trivia().pieces())
+                .filter_map(|piece| piece.as_comments())
+                .filter(move |comment| comment.has_newline() && !aligned(comment))
+                .map(|comment| comment.text_range());
+            kinds
+                .contains(&token.kind())
+                .then(|| token.text_trimmed_range())
+                .into_iter()
+                .chain(comments)
+        })
+        .map(|range| range.start().into()..range.end().into())
+        .collect()
 }
 
 fn format_js(
@@ -484,7 +471,15 @@ fn format_js(
         );
     }
     if parsed.has_errors() {
-        write_inline_errored_body(out, code, &indent, indent_str);
+        let literals = literal_ranges(
+            &parsed.syntax(),
+            &[
+                biome_js_syntax::JsSyntaxKind::TEMPLATE_CHUNK,
+                biome_js_syntax::JsSyntaxKind::JS_STRING_LITERAL,
+            ],
+            biome_formatter::comments::is_alignable_comment,
+        );
+        write_inline_errored_body(out, code, &literals, &indent, indent_str);
         return Ok(());
     }
     let root = parsed.syntax();
@@ -492,8 +487,21 @@ fn format_js(
     options.set_semicolons(biome_js_formatter::context::Semicolons::AsNeeded);
     options.set_indent_style(biome_formatter::IndentStyle::Tab);
     let formatted = biome_js_formatter::format_node(options, &root)?;
-    let printed = formatted.print()?;
-    write_inline_body(out, &printed.into_code(), &indent, indent_str);
+    let code = formatted.print()?.into_code();
+    let reparsed = biome_js_parser::parse(
+        &code,
+        source_type,
+        biome_js_parser::JsParserOptions::default(),
+    );
+    let literals = literal_ranges(
+        &reparsed.syntax(),
+        &[
+            biome_js_syntax::JsSyntaxKind::TEMPLATE_CHUNK,
+            biome_js_syntax::JsSyntaxKind::JS_STRING_LITERAL,
+        ],
+        biome_formatter::comments::is_alignable_comment,
+    );
+    write_inline_body(out, &code, &literals, &indent, indent_str);
     Ok(())
 }
 
@@ -507,14 +515,26 @@ fn format_css(
     let parsed = biome_css_parser::parse_css(code, biome_css_parser::CssParserOptions::default());
     let root = parsed.syntax();
     if parsed.has_errors() {
-        write_inline_errored_body(out, code, &indent, indent_str);
+        let literals = literal_ranges(
+            &root,
+            &[biome_css_syntax::CssSyntaxKind::CSS_STRING_LITERAL],
+            biome_formatter::comments::is_doc_comment,
+        );
+        write_inline_errored_body(out, code, &literals, &indent, indent_str);
         return Ok(());
     }
     let mut options = biome_css_formatter::context::CssFormatOptions::new(source_type);
     options.set_indent_style(biome_formatter::IndentStyle::Tab);
     let formatted = biome_css_formatter::format_node(options, &root)?;
-    let printed = formatted.print()?;
-    write_inline_body(out, &printed.into_code(), &indent, indent_str);
+    let code = formatted.print()?.into_code();
+    let reparsed =
+        biome_css_parser::parse_css(&code, biome_css_parser::CssParserOptions::default());
+    let literals = literal_ranges(
+        &reparsed.syntax(),
+        &[biome_css_syntax::CssSyntaxKind::CSS_STRING_LITERAL],
+        biome_formatter::comments::is_doc_comment,
+    );
+    write_inline_body(out, &code, &literals, &indent, indent_str);
     Ok(())
 }
 
@@ -524,7 +544,12 @@ fn format_keep(
     _indent: Indent,
     _indent_str: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    write!(out, "{}", code).unwrap();
+    for line in code.split_inclusive('\n') {
+        match line.strip_suffix("\r\n") {
+            Some(rest) if !rest.ends_with('\r') => write!(out, "{}\n", rest).unwrap(),
+            _ => write!(out, "{}", line).unwrap(),
+        }
+    }
     Ok(())
 }
 

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/bytedance/sonic/ast"
 	"github.com/doors-dev/gox/internal/common"
+	"github.com/doors-dev/gox/internal/docpath"
 	"strings"
 )
 
@@ -58,10 +59,19 @@ func (r jsonInitDriver) getWorkspaceDirsFromArray(j Json) ([]string, error) {
 
 func (r jsonInitDriver) getWorkspaceDirs(j Json) ([]string, error) {
 	folders := j.Get("workspaceFolders")
-	if !folders.Exists() {
-		return nil, errors.New("The initialize request is missing workspace folders.")
+	if folders.Exists() && folders.TypeSafe() != ast.V_NULL {
+		uris, err := r.getWorkspaceDirsFromArray(folders)
+		if err != nil || len(uris) != 0 {
+			return uris, err
+		}
 	}
-	return r.getWorkspaceDirsFromArray(folders)
+	if uri, err := j.Get("rootUri").String(); err == nil && uri != "" {
+		return []string{uri}, nil
+	}
+	if path, err := j.Get("rootPath").String(); err == nil && path != "" {
+		return []string{string(docpath.URIFromPath(path))}, nil
+	}
+	return nil, errors.New("The initialize request is missing workspace folders.")
 }
 
 func (r jsonInitDriver) readEncoding(j Json) (common.Encoding, error) {

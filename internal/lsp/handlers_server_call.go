@@ -1,6 +1,8 @@
 package lsp
 
 import (
+	"errors"
+
 	"github.com/doors-dev/gox/internal/common"
 	jsonrpc2 "github.com/doors-dev/gox/internal/jsonrpc"
 )
@@ -13,6 +15,10 @@ func initServerCalls(sess *session, on func(on onCall, m ...method)) {
 			return
 		}
 		err := jsonChanges.convertEdit(sess.man(), sess.enc(), edit)
+		if errors.Is(err, errChangedOnDisk) {
+			c.res(jsonGenerator.newEditNotApplied(err.Error()))
+			return
+		}
 		if err != nil {
 			c.err(common.NewErr(jsonrpc2.ErrInternal, "Could not convert the workspace edit."))
 			return

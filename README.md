@@ -75,7 +75,7 @@ GoX sits in front of `gopls`. It parses `.gox`, generates `.x.go`, keeps source 
 go get github.com/doors-dev/gox
 ```
 
-Keep the installed `gox` tool and the Go module version reasonably in sync. Generated `.x.go` files carry a GoX version marker, and newer generated files require a tooling upgrade.
+Keep the installed `gox` tool and the Go module version reasonably in sync. Generated `.x.go` files carry a GoX version marker: a file from a newer GoX major or minor version requires a tooling upgrade, and files from another patch release are regenerated.
 
 ## How to Render an `Elem`
 

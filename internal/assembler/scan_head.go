@@ -64,8 +64,6 @@ func scanContent(coll collector, root *tree_sitter.Node) {
 			scanRaw(coll, &child)
 		case grammer.GOX_TILDE:
 			scanTilde(coll, &child)
-		case grammer.GOX_TILDE_BLOCK:
-			scanTildeBlock(coll, &child)
 		case grammer.GOX_TILDE_SNIPPET:
 			scanTildeSnippet(coll, &child)
 		}
@@ -90,7 +88,7 @@ func scanContent(coll collector, root *tree_sitter.Node) {
 func renderProxyBeg(coll collector, proxy *tree_sitter.Node) {
 	coll.cr()
 	coll.append(r("__e = ("))
-	scanValue(coll, proxy)
+	scanGoSnippet(coll, proxy)
 	coll.append(r(").Proxy(__c, gox.Elem(func(__c gox.Cursor) (__e error) {"))
 	coll.indentBeg()
 	coll.cr()
@@ -189,7 +187,7 @@ func scanAttributes(coll collector, root *tree_sitter.Node) {
 			coll.cr()
 			coll.append(r("__e = __c.Set("), s(name), r(", "))
 			if value != nil {
-				scanValue(coll, value)
+				scanGoSnippet(coll, value)
 			} else {
 				coll.append(r("true"))
 			}

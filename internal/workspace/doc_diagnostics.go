@@ -15,6 +15,8 @@ const variadicProxyMessage = "Variadic arguments are not supported in proxy posi
 
 const spaceHintMessage = "This space will be preserved in the output."
 
+const strayCloseMessage = "`</%s>` does not match an open element and is ignored."
+
 type SyntaxError struct {
 	Range   common.Range
 	Message string
@@ -76,6 +78,47 @@ func (d Doc) SpaceHints(enc common.Encoding) []SyntaxError {
 		})
 	}
 	return out
+}
+
+func (d Doc) StrayCloseTags(enc common.Encoding) []SyntaxError {
+	if d == nil || d.tree == nil {
+		return nil
+	}
+	tags := collectStrayCloseTags(d.source.Source(), d.tree.RootNode())
+	for i := range tags {
+		tags[i].Range = d.source.FromRange(enc, tags[i].Range)
+	}
+	return tags
+}
+
+func collectStrayCloseTags(source []byte, root *tree_sitter.Node) []SyntaxError {
+	if root == nil {
+		return nil
+	}
+	cursor := root.Walk()
+	defer cursor.Close()
+	var out []SyntaxError
+	for {
+		node := cursor.Node()
+		if node.Kind() == grammer.GOX_ERRONEOUS_CLOSE_HEAD {
+			name := ""
+			if n := firstNamedChildOfKind(node, grammer.GOX_ERRONEOUS_CLOSE_HEAD_NAME); n != nil {
+				name = n.Utf8Text(source)
+			}
+			out = append(out, SyntaxError{
+				Range:   firstLineRange(source, node),
+				Message: fmt.Sprintf(strayCloseMessage, name),
+			})
+		}
+		if cursor.GotoFirstChild() {
+			continue
+		}
+		for !cursor.GotoNextSibling() {
+			if !cursor.GotoParent() {
+				return out
+			}
+		}
+	}
 }
 
 func collectSpaceHints(source []byte, root *tree_sitter.Node) []common.Range {
@@ -162,6 +205,9 @@ func collectSyntaxErrors(source []byte, root *tree_sitter.Node) []syntaxErrorNod
 		return nil
 	}
 	var out []syntaxErrorNode
+	if missingPackageClause(root) {
+		out = append(out, syntaxErrorNode{missing: true, kind: "package clause"})
+	}
 	if root.HasError() {
 		cursor := root.Walk()
 		walkSyntaxErrors(source, cursor, root, &out)
@@ -179,6 +225,16 @@ func collectSyntaxErrors(source []byte, root *tree_sitter.Node) []syntaxErrorNod
 		return a.ran.Beg().Compare(b.ran.Beg())
 	})
 	return out
+}
+
+func missingPackageClause(root *tree_sitter.Node) bool {
+	for i := range root.NamedChildCount() {
+		child := root.NamedChild(i)
+		if child.Kind() != grammer.COMMENT {
+			return child.Kind() != grammer.PACKAGE && !child.IsError()
+		}
+	}
+	return true
 }
 
 func collectVariadicProxyArgs(root *tree_sitter.Node) []syntaxErrorNode {
@@ -315,4 +371,16 @@ func capitalize(s string) string {
 		return s
 	}
 	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+func firstNamedChildOfKind(n *tree_sitter.Node, kind string) *tree_sitter.Node {
+	cursor := n.Walk()
+	defer cursor.Close()
+	for _, child := range n.NamedChildren(cursor) {
+		if child.Kind() == kind {
+			c := child
+			return &c
+		}
+	}
+	return nil
 }

@@ -230,6 +230,48 @@ func TestDocModelSourceOpenedOutsideThenCovered(t *testing.T) {
 	}
 }
 
+// Such an untracked buffer gets no formatting: it would be built from the
+// file, not from the buffer. Reopened, it gets formatting.
+func TestDocModelUntrackedSourceGetsNoFormatting(t *testing.T) {
+	t.Parallel()
+	const src = "package demo\n\nimport \"github.com/doors-dev/gox\"\n\nfunc   Old()  int { return 1 + 2 }\n\nelem View() {\n\t<div><p>b</p></div>\n}\n"
+	env := newDocModelEnv(t)
+	env.write(env.source, src)
+	env.start(docModelTempDir(t))
+
+	env.open(env.source, src)
+	env.folders([]string{env.root}, nil)
+	env.waitTarget("")
+	refusals := func() int {
+		n := 0
+		for _, line := range env.traffic() {
+			if strings.HasPrefix(line, "client "+string(showMessage)) && strings.Contains(line, "Close and reopen the file") {
+				n++
+			}
+		}
+		return n
+	}
+	env.changeFull(env.source, 2, src+"\nfunc   Added()  int { return 2 }\n")
+	if refusals() != 1 {
+		t.Fatalf("the edit of the untracked buffer was not refused; traffic: %v", env.traffic())
+	}
+	format := func() Response {
+		return env.call(Client, formatting, map[string]any{
+			"textDocument": map[string]any{"uri": docModelURI(env.source)},
+			"options":      map[string]any{"tabSize": 4, "insertSpaces": false},
+		})
+	}
+	if r := format(); r.Err == nil || refusals() != 2 {
+		t.Fatalf("formatting an untracked buffer: %s, error %v", r.Result, r.Err)
+	}
+
+	env.close(env.source)
+	env.open(env.source, src)
+	if r := format(); r.Err != nil || !strings.Contains(string(r.Result), "func Old() int") {
+		t.Fatalf("formatting the reopened buffer: %s, error %v", r.Result, r.Err)
+	}
+}
+
 func (e *docModelEnv) goplsEditVersion(version int) string {
 	e.t.Helper()
 	content := e.healthyState("before gopls edit").content

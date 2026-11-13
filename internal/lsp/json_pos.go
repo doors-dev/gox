@@ -182,6 +182,7 @@ func (r jsonPosDriver) convertLocations(man workspace.Manager, enc common.Encodi
 	if err != nil {
 		return
 	}
+	man.Reload(doc)
 	for _, key := range []string{"range", "targetRange", "targetSelectionRange", "selectionRange"} {
 		node := j.Get(key)
 		if !node.Exists() {
@@ -223,6 +224,7 @@ func (r jsonPosDriver) convertCalls(man workspace.Manager, enc common.Encoding, 
 		if err != nil {
 			return false
 		}
+		man.Reload(doc)
 		err = jsonPos.convertAllToSource(enc, doc, node, workspace.Approximate)
 		jsonDoc.setAsSource(node, doc)
 		return true
@@ -252,6 +254,7 @@ func (r jsonPosDriver) convertOutgoingCalls(man workspace.Manager, enc common.En
 				if err != nil {
 					return false
 				}
+				man.Reload(doc)
 				err = jsonPos.convertAllToSource(enc, doc, to, workspace.Approximate)
 				if err != nil {
 					return false

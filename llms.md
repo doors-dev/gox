@@ -51,12 +51,6 @@ page.x.go    # generated (do not edit)
 
 A `.gox` file is a Go file plus the `elem` keyword and HTML literals. Use `.gox` only when the file needs template syntax (`elem`, HTML literals, fragments, placeholders, raw blocks, template control flow). Otherwise use `.go`. Top-level Go declarations (`import`, `type`, `func`, methods) are always normal Go and live outside `elem` bodies.
 
-### Old syntax compatibility
-
-Old forms `~func { ... }` and `~{ ... }` may appear in existing code. `gox fmt`
-automatically converts them to `~({ ... })` (GoX expression) and `~~ ... ~~`
-(Go snippet). Keep the `gox` binary up to date — run `gox ver` to check.
-
 ### HTML literals are Go expressions
 
 Inside `.gox`, `<tag>...</tag>` is a `gox.Elem` value. Use anywhere a Go expression goes:
@@ -102,6 +96,8 @@ Method form (typically `gox.Comp.Main`):
 ```gox
 elem (u User) Main() { <li>~(u.Name)</li> }
 ```
+
+Type parameters work as in Go: `elem List[T any](items []T) { ... }`. Methods can declare their own (`elem (t Table) Row[T any](v T) { ... }`, `func (s Store) Get[T any]() T`); generic methods need `go 1.27` in go.mod.
 
 Anonymous `elem() { ... }` exists. Prefer named helpers; use anonymous only when an inline template fn is the clearest fit (not as a generic empty-arg wrapper).
 

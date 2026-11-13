@@ -2,6 +2,8 @@ package lsp
 
 import (
 	"errors"
+	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/bytedance/sonic/ast"
@@ -184,6 +186,10 @@ func (r jsonChangesDriver) convertCodeActions(man workspace.Manager, enc common.
 			continue
 		}
 		err := r.convertCodeAction(man, enc, doc, &node)
+		if errors.Is(err, errChangedOnDisk) {
+			*j = ast.NewArray(nil)
+			return nil
+		}
 		if err != nil {
 			continue
 		}
@@ -204,7 +210,15 @@ func (r jsonChangesDriver) setUpdate(j Json, text string) {
 	}
 }
 
+var errChangedOnDisk = errors.New("changed on disk. Try again.")
+
 func (r jsonChangesDriver) convertEdit(man workspace.Manager, enc common.Encoding, j Json) (err error) {
+	var changed []string
+	defer func() {
+		if len(changed) != 0 {
+			err = fmt.Errorf("%s %w", strings.Join(changed, ", "), errChangedOnDisk)
+		}
+	}()
 	changes := j.Get("changes")
 	if changes.Exists() {
 		newChanges := ast.NewObject(nil)
@@ -226,6 +240,10 @@ func (r jsonChangesDriver) convertEdit(man workspace.Manager, enc common.Encodin
 			err = doc.Err()
 			if err != nil {
 				return false
+			}
+			if man.Reload(doc) {
+				changed = append(changed, filepath.Base(doc.SourceFile().Path()))
+				return true
 			}
 			if kind == workspace.KindSource {
 				err = jsonPos.convertAllToTarget(enc, doc, node, workspace.Strict)
@@ -271,6 +289,10 @@ func (r jsonChangesDriver) convertEdit(man workspace.Manager, enc common.Encodin
 			err = doc.Err()
 			if err != nil {
 				return
+			}
+			if man.Reload(doc) {
+				changed = append(changed, filepath.Base(doc.SourceFile().Path()))
+				continue
 			}
 			edits := node.Get("edits")
 			if kind == workspace.KindSource {

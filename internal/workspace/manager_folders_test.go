@@ -119,8 +119,11 @@ func TestDocSourceCloseReturnsToFile(t *testing.T) {
 func TestManagerReaddedFolderRediscoversAndTickerReleases(t *testing.T) {
 	parent, _, source := nestedRootsTree(t)
 	top := filepath.Join(parent, "top.gox")
-	if err := os.WriteFile(top, []byte(sampleSrc), 0o644); err != nil {
-		t.Fatal(err)
+	sib := filepath.Join(parent, "sib.gox")
+	for _, p := range []string{top, sib} {
+		if err := os.WriteFile(p, []byte(sampleSrc), 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
 	m := lockedManager(t)
 	m.AddWorkspace(rootURI(parent))
@@ -134,6 +137,9 @@ func TestManagerReaddedFolderRediscoversAndTickerReleases(t *testing.T) {
 	d, ok := m.dirs[filepath.Dir(source)]
 	if !ok || d.docs[strings.TrimSuffix(source, ".gox")] == nil {
 		t.Fatal("re-added folder did not rediscover the documents under the kept dir")
+	}
+	if d, ok := m.dirs[parent]; !ok || d.docs[strings.TrimSuffix(sib, ".gox")] == nil {
+		t.Fatal("re-added folder did not rediscover the documents next to the open one")
 	}
 	m.RemoveWorkspace(rootURI(parent))
 	open.SourceClose()

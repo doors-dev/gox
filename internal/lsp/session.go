@@ -5,6 +5,7 @@ import (
 	"github.com/doors-dev/gox/internal/common"
 	"github.com/doors-dev/gox/internal/workspace"
 	"log/slog"
+	"os"
 )
 
 type session struct {
@@ -43,6 +44,31 @@ func (s *session) setEnc(e common.Encoding) {
 
 func (s *session) ghosted(doc workspace.Doc) {
 	s.notifGo(didClose, jsonGenerator.newDocumentRef(doc.TargetFile().URI()))
+}
+
+func (s *session) reloaded(doc workspace.Doc) {
+	if !doc.TargetIsOpened() {
+		s.notifGo(didChangeWatchedFiles, jsonGenerator.newFileChanged(doc.TargetFile().URI()))
+		return
+	}
+	s.notifGo(didChange, jsonGenerator.newFullChange(doc.TargetFile().URI(), 0, doc.TargetContent()))
+	s.callClient(
+		applyEdit,
+		jsonGenerator.newUpdateEdit(doc.TargetFile().URI(), doc.TargetContent(), "synced with the .gox file"),
+	)
+}
+
+func (s *session) reloadedFromDisk(doc workspace.Doc) {
+	stale, err := doc.CheckTarget()
+	if err == nil && stale {
+		disk, rerr := os.ReadFile(doc.TargetFile().Path())
+		stale = rerr != nil || !sameBelowHeader(string(disk), doc.TargetContent())
+	}
+	if !doc.TargetIsOpened() || (err == nil && stale) {
+		s.reloaded(doc)
+		return
+	}
+	s.notifGo(didChange, jsonGenerator.newFullChange(doc.TargetFile().URI(), 0, doc.TargetContent()))
 }
 
 func (s *session) notifGo(m method, params Json) {

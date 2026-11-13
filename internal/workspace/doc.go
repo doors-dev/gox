@@ -106,7 +106,7 @@ func (d Doc) Load() error {
 func (d Doc) Parse() error {
 	d.tree = d.parser.Parse(d.source.Source(), nil)
 	root := d.tree.RootNode()
-	if !root.HasError() && len(collectVariadicProxyArgs(root)) == 0 {
+	if !root.HasError() && len(collectVariadicProxyArgs(root)) == 0 && !missingPackageClause(root) {
 		return nil
 	}
 	msg := "GoX could not parse this file. Fix the syntax errors and try again."

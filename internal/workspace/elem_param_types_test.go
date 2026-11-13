@@ -131,3 +131,83 @@ func F(cb elem(f elem(x int))) {}
 	mustNotContain(t, out, "elem(")
 	mustParseGo(t, out)
 }
+
+func TestElemParamTypeGenericMethod(t *testing.T) {
+	src := `package demo
+
+import _ "github.com/doors-dev/gox"
+
+type App struct{}
+
+elem (a App) Main[T any](r elem(item T)) {
+	<p>hi</p>
+}
+`
+	out := assemble(t, src)
+	mustContain(t, out, "func (a App) Main[T any](r func(item T) gox.Elem) gox.Elem")
+	mustNotContain(t, out, "elem(")
+	mustParseGo(t, out)
+}
+
+func TestElemParamTypeGenericMethodOnGenericReceiver(t *testing.T) {
+	src := `package demo
+
+import _ "github.com/doors-dev/gox"
+
+type Box[K comparable, V any] struct{}
+
+elem (b Box[K, V]) Row[T ~int | ~string, U any](k K, cb elem(v V, t T)) {
+	<p>~(k)</p>
+}
+`
+	out := assemble(t, src)
+	mustContain(t, out, "func (b Box[K, V]) Row[T ~int | ~string, U any](k K, cb func(v V, t T) gox.Elem) gox.Elem")
+	mustNotContain(t, out, "elem(")
+	mustParseGo(t, out)
+}
+
+func TestElemParamTypeGenericMethodMultiLine(t *testing.T) {
+	src := `package demo
+
+import _ "github.com/doors-dev/gox"
+
+type App struct{}
+
+elem (a App) Pair[
+	T any,
+	U comparable,
+](t T, u U) {
+	<p>~(t)</p>
+}
+`
+	out := assemble(t, src)
+	mustContain(t, out, "func (a App) Pair[\n\tT any,\n\tU comparable,\n](t T, u U) gox.Elem")
+	mustParseGo(t, out)
+}
+
+func TestGenericGoMethodPassesThrough(t *testing.T) {
+	src := `package demo
+
+import _ "github.com/doors-dev/gox"
+
+type Store struct{}
+
+func (s Store) Get[T any, U comparable](key U, def T) T {
+	return def
+}
+
+func (s *Store) Sum[N ~int | ~float64](xs ...N) N {
+	var n N
+	return n
+}
+
+var v = Store{}.Get[int, string]("k", 1)
+`
+	out := assemble(t, src)
+	mustContain(t, out,
+		"func (s Store) Get[T any, U comparable](key U, def T) T {",
+		"func (s *Store) Sum[N ~int | ~float64](xs ...N) N {",
+		`var v = Store{}.Get[int, string]("k", 1)`,
+	)
+	mustParseGo(t, out)
+}

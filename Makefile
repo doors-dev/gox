@@ -5,7 +5,7 @@ RUST_MANIFEST := rust/Cargo.toml
 .PHONY: build_rust build install tidy clean
 
 build_rust:
-	$(CARGO) build --release --manifest-path=$(RUST_MANIFEST)
+	$(CARGO) build --release --locked --manifest-path=$(RUST_MANIFEST)
 
 build: build_rust
 	$(GO) build ./cmd/gox

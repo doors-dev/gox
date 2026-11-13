@@ -58,7 +58,6 @@ const (
 	GOX_SINGLE_ARG            = "gox_single_arg"
 	GOX_MULTI_ARG             = "gox_multi_arg"
 	GOX_EXPRESSION            = "gox_expression"
-	GOX_FUNC                  = "gox_func"
 	GOX_BLOCK                 = "gox_block"
 	GOX_IMPLICID_CLOSE        = "gox_implicit_close_head"
 	GOX_HEAD_END              = "gox_head_end"
@@ -69,6 +68,5 @@ const (
 	GOX_TILDE        = "gox_tilde"
 	GOX_TILDE_IF     = "gox_tilde_if"
 	GOX_TILDE_FOR    = "gox_tilde_for"
-	GOX_TILDE_BLOCK  = "gox_tilde_block"
 	GOX_TILDE_MARKER = "gox_tilde_marker"
 )

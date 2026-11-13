@@ -37,14 +37,14 @@ pub fn new_parser() -> topiary_tree_sitter_facade::Parser {
 }
 
 pub struct CureNodes<'a> {
-    pub transform: Vec<Node<'a>>,
+    pub implicit_close: Vec<Node<'a>>,
     pub remove: Vec<Node<'a>>,
 }
 
 const CURE_QUERY: &str = r#"
-[(gox_implicit_close_head) (gox_func) (gox_tilde_block)] @transform
+(gox_implicit_close_head) @implicit_close
 
-[(gox_redundant) (gox_space_filler) (gox_erroneous_close_head)] @remove
+[(_ (gox_redundant) @remove . value: (_) . (gox_redundant) @remove) (gox_space_filler) @remove (gox_erroneous_close_head) @remove]
 "#;
 
 
@@ -62,23 +62,13 @@ const POST_PROCESS_QUERY: &str = r#"
 
 (gox_style_head) @style
 
-[(comment) (gox_comment) (gox_tilde_comment)] @shift
+(comment) @shift
 
-[(raw_string_literal) (gox_raw_head)] @keep
+[(raw_string_literal) (gox_raw_head) (gox_comment) (gox_tilde_comment)] @keep
 
 [(gox_plain_text)] @align
 
 (func_literal
-  body: (block
-    .
-    "{"
-    .
-    "}"
-    .
-  ) @antiline
-)
-
-(gox_func
   body: (block
     .
     "{"
@@ -103,7 +93,7 @@ impl Queries {
     ) -> CureNodes<'a> {
         let capture_names = self.cure.capture_names();
         let mut nodes = CureNodes {
-            transform: Vec::new(),
+            implicit_close: Vec::new(),
             remove: Vec::new(),
         };
         let mut cursor = topiary_tree_sitter_facade::QueryCursor::new();
@@ -112,7 +102,7 @@ impl Queries {
             for capture in item.captures.iter() {
                 let name = capture_names[capture.index as usize];
                 match name {
-                    "transform" => nodes.transform.push(capture.node.clone()),
+                    "implicit_close" => nodes.implicit_close.push(capture.node.clone()),
                     "remove" => nodes.remove.push(capture.node.clone()),
                     _ => {}
                 }

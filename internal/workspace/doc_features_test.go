@@ -245,6 +245,26 @@ func TestDocFormat(t *testing.T) {
 	}
 }
 
+func TestDocFormatRefusesMissingTokens(t *testing.T) {
+	for name, src := range map[string]string{
+		"unclosed call":              "package demo\n\nfunc Make(n int) []int {\n\ts := make([]int, n\n}\n\nfunc Other() int {\n\tif true {\n\t\treturn 1\n\t}\n\treturn 2\n}\n",
+		"unclosed composite literal": "package demo\n\nfunc Get() []int {\n\treturn []int{1, 2, 3\n}\n",
+		"unclosed index":             "package demo\n\nfunc Get(s []int) int {\n\treturn s[0\n}\n",
+		"unclosed attribute string":  "package demo\n\nelem Sort() {\n\t<th>\n\t\t<span class=\"sort-icon\" aria-hidden=true\">x</span>\n\t</th>\n\t<p>after</p>\n}\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			doc := makeDocLoose(t, src)
+			if report := doc.SyntaxErrorReport(); !strings.Contains(report, "syntax error: missing") {
+				t.Fatalf("report = %q, want a missing-token line", report)
+			}
+			out, err := doc.Format(common.UTF8)
+			if err == nil {
+				t.Fatalf("Format = %q, want an error", out.Text)
+			}
+		})
+	}
+}
+
 func TestDocSymbols(t *testing.T) {
 	doc := makeDoc(t, sampleSrc)
 	syms := doc.Symbols(common.UTF8)
@@ -294,6 +314,53 @@ func run() {}
 		"Pair":   symbol.Struct,
 		"Named":  symbol.Interface,
 		"run":    symbol.Function,
+	}
+	for name, kind := range want {
+		got, ok := kinds[name]
+		if !ok {
+			t.Errorf("symbol %q missing", name)
+			continue
+		}
+		if got != kind {
+			t.Errorf("symbol %q kind = %v, want %v", name, got, kind)
+		}
+	}
+	if len(syms) != len(want) {
+		t.Errorf("len(syms) = %d, want %d: %#v", len(syms), len(want), kinds)
+	}
+}
+
+func TestDocSymbolsGenericMethods(t *testing.T) {
+	src := `package demo
+
+import "fmt"
+
+type Store[K comparable] struct{}
+
+func (s Store[K]) Get[T any, U comparable](key U, def T) T { return def }
+
+elem (s *Store[K]) Item[T fmt.Stringer](item T) {
+	<li>~(item.String())</li>
+}
+
+func Keys[K comparable, V any](m map[K]V) []K { return nil }
+
+elem List[T any](items []T) {
+	<ul></ul>
+}
+`
+	doc := makeDoc(t, src)
+	syms := doc.Symbols(common.UTF8)
+	kinds := make(map[string]symbol.Kind, len(syms))
+	for _, s := range syms {
+		kinds[s.Name] = s.Kind
+	}
+	want := map[string]symbol.Kind{
+		"Store": symbol.Struct,
+		"Get":   symbol.Method,
+		"Item":  symbol.Method,
+		"Keys":  symbol.Function,
+		"List":  symbol.Function,
 	}
 	for name, kind := range want {
 		got, ok := kinds[name]

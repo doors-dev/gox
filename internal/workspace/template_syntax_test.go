@@ -373,9 +373,9 @@ import _ "github.com/doors-dev/gox"
 
 elem Demo(id int) {
 	<div>
-		~func {
+		~({
 			return id
-		}
+		})
 	</div>
 }
 `
@@ -395,10 +395,10 @@ func TestGoSnippet(t *testing.T) {
 import _ "github.com/doors-dev/gox"
 
 elem Demo() {
-	~{
+	~~
 		x := 42
 		_ = x
-	}
+	~~
 	<span>~(x)</span>
 }
 `

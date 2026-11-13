@@ -29,6 +29,7 @@ type manager struct {
 	workspaces       []*workspace
 	dirs             map[string]*dir
 	onGhost          func(Doc)
+	onReload         func(Doc)
 	done             chan struct{}
 	startOnce        sync.Once
 	stopOnce         sync.Once
@@ -42,6 +43,20 @@ func (m *manager) ghost(doc Doc) {
 	if m.onGhost != nil {
 		m.onGhost(doc)
 	}
+}
+
+func (m *manager) OnReload(f func(Doc)) {
+	m.onReload = f
+}
+
+func (m *manager) Reload(doc Doc) bool {
+	if !doc.Reload() {
+		return false
+	}
+	if m.onReload != nil {
+		m.onReload(doc)
+	}
+	return true
 }
 
 func (m *manager) Lock() {
@@ -141,7 +156,7 @@ func (m *manager) ticker() {
 		}
 		m.release()
 		for path, d := range m.dirs {
-			d.ProcessFileRemovals(m.ghost)
+			d.ProcessFileRemovals(m.ghost, m.Reload)
 			if d.IsEmpty() {
 				delete(m.dirs, path)
 			}

@@ -2,8 +2,6 @@ package lsp
 
 import (
 	"math"
-	"sort"
-	"strings"
 
 	"github.com/bytedance/sonic/ast"
 	"github.com/doors-dev/gox/internal/common"
@@ -30,7 +28,23 @@ func (r jsonGeneratorDriver) newDocumentRef(uri string) Json {
 	return &node
 }
 
-// newFullChange builds didChange params that replace the whole document text.
+func (r jsonGeneratorDriver) newFileChanged(uri string) Json {
+	change := ast.NewObject([]ast.Pair{
+		ast.NewPair("uri", ast.NewString(uri)),
+		ast.NewPair("type", ast.NewAny(2)),
+	})
+	node := ast.NewObject([]ast.Pair{ast.NewPair("changes", ast.NewArray([]ast.Node{change}))})
+	return &node
+}
+
+func (r jsonGeneratorDriver) newEditNotApplied(reason string) Json {
+	node := ast.NewObject([]ast.Pair{
+		ast.NewPair("applied", ast.NewBool(false)),
+		ast.NewPair("failureReason", ast.NewString(reason)),
+	})
+	return &node
+}
+
 func (r jsonGeneratorDriver) newFullChange(uri string, version int32, text string) Json {
 	ref := ast.NewObject([]ast.Pair{
 		ast.NewPair("uri", ast.NewString(uri)),
@@ -103,124 +117,18 @@ func (r jsonGeneratorDriver) newUpdateEdit(uri string, content string, message s
 	), content, message)
 }
 
-func (r jsonGeneratorDriver) newCodeActions(actions []workspace.CodeAction) Json {
-	arr := make([]ast.Node, 0, len(actions))
-	for _, a := range actions {
-		arr = append(arr, r.newCodeActionNode(a))
-	}
-	node := ast.NewArray(arr)
-	return &node
-}
-
-func (r jsonGeneratorDriver) appendCodeActions(res Json, actions []workspace.CodeAction) {
-	if len(actions) == 0 {
-		return
-	}
-	var arr []ast.Node
-	if res != nil && res.Exists() && res.TypeSafe() == ast.V_ARRAY {
-		if existing, err := res.ArrayUseNode(); err == nil {
-			arr = append(arr, existing...)
-		}
-	}
-	for _, a := range actions {
-		arr = append(arr, r.newCodeActionNode(a))
-	}
-	node := ast.NewArray(arr)
-	*res = node
-}
-
-func (r jsonGeneratorDriver) newCodeActionNode(a workspace.CodeAction) ast.Node {
-	var docChanges []ast.Node
-	if a.CreateFile != nil {
-		docChanges = append(docChanges, ast.NewObject([]ast.Pair{
-			ast.NewPair("kind", ast.NewString("create")),
-			ast.NewPair("uri", ast.NewString(a.CreateFile.URI)),
-		}))
-		zero := common.NewPos(0, 0)
-		content := r.textEditNode(common.NewRange(zero, zero), a.CreateFile.Text)
-		docChanges = append(docChanges, r.textDocumentEditNode(a.CreateFile.URI, []ast.Node{content}))
-	}
-	if len(a.Edits) > 0 {
-		ordered := make([]workspace.ActionEdit, len(a.Edits))
-		copy(ordered, a.Edits)
-		sort.SliceStable(ordered, func(i, j int) bool {
-			return ordered[i].Range.Beg().Compare(ordered[j].Range.Beg()) > 0
-		})
-		edits := make([]ast.Node, 0, len(ordered))
-		for _, e := range ordered {
-			edits = append(edits, r.textEditNode(e.Range, e.NewText))
-		}
-		docChanges = append(docChanges, r.textDocumentEditNode(a.URI, edits))
-	}
-	edit := ast.NewObject([]ast.Pair{
-		ast.NewPair("documentChanges", ast.NewArray(docChanges)),
-	})
-	return ast.NewObject([]ast.Pair{
-		ast.NewPair("title", ast.NewString(a.Title)),
-		ast.NewPair("kind", ast.NewString(a.Kind)),
-		ast.NewPair("edit", edit),
-	})
-}
-
-func (r jsonGeneratorDriver) textEditNode(ran common.Range, newText string) ast.Node {
-	return ast.NewObject([]ast.Pair{
-		ast.NewPair("range", jsonPos.fromRange(ran)),
-		ast.NewPair("newText", ast.NewString(newText)),
-	})
-}
-
-func (r jsonGeneratorDriver) textDocumentEditNode(uri string, edits []ast.Node) ast.Node {
-	td := ast.NewObject([]ast.Pair{
-		ast.NewPair("uri", ast.NewString(uri)),
-		ast.NewPair("version", ast.NewNull()),
-	})
-	return ast.NewObject([]ast.Pair{
-		ast.NewPair("textDocument", td),
-		ast.NewPair("edits", ast.NewArray(edits)),
-	})
-}
-
-func (r jsonGeneratorDriver) filterActionsByOnly(actions []workspace.CodeAction, j Json) []workspace.CodeAction {
-	context := j.Get("context")
-	if !context.Exists() {
-		return actions
-	}
-	only := context.Get("only")
-	if !only.Exists() || only.TypeSafe() != ast.V_ARRAY {
-		return actions
-	}
-	onlyArr, err := only.ArrayUseNode()
-	if err != nil {
-		return actions
-	}
-	allowed := make([]string, 0, len(onlyArr))
-	for i := range onlyArr {
-		if s, err := onlyArr[i].String(); err == nil {
-			allowed = append(allowed, s)
-		}
-	}
-	if len(allowed) == 0 {
-		return actions
-	}
-	out := actions[:0:0]
-	for _, a := range actions {
-		for _, o := range allowed {
-			if a.Kind == o || strings.HasPrefix(a.Kind, o+".") {
-				out = append(out, a)
-				break
-			}
-		}
-	}
-	return out
-}
-
 const (
-	severityError = 1
-	severityHint  = 4
+	severityError   = 1
+	severityWarning = 2
+	severityHint    = 4
 )
 
 func (r jsonGeneratorDriver) addSyntaxErrors(enc common.Encoding, doc workspace.Doc, j Json) {
 	r.appendDiagnostics(j, doc.SyntaxErrors(enc), severityError)
+}
+
+func (r jsonGeneratorDriver) addStrayCloseTags(enc common.Encoding, doc workspace.Doc, j Json) {
+	r.appendDiagnostics(j, doc.StrayCloseTags(enc), severityWarning)
 }
 
 func (r jsonGeneratorDriver) addSpaceHints(enc common.Encoding, doc workspace.Doc, j Json) {

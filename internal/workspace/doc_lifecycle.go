@@ -1,6 +1,9 @@
 package workspace
 
-import "os"
+import (
+	"log/slog"
+	"os"
+)
 
 func (d Doc) SourceOpen(version int32) {
 	d.sourceVersion = version
@@ -14,7 +17,33 @@ func (d Doc) SourceClose() bool {
 	}
 	before := d.TargetContent()
 	d.SourceUpdate(string(content))
+	d.syncTarget()
 	return d.TargetContent() != before
+}
+
+func (d Doc) Reload() bool {
+	if d.SourceIsOpened() {
+		return false
+	}
+	content, err := os.ReadFile(d.sourceFile.Path())
+	if err != nil {
+		return false
+	}
+	if upd, err := d.SourceUpdate(string(content)); err != nil || !upd {
+		return false
+	}
+	d.syncTarget()
+	return true
+}
+
+func (d Doc) syncTarget() {
+	needsUpdate, err := d.CheckTarget()
+	if err == nil && needsUpdate {
+		err = d.TargetWrite()
+	}
+	if err != nil {
+		slog.Error("Generated target sync failed", "source", d.SourceFile().Path(), "target", d.TargetFile().Path(), "error", err)
+	}
 }
 
 func (d Doc) SourceIsOpened() bool {

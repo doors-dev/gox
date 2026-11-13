@@ -127,6 +127,7 @@ func (h *lspHarness) errorMessagesAfter(start int) []string {
 
 func (h *lspHarness) assertNoErrorMessagesAfter(start int, stage string) {
 	h.t.Helper()
+	h.call("workspace/symbol", map[string]any{"query": "zzqqbarrier"})
 	if found := h.errorMessagesAfter(start); len(found) != 0 {
 		h.t.Fatalf("%s: server showed error messages: %q\nrecorded events:\n%s", stage, found, h.dumpEventsAfter(start))
 	}

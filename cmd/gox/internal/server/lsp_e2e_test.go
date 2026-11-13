@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -51,8 +50,9 @@ type lspSelectionRange struct {
 }
 
 type lspDiagnostic struct {
-	Range   lspRange `json:"range"`
-	Message string   `json:"message"`
+	Range    lspRange `json:"range"`
+	Severity int      `json:"severity"`
+	Message  string   `json:"message"`
 }
 
 type publishDiagnosticsParams struct {
@@ -151,18 +151,69 @@ func (l *scriptListener) Close() error {
 
 func (l *scriptListener) Connect(t *testing.T) io.ReadWriteCloser {
 	t.Helper()
-	serverConn, clientConn := net.Pipe()
+	serverIn, clientOut, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("create pipe: %v", err)
+	}
+	clientIn, serverOut, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("create pipe: %v", err)
+	}
 	select {
 	case <-l.closed:
 		t.Fatal("listener closed before the test client connected")
-	case l.conns <- serverConn:
+	case l.conns <- pipeConn{in: serverIn, out: serverOut}:
 	}
-	return clientConn
+	return pipeConn{in: clientIn, out: clientOut}
+}
+
+type pipeConn struct {
+	in  *os.File
+	out *os.File
+}
+
+func (c pipeConn) Read(p []byte) (int, error) {
+	return c.in.Read(p)
+}
+
+func (c pipeConn) Write(p []byte) (int, error) {
+	return c.out.Write(p)
+}
+
+func (c pipeConn) Close() error {
+	return errors.Join(c.in.Close(), c.out.Close())
+}
+
+type goplsDialer struct {
+	dialer serverpkg.Dialer
+	closed sync.WaitGroup
+}
+
+func (d *goplsDialer) Dial(ctx context.Context) (io.ReadWriteCloser, error) {
+	rwc, err := d.dialer.Dial(ctx)
+	if err != nil {
+		return nil, err
+	}
+	d.closed.Add(1)
+	return &goplsConn{ReadWriteCloser: rwc, done: d.closed.Done}, nil
+}
+
+type goplsConn struct {
+	io.ReadWriteCloser
+	once sync.Once
+	done func()
+}
+
+func (c *goplsConn) Close() error {
+	err := c.ReadWriteCloser.Close()
+	c.once.Do(c.done)
+	return err
 }
 
 type lspHarness struct {
 	t        *testing.T
 	server   serverpkg.Server
+	gopls    *goplsDialer
 	conn     io.ReadWriteCloser
 	reader   jsonrpc2.Reader
 	writer   jsonrpc2.Writer
@@ -206,13 +257,15 @@ func newLSPHarness(t *testing.T, folders []workspaceFolder) *lspHarness {
 	t.Setenv("GOCACHE", filepath.Join(home, "go-build"))
 
 	listener := newScriptListener()
-	server := serverpkg.NewServer(listener, dialers.NewCmdDialer(goplsPath), 0)
+	gopls := &goplsDialer{dialer: dialers.NewCmdDialer(goplsPath)}
+	server := serverpkg.NewServer(listener, gopls, 0)
 	conn := listener.Connect(t)
 
 	framer := jsonrpc2.HeaderFramer()
 	h := &lspHarness{
 		t:        t,
 		server:   server,
+		gopls:    gopls,
 		conn:     conn,
 		reader:   framer.Reader(conn),
 		writer:   framer.Writer(conn),
@@ -230,12 +283,37 @@ func newLSPHarness(t *testing.T, folders []workspaceFolder) *lspHarness {
 	return h
 }
 
+func (h *lspHarness) shutdown() {
+	id := atomic.AddInt64(&h.nextID, 1)
+	msg, err := jsonrpc2.NewCall(jsonrpc2.Int64ID(id), "shutdown", nil)
+	if err != nil {
+		return
+	}
+	respCh := make(chan callResult, 1)
+	h.pendingM.Lock()
+	h.pending[id] = respCh
+	h.pendingM.Unlock()
+	if err := h.writeMessage(msg); err != nil {
+		return
+	}
+	select {
+	case <-respCh:
+	case <-time.After(lspCallTimeout):
+		return
+	}
+	if exit, err := jsonrpc2.NewNotification("exit", nil); err == nil {
+		_ = h.writeMessage(exit)
+	}
+}
+
 func (h *lspHarness) close() {
 	h.closeOnce.Do(func() {
+		h.shutdown()
 		_ = h.conn.Close()
 		done := make(chan struct{})
 		go func() {
 			h.server.Wait()
+			h.gopls.closed.Wait()
 			close(done)
 		}()
 		select {
@@ -1109,8 +1187,9 @@ func TestLSPServerE2EWithRealGopls(t *testing.T) {
 		})
 
 		run("formatting", func(t *testing.T) {
+			formatURI := h.openFile(fixture.format.Path, "gox")
 			formatting := h.callRaw("textDocument/formatting", map[string]any{
-				"textDocument": map[string]any{"uri": uriForPath(fixture.format.Path)},
+				"textDocument": map[string]any{"uri": formatURI},
 				"options": map[string]any{
 					"tabSize":      4,
 					"insertSpaces": true,
@@ -1176,7 +1255,7 @@ func TestLSPServerE2EWithRealGopls(t *testing.T) {
 			assertRawContains(t, signatureHelp, "helper")
 		})
 
-		run("native extract variable replaces gopls action on .gox", func(t *testing.T) {
+		run("no extract actions on .gox", func(t *testing.T) {
 			ca := h.callRaw("textDocument/codeAction", map[string]any{
 				"textDocument": map[string]any{"uri": viewURI},
 				"range":        fixture.rangeAt("template_label_use", len("label(value)")),
@@ -1185,79 +1264,8 @@ func TestLSPServerE2EWithRealGopls(t *testing.T) {
 					"diagnostics": []any{},
 				},
 			})
-			assertNonEmptyArray(t, ca)
-			raw := string(ca)
-			if !strings.Contains(raw, `"refactor.extract.variable"`) {
-				t.Fatalf("native extract variable action missing: %s", compactJSON(ca))
-			}
-			if strings.Contains(raw, ".x.go") {
-				t.Fatalf("extract action leaked generated .x.go URI: %s", compactJSON(ca))
-			}
-			if !strings.Contains(raw, "newVar") {
-				t.Fatalf("extract edit missing newVar binding: %s", compactJSON(ca))
-			}
-			if !strings.Contains(raw, viewURI) {
-				t.Fatalf("extract edit does not target the .gox view: %s", compactJSON(ca))
-			}
-		})
-
-		run("native extract declaration to new file on .gox", func(t *testing.T) {
-			ca := h.callRaw("textDocument/codeAction", map[string]any{
-				"textDocument": map[string]any{"uri": viewURI},
-				"range":        fixture.rangeAt("helper_def", len("helper")),
-				"context": map[string]any{
-					"only":        []string{"refactor.extract"},
-					"diagnostics": []any{},
-				},
-			})
-			raw := string(ca)
-			if !strings.Contains(raw, `"refactor.extract.toNewFile"`) {
-				t.Fatalf("native toNewFile action missing: %s", compactJSON(ca))
-			}
-			if !strings.Contains(raw, `"kind":"create"`) {
-				t.Fatalf("toNewFile must create a file: %s", compactJSON(ca))
-			}
-			if !strings.Contains(raw, "helper.gox") {
-				t.Fatalf("toNewFile new file should be helper.gox: %s", compactJSON(ca))
-			}
-			if !strings.Contains(raw, "func helper(name string) string {") {
-				t.Fatalf("toNewFile should carry the verbatim .gox decl: %s", compactJSON(ca))
-			}
-			if strings.Contains(raw, ".x.go") {
-				t.Fatalf("toNewFile referenced the generated file: %s", compactJSON(ca))
-			}
-		})
-
-		run("resolving a native toNewFile action keeps its edit and does not error", func(t *testing.T) {
-			ca := h.callRaw("textDocument/codeAction", map[string]any{
-				"textDocument": map[string]any{"uri": viewURI},
-				"range":        fixture.rangeAt("helper_def", len("helper")),
-				"context": map[string]any{
-					"only":        []string{"refactor.extract"},
-					"diagnostics": []any{},
-				},
-			})
-			actions := mustJSON[[]map[string]any](t, ca)
-			var target map[string]any
-			for _, a := range actions {
-				if kind, _ := a["kind"].(string); kind == "refactor.extract.toNewFile" {
-					target = a
-					break
-				}
-			}
-			if target == nil {
-				t.Fatalf("no toNewFile action to resolve: %s", compactJSON(ca))
-			}
-			resolved := h.callRaw("codeAction/resolve", target)
-			raw := string(resolved)
-			if !strings.Contains(raw, `"kind":"create"`) {
-				t.Fatalf("resolved action lost its create edit: %s", compactJSON(resolved))
-			}
-			if !strings.Contains(raw, "helper.gox") {
-				t.Fatalf("resolved action lost the new .gox file: %s", compactJSON(resolved))
-			}
-			if strings.Contains(raw, ".x.go") {
-				t.Fatalf("resolved action leaked the generated file: %s", compactJSON(resolved))
+			if strings.Contains(string(ca), "refactor.extract") {
+				t.Fatalf("extract action offered on .gox: %s", compactJSON(ca))
 			}
 		})
 

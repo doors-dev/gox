@@ -139,8 +139,8 @@ func (f File) ValidateTarget(b []byte) (needsUpdate bool, err error) {
 	if err != nil {
 		panic(err)
 	}
-	if semver.IsValid(fileVersion) && semver.IsValid(bytesVersion) && semver.Compare(fileVersion, bytesVersion) == 1 {
-		err = errors.New("This generated file was created by a newer GoX version. Update GoX, or run 'gox gen -force' to overwrite it.")
+	if semver.IsValid(fileVersion) && semver.IsValid(bytesVersion) && semver.Compare(semver.MajorMinor(fileVersion), semver.MajorMinor(bytesVersion)) == 1 {
+		err = errors.New("This generated file was created by a much newer GoX version. Update GoX, or run 'gox gen -force' to overwrite it.")
 	}
 	const chunk = 32 * 1024
 	bufFile := make([]byte, chunk)
@@ -193,6 +193,7 @@ func readFirstLine(r io.Reader) (string, error) {
 		}
 		break
 	}
+	firstLine = bytes.TrimSuffix(firstLine, []byte("\r"))
 	i := bytes.LastIndex(firstLine, []byte("GoX "))
 	if i < 0 {
 		return "", errors.New("Invalid GoX header.")

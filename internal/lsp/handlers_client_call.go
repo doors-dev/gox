@@ -217,18 +217,14 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 			c.err(common.FromErr(jsonrpc2.ErrInvalidParams, err))
 			return
 		}
-		var nativeActions []workspace.CodeAction
 		if kind == workspace.KindSource {
 			if doc.Err() != nil {
 				c.err(common.FromErr(jsonrpc2.ErrUnknown, doc.Err()))
 				return
 			}
-			if srcRange, rerr := jsonPos.getRange(j); rerr == nil {
-				nativeActions = jsonGenerator.filterActionsByOnly(doc.ExtractActions(sess.enc(), srcRange), j)
-			}
 			err = jsonPos.convertRangeToTarget(sess.enc(), doc, j, workspace.Edge)
 			if err != nil {
-				c.res(jsonGenerator.newCodeActions(nativeActions))
+				c.res(jsonGenerator.newEmptyArray())
 				return
 			}
 			context := j.Get("context")
@@ -246,7 +242,6 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 				c.err(common.NewErr(jsonrpc2.ErrInternal, "Could not convert the code actions response: "+err.Error()))
 				return
 			}
-			jsonGenerator.appendCodeActions(res, nativeActions)
 			c.res(res)
 		})
 	}, codeAction)
@@ -394,6 +389,7 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 				return
 			}
 			jsonGenerator.addSyntaxErrors(sess.enc(), doc, res)
+			jsonGenerator.addStrayCloseTags(sess.enc(), doc, res)
 			jsonGenerator.addSpaceHints(sess.enc(), doc, res)
 			c.res(res)
 		})
@@ -467,6 +463,10 @@ func initClientCalls(sess *session, on func(h onCall, m ...method)) {
 		}
 		if doc.Err() != nil {
 			c.err(common.FromErr(jsonrpc2.ErrUnknown, doc.Err()))
+			return
+		}
+		if !doc.SourceIsOpened() {
+			c.err(errSourceNotOpened)
 			return
 		}
 		formatted, err := doc.Format(sess.enc())

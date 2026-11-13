@@ -131,7 +131,7 @@
 (var_spec_list
   .
   "(" @append_indent_start @append_hardline
-  (_)+
+  (_)+ @allow_blank_line_before
   ")" @prepend_indent_end
   .
 )
@@ -149,7 +149,7 @@
 ; list: const
 (const_declaration
   "(" @append_indent_start @append_hardline
-  (_)+
+  (_)+ @allow_blank_line_before
   ")" @prepend_indent_end
   )
 
@@ -167,7 +167,7 @@
 
 (type_declaration
   "(" @append_indent_start @append_hardline
-  (_)+
+  (_)+ @allow_blank_line_before
   ")" @prepend_indent_end
 )
 
@@ -185,7 +185,7 @@
 (literal_value 
   .
   "{" @append_indent_start @append_empty_softline
-  (_)+
+  _+ @allow_blank_line_before
   "}" @prepend_indent_end @prepend_empty_softline
   .
 )
@@ -196,11 +196,28 @@
   [(comment) "}" ]* @do_nothing
 )
 
+(literal_value
+  [
+   (literal_element)
+   (keyed_element)
+  ] @append_delimiter
+  .
+  ","? @do_nothing
+  .
+  (comment)*
+  .
+  ","? @do_nothing
+  .
+  "}"
+  (#delimiter! ",")
+  (#multi_line_only!)
+)
+
 ;; list: interface
 
 (interface_type
   "{" @append_indent_start @append_hardline @prepend_space
-  (_)+
+  (_)+ @allow_blank_line_before
   "}" @prepend_indent_end 
 )
 
@@ -219,7 +236,7 @@
 (field_declaration_list
   .
   "{" @append_indent_start @append_hardline @prepend_space
-  (_)+
+  (_)+ @allow_blank_line_before
   "}" @prepend_indent_end
   .
 )
@@ -271,9 +288,14 @@
 
 ; enumerations
 
-(parameter_declaration
-  "," @append_space
-)
+[
+ (parameter_declaration "," @append_space)
+ (type_parameter_declaration "," @append_space)
+ (field_declaration "," @append_space)
+ (var_spec "," @append_space)
+ (const_spec "," @append_space)
+ (type_case "," @append_space)
+ ]
 
 (parameter_list
   "(" @append_indent_start @append_input_softline @append_antispace
@@ -293,11 +315,12 @@
   ")" @prepend_indent_end @prepend_input_softline @prepend_antispace
   )
 
-(argument_list
-  "," @append_input_softline
-  .
-  ")"* @do_nothing
-)
+[
+ (argument_list "," @append_input_softline . ")"* @do_nothing)
+ (type_parameter_list "," @append_space . "]"* @do_nothing)
+ (type_arguments "," @append_space . "]"* @do_nothing)
+ (type_instantiation_expression "," @append_space . "]"* @do_nothing)
+ ]
 (expression_list
   "," @append_space
 )
@@ -396,7 +419,10 @@
 ; misc
 
 (_
-  name: (_) @append_space
+  [
+   name: (_)
+   type_parameters: (_)
+  ] @append_space
   .
   type: (_)
 )
@@ -405,9 +431,10 @@
   tag: (_) @prepend_space
 )
 
-(type_elem
-  "|" @append_space @prepend_space
-)
+[
+ (type_elem "|" @append_space @prepend_space)
+ (type_constraint "|" @append_space @prepend_space)
+ ]
 
 (keyed_element
   ":" @append_space 
@@ -456,7 +483,7 @@ _
 [
  (gox_comment)
  (gox_tilde_comment)
- ] @leaf @multi_line_indent_all
+ ] @leaf
 
 
 
@@ -488,14 +515,13 @@ _
    (gox_head) 
    (gox_container_head)
    (gox_void_head)
-   (gox_plain_text)
+   (gox_plain_text) @prepend_antispace
    (gox_space_filler)
    (gox_self_closing_head)
    (gox_doctype)
    (gox_raw_head)
    (gox_tilde)
    (gox_tilde_proxy)
-   (gox_tilde_block)
    (gox_tilde_snippet)
    (gox_comment)
    (gox_script_head)
@@ -509,14 +535,13 @@ _
    (gox_head) 
    (gox_container_head)
    (gox_void_head)
-   (gox_plain_text)
+   (gox_plain_text) @append_antispace
    (gox_space_filler)
    (gox_self_closing_head)
    (gox_doctype)
    (gox_raw_head)
    (gox_tilde)
    (gox_tilde_proxy)
-   (gox_tilde_block)
    (gox_tilde_snippet)
    (gox_comment)
    (gox_script_head)
@@ -538,7 +563,6 @@ _
    (gox_doctype)
    (gox_raw_head)
    (gox_tilde)
-   (gox_tilde_block)
    (gox_tilde_snippet)
    (gox_comment)
   ] 
@@ -552,7 +576,6 @@ _
    (gox_self_closing_head)
    (gox_doctype)
    (gox_raw_head)
-   (gox_tilde_block)
    (gox_tilde_snippet)
    (gox_tilde_proxy)
    (gox_comment)
@@ -593,7 +616,6 @@ _
    (gox_doctype)
    (gox_raw_head)
    (gox_tilde)
-   (gox_tilde_block)
    (gox_tilde_snippet)
    (gox_comment)
    (gox_script_head)
@@ -601,7 +623,6 @@ _
   ] 
   .
   [
-   (gox_tilde_block)
    (gox_tilde_snippet)
    (gox_script_head)
    (gox_style_head)
@@ -610,7 +631,6 @@ _
 
 (_
   [
-   (gox_tilde_block)
    (gox_tilde_snippet)
    (gox_script_head)
    (gox_style_head)
@@ -627,7 +647,6 @@ _
    (gox_raw_head)
    (gox_tilde)
    (gox_tilde_proxy)
-   (gox_tilde_block)
    (gox_tilde_snippet)
    (gox_comment)
    (gox_script_head)
@@ -648,7 +667,6 @@ _
    (gox_raw_head)
    (gox_tilde)
    (gox_tilde_proxy)
-   (gox_tilde_block)
    (gox_tilde_snippet)
    (gox_comment)
    (gox_script_head)
@@ -730,13 +748,6 @@ _
   .
   "}" 
   .
-)
-
-
-(gox_tilde_block
-  "{" @append_indent_start @append_hardline 
-  (_)+
-  "}" @prepend_indent_end
 )
 
 

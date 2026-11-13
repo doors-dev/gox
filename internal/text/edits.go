@@ -157,15 +157,34 @@ func (t *text) lastPos() common.Pos {
 }
 
 func (t Text) Update(content string) (tree_sitter.InputEdit, bool, error) {
-	b := common.Bytes(content)
-	for i := len(b) - 1; i >= 0 && b[i] == '\n'; i-- {
-		b = b[:i]
-	}
-	if slices.Equal(b, t.source) {
+	if EqualNormalized(common.Bytes(content), t.source) {
 		return tree_sitter.InputEdit{}, false, nil
 	}
 	rang := common.Range{common.Pos{0, 0}, t.lastPos()}
 	return t.Patch(rang, content)
+}
+
+func EqualNormalized(raw []byte, normalized []byte) bool {
+	if len(normalized) > 0 && normalized[len(normalized)-1] == '\n' {
+		return false
+	}
+	n := 0
+	for i, c := range raw {
+		if c == '\r' && (i+1 == len(raw) || raw[i+1] == '\n') {
+			continue
+		}
+		if n < len(normalized) {
+			if normalized[n] != c {
+				return false
+			}
+			n++
+			continue
+		}
+		if c != '\n' {
+			return false
+		}
+	}
+	return n == len(normalized)
 }
 
 func (t Text) Patch(ran common.Range, content string) (tree_sitter.InputEdit, bool, error) {

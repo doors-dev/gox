@@ -44,7 +44,7 @@ func (dr *dir) load(file File) Doc {
 	return d
 }
 
-func (d *dir) ProcessFileRemovals(ghost func(Doc)) {
+func (d *dir) ProcessFileRemovals(ghost func(Doc), reload func(Doc) bool) {
 	for name, doc := range d.docs {
 		if !doc.SourceFile().Exists() {
 			_, ok := d.sus[name]
@@ -64,7 +64,7 @@ func (d *dir) ProcessFileRemovals(ghost func(Doc)) {
 			continue
 		}
 		delete(d.sus, name)
-		if !doc.TargetFile().Exists() {
+		if !doc.TargetFile().Exists() && !reload(doc) {
 			if err := doc.Save(); err != nil {
 				slog.Error("Generated target restore failed", "source", doc.SourceFile().Path(), "target", doc.TargetFile().Path(), "error", err)
 			}

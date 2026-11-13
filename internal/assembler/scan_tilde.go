@@ -5,14 +5,6 @@ import (
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-func scanTildeBlock(coll collector, root *tree_sitter.Node) {
-	root = root.ChildByFieldName("body")
-	if root == nil {
-		return
-	}
-	coll.cr()
-	scanGoSnippet(coll, root)
-}
 func scanTildeSnippet(coll collector, root *tree_sitter.Node) {
 	root = root.ChildByFieldName("body")
 	if root == nil {
@@ -36,11 +28,11 @@ func scanTilde(coll collector, root *tree_sitter.Node) {
 		scanTildeFor(coll, value)
 	case grammer.GOX_SINGLE_ARG:
 		coll.append(r("__e = __c.Any("))
-		scanValue(coll, value)
+		scanGoSnippet(coll, value)
 		coll.append(r("); " + ERR_CHECK))
 	case grammer.GOX_MULTI_ARG:
 		coll.append(r("__e = __c.Many("))
-		scanValue(coll, value)
+		scanGoSnippet(coll, value)
 		coll.append(r("); " + ERR_CHECK))
 	}
 }
