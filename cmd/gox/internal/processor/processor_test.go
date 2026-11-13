@@ -1510,6 +1510,17 @@ func TestFormatCRLFStyleStringContinuation(t *testing.T) {
 	checkFormat(t, strings.ReplaceAll(src, "\n", "\r\n"), src)
 }
 
+func TestFormatCRLFScript(t *testing.T) {
+	for _, src := range []string{
+		"package demo\n\nelem A() {\n\t<script>\n\t\tlet s =\n\t\t\t\"a\\\n\t\tb\"\n\t\tgo(s)\n\t</script>\n}\n",
+		"package demo\n\nelem A() {\n\t<script>\n\t\tlet s = `a\n\t\tb\n  c`\n\t\tgo(s)\n\t</script>\n}\n",
+		"package demo\n\nelem A() {\n\t<script>\n\t\tlet s = \"a\\\n\t\tb\"\n\t\tlet = = 1\n\t</script>\n}\n",
+	} {
+		checkFormat(t, src, src)
+		checkFormat(t, strings.ReplaceAll(src, "\n", "\r\n"), src)
+	}
+}
+
 var rawTextSources = []struct {
 	name string
 	src  string
@@ -1615,6 +1626,11 @@ func TestFormatKeepsTemplateLiteralContent(t *testing.T) {
 			name: "script string continuation",
 			in:   "package demo\n\nelem A() {\n\t<script>\n\t\tlet s =\n\t\t\t\"a\\\n  b\"\n\t</script>\n}\n",
 			want: "package demo\n\nelem A() {\n\t<script>\n\t\tlet s =\n\t\t\t\"a\\\n  b\"\n\t</script>\n}\n",
+		},
+		{
+			name: "crlf script string continuation",
+			in:   "package demo\r\n\r\nelem A() {\r\n\t<script>\r\n\t\tlet s = \"a\\\r\n\t\tb\"\r\n\t\tgo(s)\r\n\t</script>\r\n}\r\n",
+			want: "package demo\n\nelem A() {\n\t<script>\n\t\tlet s =\n\t\t\t\"a\\\n\t\tb\"\n\t\tgo(s)\n\t</script>\n}\n",
 		},
 		{
 			name: "invalid script string continuation",

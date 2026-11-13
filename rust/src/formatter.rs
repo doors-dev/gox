@@ -455,6 +455,8 @@ fn format_js(
     indent: Indent,
     indent_str: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let normalized = code.replace("\r\n", "\n");
+    let code = normalized.as_str();
     let mut source_type = biome_js_syntax::JsFileSource::js_script();
     let mut parsed = biome_js_parser::parse(
         code,
