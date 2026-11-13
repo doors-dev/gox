@@ -11,8 +11,8 @@ github.com/cyphar/filepath-securejoin v0.6.1/go.mod h1:A8hd4EnAeyujCJRrICiOWqjS1
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/doors-dev/tree-sitter-gox v0.3.1 h1:PxNS85J/W1nKmuTtSExXMdL2YxJV4u96ZyxN7iprpMQ=
-github.com/doors-dev/tree-sitter-gox v0.3.1/go.mod h1:KbwFa/N+LQ2258l8aSe5CV4Sb8uUBTCU+pPEJv51n8Q=
+github.com/doors-dev/tree-sitter-gox v0.3.2 h1:XrbnbXtSldG5UpXEnmYokmAsjqt7GTSQDdWNkITbvhA=
+github.com/doors-dev/tree-sitter-gox v0.3.2/go.mod h1:KbwFa/N+LQ2258l8aSe5CV4Sb8uUBTCU+pPEJv51n8Q=
 github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 h1:+zs/tPmkDkHx3U66DAb0lQFJrpS6731Oaa12ikc+DiI=
 github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376/go.mod h1:an3vInlBmSxCcxctByoQdvwPiA7DTK7jaaFDBTtu0ic=
 github.com/go-git/go-billy/v5 v5.9.0 h1:jItGXszUDRtR/AlferWPTMN4j38BQ88XnXKbilmmBPA=

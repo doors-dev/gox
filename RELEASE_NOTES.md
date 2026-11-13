@@ -40,6 +40,7 @@
 - Formatter: a `<script>` or `<style>` element inside the attribute of another `<script>` or `<style>` with a body (`<script x=(<style>a</style>)>x</script>`) crashed `gox fmt` and the language server. The inner element's CSS or JS is now left as topiary writes it.
 - Formatter: the parentheses of `~( )` around a literal were removed even when a comment was inside, which changed the rendered page: `~(/* note */ "Hi")` rendered `"Hi"` with its quotes, and `~("Hi" /* c */)` rendered the comment.
 - gen, fmt and LSP: a `<` at the start of a Go expression in a `<script>` or `<style>` attribute (`<script data-x=(<)>`, typed on the way to `<-ch`) crashed gox, and the language server could not start while such a file was saved. It is now a syntax error.
+- `<script>` and `<style>` bodies whose last line ended in `<` or in part of an end tag (`a <`, `a </s`) failed to parse, and `<</script>`, `<</style>` and `<</:>` never closed their element. They now parse as text.
 - gen and LSP: a `.gox` without a package clause (empty or comment-only, for example) produced a `.x.go` without one, and gen reported success. It is now a syntax error.
 - gen and LSP: a `.x.go` with CRLF line endings (from a Git checkout with `core.autocrlf`, for example) skipped the newer-version check, so `gox gen` overwrote a file written by a newer GoX with older code.
 - LSP: gopls's copy of a `.x.go` went stale when its `.gox` was reopened while the `.x.go` buffer was open, or when the `.x.go` was opened alone, so requests failed with "column is beyond end of line" or "line number N out of range".
@@ -66,4 +67,4 @@
 ## Compatibility
 
 - Verified against gopls v0.24.0.
-- Grammar: tree-sitter-gox v0.3.1.
+- Grammar: tree-sitter-gox v0.3.2.
