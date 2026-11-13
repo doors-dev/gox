@@ -33,6 +33,8 @@
 - Formatter: blank lines inside blocks no longer carry indentation, and one blank line between entries of var, const and type groups, struct fields, interface members and composite literals is kept. Nearly every file formatted by v0.3.5 changes on the first `gox fmt` after upgrading; run `gox fmt` and then `gox gen`.
 - Formatter: spacing around `~//` and `~/* */` comments in markup is kept as written. `two~/* c */three` used to get spaces, changing the rendered text.
 - Formatter: multi-line comments in markup got spaces added to their other lines. A `~/* */` after another node gained a space on every run, and a re-indented `<!-- -->` changed the emitted comment text.
+- Formatter: the other lines of a multi-line Go `/* */` comment were re-indented, and a file-header comment (a license, for example) gained a space on every run. They are now kept as written.
+- Formatter: the line break before `</:>` was removed, changing the raw HTML a `<:>` block emits.
 - Formatter: in files with CRLF line endings, multi-line raw strings and `<:>` blocks kept their CRLF line breaks, so the formatted file mixed line endings. Their line breaks are now LF like the rest of the file.
 - Formatter: some CRLF files made `gox fmt` crash, for example a bare `~` followed by a `//` comment on a later line.
 - Formatter: a `<script>` or `<style>` element inside the attribute of another `<script>` or `<style>` with a body (`<script x=(<style>a</style>)>x</script>`) crashed `gox fmt` and the language server. The inner element's CSS or JS is now left as topiary writes it.
