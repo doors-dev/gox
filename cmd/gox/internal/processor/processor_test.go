@@ -1827,3 +1827,25 @@ func TestGenerateRefusesMissingPackageClauseAndKeepsTarget(t *testing.T) {
 		})
 	}
 }
+
+func TestFormatScriptAndStyleInsideScriptAttribute(t *testing.T) {
+	for _, tc := range []struct {
+		src  string
+		want string
+	}{
+		{
+			"package demo\n\nelem A() {\n\t<div>\n\t\t<script x=(<style>a</style>)>x</script>\n\t</div>\n}\n",
+			"package demo\n\nelem A() {\n\t<div>\n\t\t<script x=(<style>a</style>)>\n\t\t\tx\n\t\t</script>\n\t</div>\n}\n",
+		},
+		{
+			"package demo\n\nelem A() {\n\t<div>\n\t\t<style x=(<script>{ 1</script>)>x</style>\n\t</div>\n}\n",
+			"package demo\n\nelem A() {\n\t<div>\n\t\t<style x=(<script>{ 1</script>)>\n\t\t\tx\n\t\t</style>\n\t</div>\n}\n",
+		},
+		{
+			"package demo\n\nelem A() {\n\t<div>\n\t\t<script x=\"1\">x</script><script x=(<div><style>a</style></div>)>x</script>\n\t</div>\n}\n",
+			"package demo\n\nelem A() {\n\t<div>\n\t\t<script x=\"1\">\n\t\t\tx\n\t\t</script>\n\t\t<script x=(<div><style>a</style></div>)>\n\t\t\tx\n\t\t</script>\n\t</div>\n}\n",
+		},
+	} {
+		checkFormat(t, tc.src, tc.want)
+	}
+}

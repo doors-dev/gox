@@ -35,6 +35,7 @@
 - Formatter: multi-line comments in markup got spaces added to their other lines. A `~/* */` after another node gained a space on every run, and a re-indented `<!-- -->` changed the emitted comment text.
 - Formatter: in files with CRLF line endings, multi-line raw strings and `<:>` blocks kept their CRLF line breaks, so the formatted file mixed line endings. Their line breaks are now LF like the rest of the file.
 - Formatter: some CRLF files made `gox fmt` crash, for example a bare `~` followed by a `//` comment on a later line.
+- Formatter: a `<script>` or `<style>` element inside the attribute of another `<script>` or `<style>` with a body (`<script x=(<style>a</style>)>x</script>`) crashed `gox fmt` and the language server. The inner element's CSS or JS is now left as topiary writes it.
 - Formatter: the parentheses of `~( )` around a literal were removed even when a comment was inside, which changed the rendered page: `~(/* note */ "Hi")` rendered `"Hi"` with its quotes, and `~("Hi" /* c */)` rendered the comment.
 - gen, fmt and LSP: a `<` at the start of a Go expression in a `<script>` or `<style>` attribute (`<script data-x=(<)>`, typed on the way to `<-ch`) crashed gox, and the language server could not start while such a file was saved. It is now a syntax error.
 - gen and LSP: a `.gox` without a package clause (empty or comment-only, for example) produced a `.x.go` without one, and gen reported success. It is now a syntax error.

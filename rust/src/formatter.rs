@@ -151,6 +151,9 @@ impl External {
                 end_pos: node.end_position(),
             });
         }
+        if inside_head(node) {
+            return None;
+        }
         let content = node.child_by_field_name("content")?;
         let open = node.child_by_field_name("open")?;
         let close = node.child_by_field_name("close")?;
@@ -166,6 +169,17 @@ impl External {
             end_pos: close.start_position(),
         })
     }
+}
+
+fn inside_head(node: Node<'_>) -> bool {
+    let mut parent = node.parent();
+    while let Some(p) = parent {
+        if p.kind() == "gox_script_head" || p.kind() == "gox_style_head" {
+            return true;
+        }
+        parent = p.parent();
+    }
+    false
 }
 
 fn node_text<'t>(text: &'t [u8], node: Node<'_>) -> Option<&'t str> {
