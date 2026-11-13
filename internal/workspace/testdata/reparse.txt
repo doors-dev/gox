@@ -1,0 +1,57 @@
+package attr
+import (
+)
+func (d *hookFragment) attr() []gox.Modify {
+	return []gox.Modify{
+		doors.ARawHook{
+			On: func(ctx context.Context, r doors.RequestRawHook) bool {
+				if err != nil {
+				}
+			},
+		},
+		doors.AData{
+		},
+	}
+}
+elem (f *hookFragment) Main() {
+	<script (f.attr()...)>
+	</script>
+}
+type multiHookFragment struct {
+}
+func (d *multiHookFragment) attr() []gox.Modify {
+	return []gox.Modify{
+		doors.ARawHook{
+			On: func(ctx context.Context, r doors.RequestRawHook) bool {
+				body, _ := io.ReadAll(r.Body())
+				var str string
+				json.Unmarshal(body, &str)
+				d.mu.Lock()
+				d.n++
+				n := d.n
+				if n == 3 {
+					close(d.gate)
+				}
+				d.mu.Unlock()
+				if n <= 3 {
+					select {
+					}
+				}
+			},
+		},
+	}
+}
+elem (f *multiHookFragment) Main() {
+	~>doors.AClick{
+		On: func(ctx context.Context, r doors.RequestEvent[doors.PointerEvent]) bool {
+		},
+	} <div id="bubble-parent">
+	~>doors.AKeyDown{
+		On: func(ctx context.Context, r doors.RequestEvent[doors.KeyboardEvent]) bool {
+		},
+	} <input id="keys-ctrl" type="text"/>
+	~>doors.AKeyDown{
+		On: func(ctx context.Context, r doors.RequestEvent[doors.KeyboardEvent]) bool {
+		},
+	} <div id="coord-target">click-me</div>
+}

@@ -64,3 +64,11 @@ func (d Doc) SourcePatch(enc common.Encoding, ran common.Range, content string) 
 	d.tree = d.parser.Parse(d.source.Source(), oldTree)
 	return true, nil
 }
+
+func (d Doc) Reparse() {
+	if !d.tree.RootNode().HasError() {
+		return
+	}
+	d.tree.Close()
+	d.tree = d.parser.Parse(d.source.Source(), nil)
+}

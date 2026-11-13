@@ -47,6 +47,7 @@
 - LSP: workspace folder changes dropped open documents. Removing a folder left its open buffers unserved, and adding a parent folder replaced open documents with copies from disk, losing unsaved text. A folder replaced by its subfolder in one event left nothing served, and a nested folder was forgotten when its parent was removed.
 - LSP: closing a `.gox` without saving now returns the document, gopls, the open `.x.go` buffer and the `.x.go` on disk to the file on disk.
 - LSP: a `.gox` that is not open is re-read when it changed on disk (after `git checkout`, for example). A rename or code action that touched it used to edit the wrong text. Now, when a code action is listed with such an edit, no code actions from gopls are listed until the next request, and a rename, or resolving or running such a code action, is refused with a request to try again.
+- LSP: after some edit and undo sequences, the incremental reparse kept syntax errors that were no longer in the text. The editor showed them, and the generated code sent to gopls and written to the `.x.go` on save could be built around them, until an edit near them or a restart of gox.
 - LSP: clients that send only `rootUri` or `rootPath` (or `workspaceFolders: null`) got no `.gox` support.
 
 ## Build

@@ -120,11 +120,13 @@ func initClientNotifs(sess *session, on func(on onNotif, m ...method)) {
 				return
 			}
 			updated := false
+			patched := false
 			for _, change := range changes {
 				var upd bool
 				if change.HasRange {
 					upd, err = doc.SourcePatch(sess.enc(), change.Range, change.Text)
 					updated = updated || upd
+					patched = patched || upd
 				} else {
 					upd, err = doc.SourceUpdate(change.Text)
 					updated = updated || upd
@@ -136,6 +138,9 @@ func initClientNotifs(sess *session, on func(on onNotif, m ...method)) {
 			if err != nil {
 				n.err(common.FromErr(jsonrpc2.ErrInternal, err))
 				return
+			}
+			if patched {
+				doc.Reparse()
 			}
 			if updated {
 				doc.Assemble()
