@@ -55,7 +55,7 @@
 
 ## Docs
 
-- llms.md: the section on the removed legacy forms is gone, and type parameters on elems and generic methods are documented.
+- llms.md: new section on implicit end tags; corrected the text whitespace rules, attribute literals (Go strings, no single quotes), entities in attribute values, the `gen` workflow (recursive, `-check`), the inline `ModifyFunc`/`ProxyFunc` signatures and attribute order; notes in markup examples are `~//` comments; the removed legacy forms and the version-sync advice are gone; type parameters on elems and generic methods are documented.
 
 ## Notes
 
