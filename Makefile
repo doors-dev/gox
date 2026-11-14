@@ -4,7 +4,7 @@ RUSTC ?= rustc
 RUST_MANIFEST := rust/Cargo.toml
 RUST_LIB := rust/lib
 RUST_OBJCOPY := $(shell $(RUSTC) --print target-libdir)/../bin/rust-objcopy
-OBJCOPY ?= $(firstword $(wildcard $(RUST_OBJCOPY) $(RUST_OBJCOPY).exe) $(shell command -v llvm-objcopy) objcopy)
+OBJCOPY ?= $(shell for c in "$(RUST_OBJCOPY)" llvm-objcopy objcopy; do "$$c" --version >/dev/null 2>&1 && { echo "$$c"; break; }; done)
 
 .PHONY: build_rust build install tidy clean
 
