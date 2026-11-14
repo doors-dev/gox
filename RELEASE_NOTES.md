@@ -54,6 +54,7 @@
 ## Build
 
 - `make build_rust` builds with `cargo build --locked`.
+- `make build_rust` puts the Rust library in `rust/lib` and strips its LLVM bitcode sections, which Go 1.27.4 and 1.26.11 refuse to link.
 
 ## Docs
 

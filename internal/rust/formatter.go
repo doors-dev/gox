@@ -1,7 +1,7 @@
 package rust
 
 /*
-#cgo LDFLAGS: -L${SRCDIR}/../../rust/target/release -lgox
+#cgo LDFLAGS: -L${SRCDIR}/../../rust/lib -lgox
 #cgo windows LDFLAGS: -Wl,-Bstatic -lunwind -Wl,-Bdynamic
 #cgo windows LDFLAGS: -lws2_32 -luserenv -lntdll
 #cgo linux LDFLAGS: -lm
