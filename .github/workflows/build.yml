@@ -1,0 +1,114 @@
+name: Build
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            goos: Linux
+            goarch: amd64
+            exe: gox
+          - os: ubuntu-24.04-arm
+            goos: Linux
+            goarch: arm64
+            exe: gox
+          - os: macos-latest
+            goos: Darwin
+            goarch: arm64
+            exe: gox
+          - os: macos-15-intel
+            goos: Darwin
+            goarch: amd64
+            exe: gox
+          - os: windows-latest
+            goos: Windows
+            goarch: amd64
+            exe: gox.exe
+          - os: windows-11-arm
+            goos: Windows
+            goarch: arm64
+            exe: gox.exe
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        if: runner.os != 'Windows'
+        with:
+          go-version: "stable"
+          cache: true
+
+      - name: Install Rust (Linux/macOS)
+        if: runner.os != 'Windows'
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux deps
+        if: matrix.goos == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y build-essential
+
+      - name: Setup MSYS2 (Windows amd64)
+        if: matrix.goos == 'Windows' && matrix.goarch == 'amd64'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          path-type: inherit
+          install: >-
+            make
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-go
+            mingw-w64-x86_64-rust
+            mingw-w64-x86_64-libunwind
+            
+      - name: Setup MSYS2 (Windows arm64)
+        if: matrix.goos == 'Windows' && matrix.goarch == 'arm64'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: CLANGARM64
+          update: true
+          path-type: inherit
+          install: >-
+            make
+            mingw-w64-clang-aarch64-toolchain
+            mingw-w64-clang-aarch64-go
+            mingw-w64-clang-aarch64-rust
+
+      - name: Build (Linux/macOS)
+        if: matrix.goos != 'Windows'
+        run: make build
+          
+      - name: Build (Windows)
+        if: matrix.goos == 'Windows'
+        shell: msys2 {0}
+        env:
+          CGO_ENABLED: "1"
+          CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+        run: |
+          set -euxo pipefail
+          git reset --hard
+          git clean -fdx
+          make build
+          
+      - name: Stage output
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p out
+          cp -f "./${{ matrix.exe }}" "out/${{ matrix.exe }}"
+          cp -f LICENSE out/LICENSE
+
+      - name: Upload build output (per platform)
+        uses: actions/upload-artifact@v4
+        with:
+          name: gox_${{ matrix.goos }}_${{ matrix.goarch }}
+          path: out/
