@@ -99,6 +99,20 @@ jobs:
           git clean -fdx
           make build
           
+      - name: Smoke test
+        shell: bash
+        run: |
+          set -euxo pipefail
+          ./${{ matrix.exe }} ver
+          mkdir smoke && cd smoke
+          printf 'package smoke\n\nelem A() {\n\t<div>\n\t\t<script>\n\t\t\tlet   a=1\n\t\t</script>\n\t\t<style>\n\t\t\ta{color:red}\n\t\t</style>\n\t\t<p>hi</p>\n\t</div>\n}\n' > a.gox
+          ../${{ matrix.exe }} fmt -no-go .
+          ../${{ matrix.exe }} fmt -no-go -check .
+          grep -q 'let a = 1' a.gox
+          grep -q 'color: red;' a.gox
+          ../${{ matrix.exe }} gen .
+          grep -q 'Init("script")' a.x.go
+
       - name: Stage output
         shell: bash
         run: |
