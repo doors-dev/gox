@@ -3,7 +3,7 @@ package rust
 /*
 #cgo LDFLAGS: -L${SRCDIR}/../../rust/lib -lgox
 #cgo windows LDFLAGS: -Wl,-Bstatic -lunwind -Wl,-Bdynamic
-#cgo windows LDFLAGS: -lws2_32 -luserenv -lntdll
+#cgo windows LDFLAGS: -lws2_32 -luserenv -lntdll -lsynchronization
 #cgo linux LDFLAGS: -lm
 #include <stdint.h>
 #include <stdlib.h>
